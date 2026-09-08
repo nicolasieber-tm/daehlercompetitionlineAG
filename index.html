@@ -132,6 +132,31 @@ section + section{border-top:1px solid var(--line)}
 .upsell .u span em{font-style:normal;color:var(--blue2)}
 .upsell.added{border-style:solid;border-color:var(--ok)}
 .note{margin-top:14px;font-size:13px;color:var(--dim)}
+.delta{margin-top:20px;display:flex;align-items:center;gap:18px;border:1px solid var(--line);background:var(--panel);padding:14px 18px;flex-wrap:wrap}
+.delta .n{font-family:var(--display);font-weight:700;font-size:44px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.delta .n.to{color:var(--blue2)}
+.delta .arr{color:var(--dim);font-size:26px}
+.delta .u{font-family:var(--display);text-transform:uppercase;letter-spacing:.1em;font-size:12px;color:var(--muted);font-weight:600;display:block;margin-top:2px}
+.delta .plus{margin-left:auto;font-family:var(--mono);font-size:13px;color:var(--ok)}
+.ba{margin-top:24px;border:1px solid var(--line);background:var(--panel)}
+.ba .h{display:grid;grid-template-columns:120px 1fr 1fr;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);font-family:var(--display);text-transform:uppercase;letter-spacing:.1em;font-size:12px;color:var(--muted);font-weight:600}
+.ba .h span:last-child{color:var(--blue2)}
+.ba .r{display:grid;grid-template-columns:120px 1fr 1fr;gap:12px;padding:11px 16px;border-bottom:1px solid var(--line);font-size:15px;align-items:baseline}
+.ba .r:last-child{border-bottom:0}
+.ba .r .c{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:14px;color:var(--muted);font-weight:600}
+.ba .r .v{color:var(--dim)}
+.ba .r .n{color:var(--text)}
+.ba .r .n b{font-family:var(--display);font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.ba .r .v b{font-family:var(--display);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted)}
+.share{margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.share button{border:1px solid var(--line2);background:var(--panel);padding:16px;text-align:left;display:flex;flex-direction:column;gap:4px;transition:border-color .12s}
+.share button:hover{border-color:var(--blue2)}
+.share button b{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:18px;font-weight:600}
+.share button span{font-size:13px;color:var(--muted)}
+.share button.ok{border-color:var(--ok)}
+.share button.ok b{color:var(--ok)}
+.share code{font-family:var(--mono);font-size:12px;color:var(--text);word-break:break-all}
+@media (max-width:600px){.ba .h,.ba .r{grid-template-columns:1fr}.ba .h span:first-child,.ba .r .c{display:none}.share{grid-template-columns:1fr}}
 /* done */
 .done .q{font-size:clamp(34px,5vw,48px)}
 .summary{margin-top:24px;border:1px solid var(--line);background:var(--panel)}
@@ -457,6 +482,7 @@ function render(){
       <button class="btn" ${canNext()?'':'disabled'} onclick="go(1)">${cur==='contact'?'Anfrage abschicken':'Weiter'} →</button></div></div>`;
   }
   f.innerHTML=h;
+  animCount();
   renderIntern();
 }
 function viewCar(){
@@ -481,6 +507,8 @@ function viewCat(c){
   let h=`<div class="stephead"><div><div class="step-label">${cat.t} · ${m.t} ${m.c}</div><div class="q">${c==='motor'?'Wie viel darf\'s sein?':c==='auspuff'?'Welcher Sound?':c==='fahrwerk'?'Wie tief, wie hart?':c==='raeder'?'Welche Räder?':c==='exterieur'?'Was kommt dran?':'Was kommt rein?'}</div></div>${ph?`<div class="ph" style="background-image:url(${ph})"></div>`:''}</div>
   <p class="sub">${hasData()?`Richtpreise «ab» aus unserer Produkteliste für den ${m.t} ${m.c}, inklusive Einbau, ohne MFK.`:`Für den ${m.t} nennen wir dir die Preise persönlich.`}${os.some(o=>o.x)&&os.some(o=>!o.x)?' Eine Variante, Ergänzungen beliebig dazu.':' Mehrfachauswahl möglich.'}</p>
   <div class="grid ${os.length>3?'c2':'c3'}">${os.map((o,i)=>`<button class="tile ${picked.includes(o.t)?'on':''}" onclick="pickOpt('${c}',${i})"><span class="t">${esc(o.t)}</span><span class="d">${o.d}</span><span class="p ${o.p?'':'na'}">${o.p?'ab '+chf(o.p):(o.na||'')}</span></button>`).join('')}</div>`;
+  if(c==='motor'&&m.ps){ const st=os.find(o=>picked.includes(o.t)&&/^Stufe/.test(o.t)); const tgt=st?parseInt(st.d):null;
+    h+=`<div class="delta"><div><span class="n">${m.ps}</span><span class="u">PS Serie</span></div><span class="arr">→</span><div><span class="n to" id="psCount" data-from="${m.ps}" data-to="${tgt||m.ps}">${tgt||m.ps}</span><span class="u">${st?'PS mit '+st.t:'PS · wähl eine Stufe'}</span></div>${tgt?`<span class="plus">+${tgt-m.ps} PS · ${st.d.split(' · ')[1]||''}</span>`:''}</div>`; }
   if(fu) h+=`<div class="step-label" style="margin-top:26px">${fu.q}</div><div class="chips" style="margin-top:6px">${fu.o.map(o=>`<button class="chip ${S.follow[c]===o?'on':''}" onclick="S.follow['${c}']='${o}';render()">${o}</button>`).join('')}</div>`;
   if(up && !S.cats.includes(up.cat)){ const uc=CATS.find(x=>x.id===up.cat); const first=opts(up.cat)[0];
     h+=`<div class="upsell"><div class="u"><b>Passt gut dazu: ${uc.t}</b><span>${up.txt}${first.p?` <em>${first.t} ab ${chf(first.p)}</em>`:''}</span></div><button class="btn line" onclick="addCat('${up.cat}')">Dazunehmen</button></div>`; }
@@ -512,8 +540,10 @@ function viewContact(){
 function viewDone(){
   const m=model(); const L=lines(); const t=total();
   return `<div class="done"><div class="step-label">Anfrage eingegangen · Nr. ${S.ticketNo}</div><div class="q">Merci, ${S.first}. Das wird gut.</div>
-  <p class="sub">Dein ${m.t} ${m.c} ist bei uns notiert. Wir prüfen jetzt, was in der Kombination passt, und melden uns innert einem Arbeitstag per ${S.chan}.</p>
-  ${IMG[m.id]?`<div class="carshot" style="background-image:url(${IMG[m.id]})"><span>${m.t} ${m.c} · dein Paket</span></div>`:''}
+  <p class="sub">Dein ${m.t} ${m.c} ist bei uns notiert. Bestätigung mit dieser Übersicht ist unterwegs an ${S.mail}. Wir prüfen, was in der Kombination passt, und melden uns innert einem Arbeitstag per ${S.chan}.</p>
+  ${IMG[m.id]?`<div class="carshot" style="background-image:url(${IMG[m.id]})"><span>${m.t} ${m.c} · vorher / nachher</span></div>`:''}
+  ${beforeAfter()}
+  <div class="share"><button onclick="shareLink(this)"><b>Dein Paket als Link</b><span>Zum Teilen mit Kollegen, Partnerin, Stammtisch.</span></button><button onclick="shareMail(this)"><b>Zusammenfassung an mich senden</b><span>Als Mail, mit allem, was du gerade gewählt hast.</span></button></div>
   <div class="summary"><div class="h"><span>Dein Paket</span><span>${m.t} ${m.c} · ${S.year} · ${S.char}</span></div>
   <ul>${L.map(l=>`<li><div><span>${l.cat}</span> &nbsp;${l.t}${l.d?` <span>· ${l.d}</span>`:''}</div><em>${l.p?'ab '+chf(l.p):(l.na||'auf Anfrage')}</em></li>`).join('')}${S.beratung?'<li><div><span>Komplettpaket</span> &nbsp;Beratung gewünscht</div><em>–</em></li>':''}</ul>
   <div class="tot"><span>Richtpreis, unverbindlich${L.some(l=>!l.p)?', ohne Positionen auf Anfrage':''}</span><b>${t?'ab '+chf(t):'auf Anfrage'}</b></div></div>
@@ -521,6 +551,24 @@ function viewDone(){
   <div class="nav"><button class="btn ghost" onclick="restart()">Nochmals von vorne</button><button class="btn" onclick="setView('intern')">So kommt es bei dÄHLer an →</button></div></div>`;
 }
 
+let lastTo=null;
+function animCount(){ const el=$('#psCount'); if(!el) return; const from=+el.dataset.from, to=+el.dataset.to; if(to===lastTo){el.textContent=to;return;} lastTo=to;
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches||to===from){el.textContent=to;return;}
+  const t0=performance.now(), dur=650; (function tick(t){ const k=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-k,3); el.textContent=Math.round(from+(to-from)*e); if(k<1) requestAnimationFrame(tick); })(t0); }
+function beforeAfter(){
+  const m=model(); const P=k=>S.pick[k]||[]; const rows=[];
+  const st=opts('motor').find(o=>P('motor').includes(o.t)&&/^Stufe/.test(o.t));
+  if(S.cats.includes('motor')){ const extra=P('motor').filter(t=>!/^Stufe/.test(t)); rows.push({c:'Leistung',v:m.ps?`<b>${m.ps}</b> PS · ${m.nm} Nm`:'Serie',n:st&&st.d?`<b>${st.d.split(' · ')[0].replace(' PS','')}</b> PS · ${st.d.split(' · ')[1]||''}${extra.length?' · '+extra.join(', '):''}`:(P('motor').length?P('motor').join(', '):'Beratung')}); }
+  if(S.cats.includes('auspuff')) rows.push({c:'Sound',v:'Serienanlage',n:P('auspuff').length?P('auspuff').join(' + ')+(S.follow.auspuff?' · '+S.follow.auspuff.toLowerCase():''):'Beratung'});
+  if(S.cats.includes('fahrwerk')){ const f=opts('fahrwerk').find(o=>P('fahrwerk').includes(o.t)); rows.push({c:'Fahrwerk',v:'Serienhöhe',n:f?f.t+(f.d?' · '+f.d:''):'Beratung'}); }
+  if(S.cats.includes('raeder')) rows.push({c:'Räder',v:'Serienräder',n:P('raeder').length?P('raeder').join(' + ')+(S.follow.raeder?' · '+S.follow.raeder.toLowerCase():''):'Beratung'});
+  if(S.cats.includes('exterieur')) rows.push({c:'Exterieur',v:'Serie',n:P('exterieur').length?P('exterieur').join(', '):'Beratung'});
+  if(S.cats.includes('interieur')) rows.push({c:'Interieur',v:'Serie',n:P('interieur').length?P('interieur').join(', '):'Beratung'});
+  rows.push({c:'Charakter',v:'Ab Werk',n:S.char});
+  return `<div class="ba"><div class="h"><span></span><span>Vorher</span><span>Nachher · by dÄHLer</span></div>${rows.map(r=>`<div class="r"><span class="c">${r.c}</span><span class="v">${r.v}</span><span class="n">${r.n}</span></div>`).join('')}</div>`;
+}
+function shareLink(b){ b.classList.add('ok'); b.innerHTML=`<b>Link kopiert</b><code>daehler.com/p/${S.ticketNo}-${S.model}</code><span>Schick ihn dem Kollegen, der auch schon lange überlegt.</span>`; }
+function shareMail(b){ b.classList.add('ok'); b.innerHTML=`<b>Unterwegs an ${S.mail}</b><span>Vorher/Nachher, dein Paket und der Richtpreis. Zum Zeigen, zum Überlegen, zum Weiterleiten.</span>`; }
 /* ---------------- interactions ---------------- */
 function setBrand(b){ S.brand=b; const first=MODELS.find(m=>m.b===b); S.model=first.id; S.pick={}; render(); }
 function setModel(id){ if(S.model!==id){ S.model=id; S.pick={}; } render(); }
