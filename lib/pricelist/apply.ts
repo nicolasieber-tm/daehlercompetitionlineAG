@@ -12,7 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import type { Product, ProductInsert } from "@/lib/supabase/rows";
 import { SEED_PHOTOS } from "@/lib/catalog/seed-photos";
-import { buildProductPools, matchProduct } from "./diff";
+import { loadFitsByProductId, matchFamilyProducts } from "./diff";
 import type { ParsedFamily } from "./types";
 
 type Db = SupabaseClient<Database>;
@@ -203,22 +203,31 @@ function buildProductRow(familyId: string, p: ParsedFamily["products"][number]):
 }
 
 async function planProducts(familyId: string, parsed: ParsedFamily, db: Db): Promise<ProductPlan> {
-  const { data: dbProducts, error } = await db
+  const { data, error } = await db
     .from("products")
     .select("*")
     .eq("family_id", familyId)
     .eq("active", true);
   if (error) throw new Error(`products laden fehlgeschlagen: ${error.message}`);
+  const dbProducts = (data ?? []) as Product[];
 
-  const pools = buildProductPools((dbProducts ?? []) as Product[]);
-  const used = new Set<string>();
+  // Gleiche Match-Logik wie diff.ts (siehe dortiger Kommentar zu Befund #2):
+  // drei volle Durchgänge (content_hash -> article_no+name -> name+category)
+  // statt zeilenweise, plus Fits VOR dem Matching laden, da
+  // matchFamilyProducts() sie zur Kandidaten-Auswahl bei Mehrdeutigkeit
+  // braucht (identisches Fitment als Tie-Breaker neben source_row).
+  const oldFitsByProductId = await loadFitsByProductId(
+    db,
+    dbProducts.map((p) => p.id),
+  );
+  const { matches, removedProducts } = matchFamilyProducts(parsed.products, dbProducts, oldFitsByProductId);
 
   const toUpdate: ProductPlan["toUpdate"] = [];
   const updateFits: ProductPlan["updateFits"] = [];
   const toInsert: ProductPlan["toInsert"] = [];
 
-  for (const p of parsed.products) {
-    const match = matchProduct(p, pools, used);
+  parsed.products.forEach((p, i) => {
+    const match = matches[i];
     const row = buildProductRow(familyId, p);
     if (match) {
       toUpdate.push({ id: match.product.id, row });
@@ -226,9 +235,9 @@ async function planProducts(familyId: string, parsed: ParsedFamily, db: Db): Pro
     } else {
       toInsert.push({ sourceRow: p.sourceRow, row, fits: p.fits, fitsAll: p.fitsAll });
     }
-  }
+  });
 
-  const removedIds = (dbProducts ?? []).filter((p) => !used.has(p.id)).map((p) => p.id);
+  const removedIds = removedProducts.map((p) => p.id);
 
   return { toUpdate, toInsert, updateFits, removedIds };
 }

@@ -85,7 +85,26 @@ export async function sendInquiryMail(
     }
   }
 
-  const to = type === "inbox" ? (await getSettings()).mail_inbox : iCtx.inquiry.email;
+  // getSettings() wirft bei DB-Fehler (lib/mail/settings.ts). sendInquiryMail()
+  // darf trotzdem nie nach aussen werfen (die Anfrage ist zu diesem Zeitpunkt
+  // bereits gespeichert, siehe Aufrufer in create.ts), deshalb hier
+  // abgefangen statt den Fehler durchzureichen (Befund 2).
+  let to: string | undefined | null;
+  if (type === "inbox") {
+    try {
+      to = (await getSettings()).mail_inbox;
+    } catch (err) {
+      console.error("sendInquiryMail: settings für mail_inbox konnten nicht geladen werden.", err);
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        error: `sendInquiryMail: mail_inbox nicht ermittelbar: ${message}`,
+        outboundEmailId: randomUUID(),
+      };
+    }
+  } else {
+    to = iCtx.inquiry.email;
+  }
   if (!to) {
     return {
       ok: false,

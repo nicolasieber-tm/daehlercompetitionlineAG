@@ -638,6 +638,51 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
     return p !== null || ins !== null || appr !== null || tot !== null;
   }
 
+  interface RowFields {
+    name: string | null;
+    nameB: string | null;
+    rc: string | null;
+    articleNo: string | null;
+    pricePrefix: string | null;
+    marksNames: string[];
+    pParts: number | string | null;
+    pInstall: number | string | null;
+    pApproval: number | string | null;
+    pTotal: number | string | null;
+    anyPriceFilled: boolean;
+    zeroed: boolean;
+  }
+
+  /** Alle je Zeile benötigten Felder an einer Stelle extrahiert, damit sie
+   * sowohl für die aktuelle Zeile als auch für einen Lookahead auf die
+   * Folgezeile (Radsatz-Sonderfall unten) identisch berechnet werden. */
+  function extractRowFields(row: unknown[]): RowFields {
+    const { name, nameB } = rowName(row);
+    const rc = rcIdx >= 0 ? trimOrNull(row[rcIdx]) : null;
+    const articleNoRaw = row[numberColIdx];
+    const articleNo =
+      typeof articleNoRaw === "number" ? String(articleNoRaw) : trimOrNull(articleNoRaw);
+    // Befund #4: Präfix-Zelle links der ersten CHF-Spalte ("ab"). Befund #6:
+    // nur werten, wenn die Spalte plausibel ist (s. o.) UND der Zellwert ein
+    // kurzer Text ist - numerische Werte (interne Kalkulationsspalten) nie
+    // als Preis-Präfix interpretieren.
+    const rawPricePrefixCell = pricePrefixColValid ? row[pricePrefixCol] : null;
+    const pricePrefix =
+      typeof rawPricePrefixCell === "string" &&
+      rawPricePrefixCell.trim().length > 0 &&
+      rawPricePrefixCell.trim().length <= 20
+        ? rawPricePrefixCell.trim()
+        : null;
+    const marksNames = modelCols
+      .filter((mc) => trimOrNull(row[mc.colIdx]) === "l")
+      .map((mc) => mc.name);
+    const rawPriceCells = priceRowValues(row);
+    const zeroed = rawPriceCells.some((v) => v === 0);
+    const [pParts, pInstall, pApproval, pTotal] = rawPriceCells.map(nullZero);
+    const anyPriceFilled = pParts !== null || pInstall !== null || pApproval !== null || pTotal !== null;
+    return { name, nameB, rc, articleNo, pricePrefix, marksNames, pParts, pInstall, pApproval, pTotal, anyPriceFilled, zeroed };
+  }
+
   type Kind = "category" | "product" | "group" | "hint" | null;
 
   const products: ParsedProduct[] = [];
@@ -692,32 +737,11 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
     // Regel 2: Fusszeile
     if (isFusszeile(row)) continue;
 
-    const { name, nameB } = rowName(row);
-    const rc = rcIdx >= 0 ? trimOrNull(row[rcIdx]) : null;
-    const articleNoRaw = row[numberColIdx];
-    const articleNo =
-      typeof articleNoRaw === "number" ? String(articleNoRaw) : trimOrNull(articleNoRaw);
-    // Befund #4: Präfix-Zelle links der ersten CHF-Spalte ("ab"). Befund #6:
-    // nur werten, wenn die Spalte plausibel ist (s. o.) UND der Zellwert ein
-    // kurzer Text ist - numerische Werte (interne Kalkulationsspalten) nie
-    // als Preis-Präfix interpretieren.
-    const rawPricePrefixCell = pricePrefixColValid ? row[pricePrefixCol] : null;
-    const pricePrefix =
-      typeof rawPricePrefixCell === "string" &&
-      rawPricePrefixCell.trim().length > 0 &&
-      rawPricePrefixCell.trim().length <= 20
-        ? rawPricePrefixCell.trim()
-        : null;
-    const marksNames = modelCols
-      .filter((mc) => trimOrNull(row[mc.colIdx]) === "l")
-      .map((mc) => mc.name);
-    const rawPriceCells = priceRowValues(row);
-    const zeroed = rawPriceCells.some((v) => v === 0);
+    const { name, nameB, rc, articleNo, pricePrefix, marksNames, pParts, pInstall, pApproval, pTotal, anyPriceFilled, zeroed } =
+      extractRowFields(row);
     if (zeroed) {
       warnings.push(`Zeile ${excelRow}: Preiswert 0 ignoriert (vermutlich Datenfehler in Excel)`);
     }
-    const [pParts, pInstall, pApproval, pTotal] = rawPriceCells.map(nullZero);
-    const anyPriceFilled = pParts !== null || pInstall !== null || pApproval !== null || pTotal !== null;
 
     // Regel 3: Kategorie (nur Spalte B hat Inhalt)
     const onlyColB = row.every((v, idx) => idx === 1 || v === null || v === undefined || v === "");
@@ -912,6 +936,91 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
       previousProduct = null;
       currentHint = null;
       continue;
+    }
+
+    // Sonderfall Radsatz-Block, nicht in docs/excel-import.md beschrieben
+    // (Prüfbericht Modul Parser, Befund 1): "<...> Radsatz ... bestehend
+    // aus:" ohne eigenen Preis, unmittelbar gefolgt von der Dimensionszeile
+    // (beginnt mit einer Ziffer, z. B. "9 x 20\" mit 245/45 20"), die den
+    // Preis trägt. Normalerweise (Doku, Regel 6) trägt genau diese Zeile
+    // selbst den Preis und wird direkt über Regel 5 zum Produkt; in einer
+    // Minderheit der Radsatz-Blöcke (X3 G01/X4 G02, X5 G05/X6 G06,
+    // X5M F95 LCI/X6M F96 LCI, X7 G07, XM G09) steht der Preis stattdessen
+    // auf der Dimensionszeile - RC/Artikelnummer/Marker sind mal auf der
+    // einen, mal auf der anderen Zeile verteilt (beide Varianten kommen
+    // vor). Ohne Sonderbehandlung würde Regel 6 diese Zeile zur
+    // Gruppenzeile machen, die Dimensionszeile würde über Regel 5 fälschlich
+    // selbst zum Produkt (Name nur die Dimension, z. B. "9 x 20\" mit
+    // 245/45 20" statt "CDC1 FORGED Radsatz bestehend aus:") und
+    // group_label würde mangels Reset an alle nachfolgenden
+    // Zubehör-Produkte der Kategorie (Adaptersatz, Aufpreis Lackierung,
+    // RDCi-Sensoren, Mobility-System, bei XM G09 auch Distanzscheiben)
+    // vererbt. Deshalb: die "bestehend aus:"-Zeile wird selbst zum Produkt
+    // (Name), RC/Artikelnummer/Marker/Preis werden aus beiden Zeilen
+    // zusammengeführt (je die gefüllte Zelle gewinnt, Preis kommt zwingend
+    // von der Dimensionszeile, da die Gruppenzeile laut Bedingung keinen
+    // hat), die Dimensionszeile wird zur ersten Beschreibungszeile
+    // (weitere Grössen folgen wie gewohnt über Regel 7). group_label bleibt
+    // unverändert (wird NICHT auf diese Zeile gesetzt) - das verhindert die
+    // Vererbung an die nachfolgenden Zubehör-Produkte. Muss vor Regel 5b
+    // geprüft werden, sonst nimmt Regel 5b Zeilen mit Artikelnummer auf der
+    // Gruppenzeile (X5 G05/X6 G06) vorweg.
+    const radsatzBestehendAusOhnePreis =
+      !!name && !anyPriceFilled && /Radsatz.*bestehend aus:$/i.test(name);
+    if (radsatzBestehendAusOhnePreis && currentFlowCategory) {
+      const nextRow = rows[i + 1];
+      if (nextRow && rowHasContent(nextRow) && !isFusszeile(nextRow)) {
+        const nf = extractRowFields(nextRow);
+        if (nf.name && /^\d/.test(nf.name) && (nf.anyPriceFilled || nf.pricePrefix !== null)) {
+          if (nf.zeroed) {
+            warnings.push(
+              `Zeile ${excelRow + 1}: Preiswert 0 ignoriert (vermutlich Datenfehler in Excel)`,
+            );
+          }
+          const perf = parsePerformance(name);
+          if (perf.warning) warnings.push(`Zeile ${excelRow}: ${perf.warning}`);
+          const mergedRc = rc ?? nf.rc;
+          const mergedArticleNo = articleNo ?? nf.articleNo;
+          const mergedMarks = marksNames.length > 0 ? marksNames : nf.marksNames;
+          const fitsAll = mergedMarks.length === 0;
+          const resolved = computePriceFields(nf.pParts, nf.pInstall, nf.pApproval, nf.pTotal, nf.pricePrefix);
+          const product: ParsedProduct = {
+            sourceRow: excelRow,
+            sort: productSort++,
+            sourceCategory: currentSourceCategory ?? "",
+            category: currentFlowCategory,
+            groupLabel: currentGroupLabel,
+            name,
+            description: nf.name,
+            articleNo: mergedArticleNo,
+            rc: mergedRc,
+            pricePartsChf: resolved.pricePartsChf,
+            priceInstallChf: resolved.priceInstallChf,
+            priceApprovalChf: resolved.priceApprovalChf,
+            priceTotalChf: resolved.priceTotalChf,
+            priceStatus: resolved.priceStatus,
+            priceNote: resolved.priceNote,
+            psBase: perf.psBase,
+            psTo: perf.psTo,
+            nmTo: perf.nmTo,
+            variantGroup: variantGroupFor(currentFlowCategory, name),
+            fits: fitsAll ? [] : mergedMarks,
+            fitsAll,
+            contentHash: "",
+          };
+          product.contentHash = computeContentHash(product);
+          warnings.push(
+            `Zeile ${excelRow}: "${name}" trägt keinen eigenen Preis, Preis (und ggf. RC/Artikelnummer/Marker) aus Zeile ${excelRow + 1} ("${nf.name}") übernommen (Excel-Layoutfehler im Radsatz-Block, nicht in docs/excel-import.md beschrieben)`,
+          );
+          products.push(product);
+          lastKind = "product";
+          previousProduct = currentProduct;
+          currentProduct = product;
+          currentHint = null;
+          i++;
+          continue;
+        }
+      }
     }
 
     // Regel 5b: Produkt ohne Preisangabe, aber mit Artikelnummer (nicht 77

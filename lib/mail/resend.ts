@@ -7,6 +7,17 @@
 // Anfrage nicht verlieren: Anfrage zuerst speichern, Mailfehler in
 // outbound_emails.error"). Jeder Fehlerpfad liefert deshalb { ok: false,
 // error } statt zu werfen.
+//
+// Abweichung vom Auftrag ("Zeile in outbound_emails anlegen (status
+// pending), danach status sent/failed"): outbound_emails.status hat in
+// supabase/migrations/20260911000000_init.sql die check-Constraint
+// `status in ('sent', 'failed')` (Default 'sent'), "pending" ist dort kein
+// gültiger Wert (siehe auch docs/db.md und EmailStatus in
+// lib/supabase/rows.ts: nur "sent" | "failed"). Migrationen liegen ausserhalb
+// dieser Aufgabe. sendMail() ermittelt deshalb das Ergebnis zuerst und
+// schreibt danach genau eine Zeile mit dem finalen Status, statt eine
+// pending-Zeile vorab anzulegen und anschliessend zu aktualisieren. Siehe
+// Bericht.
 import { randomUUID } from "node:crypto";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -47,8 +58,22 @@ export function resetResendClient(): void {
   resendClient = null;
 }
 
+type Outcome = { status: "sent"; resendId: string } | { status: "failed"; error: string };
+
 export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
-  const admin = createAdminClient();
+  // createAdminClient() wirft bei fehlenden Env-Variablen (siehe
+  // lib/supabase/admin.ts). sendMail() darf trotzdem nie nach aussen werfen,
+  // deshalb hier abgefangen: ohne Admin-Client ist auch keine
+  // outbound_emails-Zeile möglich, das Ergebnis kommt also ohne
+  // Protokollzeile zurück (Befund 2).
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("sendMail: Admin-Client konnte nicht erstellt werden.", err);
+    return { ok: false, error: message, outboundEmailId: randomUUID() };
+  }
 
   let settings: Record<string, string>;
   try {
@@ -78,12 +103,37 @@ export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
     bccCandidate && bccCandidate.toLowerCase() !== effectiveTo.toLowerCase() ? bccCandidate : undefined;
   const subject = override ? `[TEST an ${originalTo}] ${input.subject}` : input.subject;
 
-  // Zeile in outbound_emails anlegen (status pending), bevor überhaupt
-  // versendet wird. Ohne inquiryId (z.B. scripts/mail-test.ts ohne echte
-  // Anfrage) gibt es keine Fremdschlüssel-Zeile, das ist kein Fehler: dann
-  // wird nur nicht protokolliert, der Versand läuft trotzdem.
+  let outcome: Outcome;
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    outcome = { status: "failed", error: "RESEND_API_KEY fehlt" };
+  } else {
+    try {
+      const client = getResendClient(apiKey);
+      const { data, error } = await client.emails.send({
+        from: `${fromName} <${fromAddress}>`,
+        to: effectiveTo,
+        subject,
+        html: input.html,
+        text: input.text,
+        bcc,
+        replyTo,
+      });
+
+      if (error || !data) {
+        outcome = { status: "failed", error: error?.message ?? "Unbekannter Fehler beim Versand über Resend." };
+      } else {
+        outcome = { status: "sent", resendId: data.id };
+      }
+    } catch (err) {
+      outcome = { status: "failed", error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  // Protokollzeile anlegen, ohne inquiryId (z.B. scripts/mail-test.ts ohne
+  // echte Anfrage) entfällt das (Fremdschlüssel outbound_emails.inquiry_id
+  // ist not null), der Versand selbst läuft trotzdem.
   let outboundEmailId: string = randomUUID();
-  let hasRow = false;
   if (input.inquiryId) {
     try {
       const { data, error } = await admin
@@ -95,64 +145,21 @@ export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
           to_email: effectiveTo,
           subject,
           body_text: input.text,
-          status: "pending",
+          status: outcome.status,
+          resend_id: outcome.status === "sent" ? outcome.resendId : null,
+          error: outcome.status === "failed" ? outcome.error : null,
+          sent_at: outcome.status === "sent" ? new Date().toISOString() : null,
         })
         .select("id")
         .single();
       if (error) throw error;
       outboundEmailId = data.id;
-      hasRow = true;
     } catch (err) {
-      console.error("sendMail: outbound_emails-Zeile (pending) konnte nicht angelegt werden.", err);
+      console.error("sendMail: outbound_emails-Zeile konnte nicht angelegt werden.", err);
     }
   }
 
-  async function finish(
-    result: { status: "sent"; resendId: string } | { status: "failed"; error: string },
-  ): Promise<void> {
-    if (!hasRow) return;
-    try {
-      const update =
-        result.status === "sent"
-          ? { status: "sent", resend_id: result.resendId, sent_at: new Date().toISOString() }
-          : { status: "failed", error: result.error };
-      const { error } = await admin.from("outbound_emails").update(update).eq("id", outboundEmailId);
-      if (error) throw error;
-    } catch (err) {
-      console.error("sendMail: outbound_emails-Zeile konnte nicht aktualisiert werden.", err);
-    }
-  }
-
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    const error = "RESEND_API_KEY fehlt";
-    await finish({ status: "failed", error });
-    return { ok: false, error, outboundEmailId };
-  }
-
-  try {
-    const client = getResendClient(apiKey);
-    const { data, error } = await client.emails.send({
-      from: `${fromName} <${fromAddress}>`,
-      to: effectiveTo,
-      subject,
-      html: input.html,
-      text: input.text,
-      ...(bcc ? { bcc } : {}),
-      ...(replyTo ? { reply_to: replyTo } : {}),
-    });
-
-    if (error || !data) {
-      const message = error?.message ?? "Unbekannter Fehler beim Versand über Resend.";
-      await finish({ status: "failed", error: message });
-      return { ok: false, error: message, outboundEmailId };
-    }
-
-    await finish({ status: "sent", resendId: data.id });
-    return { ok: true, resendId: data.id, outboundEmailId };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await finish({ status: "failed", error: message });
-    return { ok: false, error: message, outboundEmailId };
-  }
+  return outcome.status === "sent"
+    ? { ok: true, resendId: outcome.resendId, outboundEmailId }
+    : { ok: false, error: outcome.error, outboundEmailId };
 }

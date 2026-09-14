@@ -555,22 +555,48 @@ describe('Befund #1 (Bericht Runde 3): "bestehend aus:"-Sonderregel entfernt, Re
     }
   });
 
-  it("X3 G01, X4 G02: Radsatz-Gruppe ohne eigenen Preis (Regel 6) - die Reifengrössen-Zeile wird zum Produkt mit group_label", async () => {
+  it("X3 G01, X4 G02: Radsatz-Zeile ohne eigenen Preis (Prüfung Runde 5, Befund 1) - die Zeile selbst wird zum Produkt, die Dimensionszeile liefert Preis/RC/Marker und wandert in die Beschreibung", async () => {
     const buf = await readFile(join(PRICELIST_DIR, "Produkteliste X3 G01, X4 G02.xls"));
     const family = parseWorkbook(buf, "Produkteliste X3 G01, X4 G02.xls");
-    // Z86 "CDC1 FORGED Radsatz bestehend aus:" hat selbst keinen Preis ->
-    // Gruppenzeile (Regel 6); Z87 (die erste Reifengrösse) trägt Preis/RC/
-    // Marker und wird zum eigentlichen Produkt mit diesem group_label.
-    const product = family.products.find((p) => p.sourceRow === 87);
+    // Z86 "CDC1 FORGED Radsatz bestehend aus:" hat selbst keinen Preis; Z87
+    // (die erste Reifengrösse, "9 x 20\" mit 245/45 20") trägt Preis 7200,
+    // RC E und Marker. Vor der Korrektur (Prüfbericht Modul Parser, Befund
+    // 1) wurde Z86 fälschlich zur Gruppenzeile und Z87 zum Produkt mit nur
+    // der Dimension als Name - hier muss stattdessen Z86 selbst das
+    // Produkt sein, mit dem Radsatznamen, group_label unverändert (null,
+    // kein vorheriger echter Gruppentext seit dem Kategoriewechsel) und
+    // variant_group "radsatz".
+    const product = family.products.find((p) => p.sourceRow === 86);
+    expect(product?.name).toBe("CDC1 FORGED Radsatz bestehend aus:");
     expect(product?.priceStatus).toBe("priced");
     expect(product?.priceTotalChf).toBe(7200);
-    expect(product?.groupLabel).toBe("CDC1 FORGED Radsatz bestehend aus:");
+    expect(product?.rc).toBe("E");
+    expect(product?.fits.length).toBeGreaterThan(0);
+    expect(product?.description).toContain('9 x 20"  mit 245/45 20');
+    expect(product?.groupLabel).toBeNull();
+    expect(product?.variantGroup).toBe("radsatz");
+    // Die Reifengrössen-Zeile (Z87) selbst ist jetzt kein eigenes Produkt
+    // mehr.
+    expect(family.products.find((p) => p.sourceRow === 87)).toBeUndefined();
     // Die zugehörige Adaptersatz-Zeile (Z89, kein Preis, aber Artikelnummer)
     // ist ein eigenes on_request-Produkt (Regel 5b), nicht Teil der
-    // Beschreibung.
+    // Beschreibung, und erbt kein Gruppenlabel vom Radsatz mehr.
     const adapter = family.products.find((p) => p.sourceRow === 89);
     expect(adapter?.priceStatus).toBe("on_request");
     expect(adapter?.priceNote).toBe("ohne Preisangabe");
+    expect(adapter?.groupLabel).toBeNull();
+  });
+
+  it("XM G09: Zubehör nach dem Radsatz-Block (Aufpreis, RDCi, Mobility) erbt kein Radsatz-Gruppenlabel mehr", async () => {
+    const buf = await readFile(join(PRICELIST_DIR, "Produkteliste XM G09.xls"));
+    const family = parseWorkbook(buf, "Produkteliste XM G09.xls");
+    const radsatz1 = family.products.find((p) => p.sourceRow === 47);
+    expect(radsatz1?.name).toBe("CDC2 FORGED Radsatz bestehend aus:");
+    expect(radsatz1?.priceTotalChf).toBe(10900);
+    for (const row of [55, 56, 57]) {
+      const product = family.products.find((p) => p.sourceRow === row);
+      expect(product?.groupLabel, `Zeile ${row}`).toBeNull();
+    }
   });
 
   it("M2 G87: Adaptersatz-Zeilen mit eigenem Preis (330) sind ganz normale priced-Produkte", async () => {
@@ -738,6 +764,58 @@ describe("Befund #7 (Bericht Runde 3): Varianten-Gruppen auspuff - anlage vor en
     const family = parseWorkbook(buf, "Produkteliste Toyota GR Supra.xls");
     const product = family.products.find((p) => p.name.startsWith("Edelstahl Komplettanlage HP"));
     expect(product?.variantGroup).toBe("anlage");
+  });
+});
+
+describe("Prüfbericht Modul Parser, Befund 2 (Runde 5): variant_group motor - Einbau/i.V.-Zusätze nicht exklusiv zur Stufe", () => {
+  it('"Einbau Leistungssteigerung" -> null (Montagepauschale, kein eigenes Leistungsprodukt)', () => {
+    expect(variantGroupFor("motor", "Einbau Leistungssteigerung")).toBeNull();
+  });
+
+  it('"Anhebung der serienmässigen V/max. Begr. auf 327km/h i.V. mit Leistungssteigerung" -> null', () => {
+    expect(
+      variantGroupFor(
+        "motor",
+        "Anhebung der serienmässigen V/max. Begr. auf 327km/h i.V. mit Leistungssteigerung",
+      ),
+    ).toBeNull();
+  });
+
+  it('"Aufhebung der serienmässigen V/max Begrenzung ohne Leistungssteigerung" bleibt bewusst leistung (Exklusivität vertretbar)', () => {
+    expect(
+      variantGroupFor("motor", "Aufhebung der serienmässigen V/max Begrenzung ohne Leistungssteigerung"),
+    ).toBe("leistung");
+  });
+
+  it('"Stufe 1: (Basis 460 PS) 590PS / 720Nm ..." bleibt leistung (echte Leistungsstufe)', () => {
+    expect(variantGroupFor("motor", "Stufe 1: (Basis 460 PS) 590PS / 720Nm (M2)")).toBe("leistung");
+  });
+
+  it("alle 42 Dateien: kein Produkt, dessen Name mit \"Einbau\" beginnt, hat variant_group leistung", async () => {
+    const parsed = await parseAll();
+    for (const { file, family } of parsed) {
+      for (const p of family.products) {
+        if (/^Einbau/i.test(p.name)) {
+          expect(p.variantGroup, `${file} Zeile ${p.sourceRow}: "${p.name}"`).toBeNull();
+        }
+      }
+    }
+  });
+
+  it("X3 G01, X4 G02 Z30: \"Einbau Leistungssteigerung\" ist im Flow nicht exklusiv zu Stufe 1/Stufe 2", async () => {
+    const buf = await readFile(join(PRICELIST_DIR, "Produkteliste X3 G01, X4 G02.xls"));
+    const family = parseWorkbook(buf, "Produkteliste X3 G01, X4 G02.xls");
+    const einbau = family.products.find((p) => p.name === "Einbau Leistungssteigerung");
+    expect(einbau).toBeDefined();
+    expect(einbau?.variantGroup).toBeNull();
+  });
+
+  it("M5 F10, M6 F06, F12, F13 Z18: \"Anhebung ... i.V. mit Leistungssteigerung\" ist im Flow nicht exklusiv zur Stufe", async () => {
+    const buf = await readFile(join(PRICELIST_DIR, "Produkteliste M5 F10. M6 F06, F12, F13 .xls"));
+    const family = parseWorkbook(buf, "Produkteliste M5 F10. M6 F06, F12, F13 .xls");
+    const anhebung = family.products.find((p) => p.name.startsWith("Anhebung der serienmässigen V/max"));
+    expect(anhebung).toBeDefined();
+    expect(anhebung?.variantGroup).toBeNull();
   });
 });
 

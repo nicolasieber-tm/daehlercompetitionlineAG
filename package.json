@@ -15,7 +15,8 @@
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --local > lib/supabase/database.types.ts",
-    "cron:followups": "tsx scripts/cron-followups.ts"
+    "cron:followups": "tsx scripts/cron-followups.ts",
+    "mail:test": "tsx scripts/mail-test.ts"
   },
   "dependencies": {
     "next": "15.5.25",

@@ -1,0 +1,135 @@
+// Klartext-Zusammenfassung einer Anfrage, wie die interne Ticket-Ansicht in
+// docs/vorschau.html (renderIntern(), goal()). Für die interne Anfrage-Mail
+// und die künftige Admin-Detailansicht (Aufgabenstellung: "buildSummaryText
+// (ctx): der Klartext-Block wie renderIntern() in der Vorschau (für
+// Inbox-Mail und Admin); goalText(ctx) wie goal()").
+//
+// Hinweis für den Bericht: lib/mail/templates/inbox.ts (nicht Teil dieser
+// Aufgabe) hat dieselbe Logik (goalLine(), characterLabel()) bereits selbst
+// inline eingebaut, bevor dieses Modul entstand - eine spätere
+// Zusammenlegung (inbox.ts auf goalText()/buildSummaryText() umstellen)
+// wäre sinnvoll, liegt aber ausserhalb der mir zugewiesenen Dateien.
+//
+// Immer Deutsch: interne Admin-Texte sind laut CLAUDE.md ausschliesslich
+// Deutsch (lib/i18n/admin.ts, kein en nötig), unabhängig von ctx.locale
+// (der Sprache, in der der KUNDE die Anfrage gestellt hat) - analog
+// lib/mail/templates/inbox.ts ("Bewusst immer mit dem deutschen
+// Dictionary").
+import { de } from "@/lib/i18n/de";
+import { admin } from "@/lib/i18n/admin";
+import { chfFrom, formatDate, inquiryNumberLabel } from "@/lib/i18n/format";
+import { categoryLabel, itemLineText, optionLabel, vehicleLabel } from "@/lib/mail/render";
+import type { MailInquiryContext } from "@/lib/mail/types";
+
+const LOCALE = "de" as const;
+const t = admin.mail.inbox.ticket;
+// Spaltenbreite der Label-Zeilen, wie renderIntern() in docs/vorschau.html
+// (dort z.B. "KONTAKT VIA" + 4 Leerzeichen = 15 Zeichen vor dem Wert; alle
+// Labels dort sind manuell auf dieselbe Spalte ausgerichtet).
+const LABEL_WIDTH = 15;
+
+function line(label: string, value: string): string {
+  return `${label.padEnd(LABEL_WIDTH)} ${value}`;
+}
+
+/** steps.character.options trägt "title" statt "label" (siehe lib/i18n/de.ts), deshalb kein optionLabel(). */
+function characterLabel(id: string | null): string | null {
+  return de.steps.character.options.find((o) => o.id === id)?.title ?? null;
+}
+
+/**
+ * "ZIEL"-Zeile wie goal() in docs/vorschau.html: die Beschreibung des
+ * gewählten Motor-Produkts plus die beantworteten Folgefragen je gewählter
+ * Kategorie.
+ */
+export function goalText(ctx: MailInquiryContext): string {
+  const parts: string[] = [];
+  const motorItem = ctx.items.find((i) => i.category === "motor");
+  if (motorItem?.description) parts.push(`ca. ${motorItem.description}`);
+
+  const answers = (ctx.inquiry.follow_up_answers ?? {}) as Record<string, string>;
+  const followUp = de.steps.category.followUp as Record<
+    string,
+    { options: readonly { id: string; label: string }[] }
+  >;
+  for (const category of ctx.inquiry.categories) {
+    const answerId = answers[category];
+    const label = optionLabel(followUp[category]?.options, answerId);
+    if (!label) continue;
+    parts.push(category === "motor" ? label : `${categoryLabel(category, LOCALE)}: ${label}`);
+  }
+  return parts.join(", ");
+}
+
+/**
+ * Der vollständige Klartext-Block wie renderIntern() in docs/vorschau.html:
+ * ANFRAGE, EINGANG, KUNDE, KONTAKT VIA, FAHRZEUG, GEWÜNSCHT, ZIEL,
+ * CHARAKTER, TERMIN, GESCHÄTZTES PAKET (Positionen + Richtpreis), ZU
+ * PRÜFEN, KUNDE SCHREIBT.
+ *
+ * Positionszeilen nutzen itemLineText() (dieselbe "• Kategorie: Name
+ * (Beschreibung), ab CHF x"-Form wie Antwortentwurf und Mails) statt der
+ * handjustierten Tabellenspalten aus der Vorschau: das hält den Ticket-Text
+ * konsistent mit jeder anderen Stelle, die Positionen zeigt, statt ein
+ * drittes, eigenes Format einzuführen.
+ */
+export function buildSummaryText(ctx: MailInquiryContext): string {
+  const { inquiry } = ctx;
+  const vehicle = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: inquiry.vehicle_text });
+  const name = [inquiry.first_name, inquiry.last_name].filter(Boolean).join(" ");
+
+  const received = `${formatDate(new Date(inquiry.created_at), LOCALE)} · ${
+    inquiry.source === "quick" ? t.viaQuick : t.viaWeb
+  }`;
+  const customer =
+    [name, inquiry.city].filter(Boolean).join(", ") +
+    [inquiry.phone, inquiry.email].filter(Boolean).map((v) => ` · ${v}`).join("");
+  const channel = optionLabel(de.steps.contact.channels, inquiry.channel);
+  const contactVia = [channel, inquiry.been_here ? t.existingCustomer : t.newCustomer]
+    .filter(Boolean)
+    .join(" · ");
+  const seriesText = ctx.model?.series_ps
+    ? ` · Serie ${ctx.model.series_ps} PS / ${ctx.model.series_nm ?? "?"} Nm`
+    : "";
+  const vehicleLine = `${vehicle}${inquiry.year ? ` · Baujahr ${inquiry.year}` : ""}${seriesText}`;
+  const wish =
+    inquiry.categories
+      .map((c) => categoryLabel(c, LOCALE))
+      .concat(inquiry.consulting ? [de.steps.done.package.adviceLine] : [])
+      .join(" + ") || t.none;
+  const character = characterLabel(inquiry.character) ?? t.none;
+  const timing = optionLabel(de.steps.timing.options, inquiry.timing) ?? t.none;
+
+  const packageLines =
+    ctx.items.length > 0
+      ? ctx.items.map((item) => `  ${itemLineText(item, LOCALE).replace(/^•\s*/, "")}`)
+      : [`  ${de.draft.itemsFallback}`];
+  const totalValue =
+    ctx.estimatedTotal != null ? chfFrom(ctx.estimatedTotal, LOCALE) : de.steps.done.package.onRequest;
+
+  const parts: string[] = [
+    line(t.request, inquiryNumberLabel(inquiry.number, LOCALE)),
+    line(t.received, received),
+    line(t.customer, customer),
+    line(t.contactVia, contactVia),
+    "",
+    line(t.vehicle, vehicleLine),
+    line(t.wish, wish),
+    line(t.goal, goalText(ctx) || t.none),
+    line(t.character, character),
+    line(t.timing, timing),
+    "",
+    t.package,
+    ...packageLines,
+    `  ${t.estimate}: ${totalValue}`,
+  ];
+
+  if (ctx.checks.length > 0) {
+    parts.push("", t.checks, ...ctx.checks.map((c) => `  ▸ ${c.text}`));
+  }
+  if (inquiry.message) {
+    parts.push("", t.customerWrites, `  «${inquiry.message}»`);
+  }
+
+  return parts.join("\n");
+}

@@ -2,21 +2,22 @@
 // Modellen) für den Kundenflow. Siehe docs/architektur.md, Abschnitt
 // "Kundenflow", und lib/catalog/queries.ts.
 import { NextResponse } from "next/server";
-import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getFamilies } from "@/lib/catalog/queries";
 
-// Next-Datencache (Tag "catalog", von lib/pricelist/imports.ts nach jedem
-// übernommenen Import per revalidateTag invalidiert) plus HTTP-Cache-Header
-// für CDN/Browser (s-maxage), siehe Aufgabenstellung.
+// Kein next/cache-unstable_cache mehr (Befund #3, Bericht): der Next-
+// Datencache wurde nur von lib/pricelist/imports.ts (applyPendingImport)
+// per revalidateTag('catalog') invalidiert, nicht aber vom CLI-Import
+// (scripts/import-pricelists.ts, ausserhalb von Next) oder von Admin-Routen,
+// die einzelne Felder pflegen (Foto, Kurzbeschrieb, Serien-PS) - dadurch
+// konnte der öffentliche Katalog bis zu revalidate-Sekunden veraltete Werte
+// ausliefern, ohne dass eine Schreibstelle das sichtbar gemacht hätte. Bei
+// < 50 Familien ist ein Katalog-Read pro Request unkritisch; der
+// HTTP-Cache-Header (s-maxage) unten reicht für CDN/Browser.
 export async function GET() {
   try {
     const client = await createClient();
-    const loadFamilies = unstable_cache(async () => getFamilies(client), ["catalog", "families"], {
-      tags: ["catalog"],
-      revalidate: 3600,
-    });
-    const families = await loadFamilies();
+    const families = await getFamilies(client);
 
     return NextResponse.json(
       { ok: true, families },

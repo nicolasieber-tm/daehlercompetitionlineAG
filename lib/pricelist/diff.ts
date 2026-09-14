@@ -2,13 +2,32 @@
 // Abschnitt "Excel-Import im Admin", und docs/excel-import.md.
 //
 // Match-Reihenfolge für Produkte (siehe apply.ts, das dieselbe Reihenfolge
-// beim Anwenden verwendet):
+// beim Anwenden verwendet, über matchFamilyProducts()):
 //   1. content_hash (unverändert)
 //   2. article_no + name, wenn article_no gesetzt ist (geändert)
 //   3. name + category (geändert)
 //   4. kein Match (neu)
 // Bestehende DB-Zeilen, die von keiner Excel-Zeile getroffen werden, gelten
 // als entfernt.
+//
+// Befund #2 (Bericht): das Matching läuft in drei vollständigen Durchgängen
+// über ALLE Excel-Zeilen einer Familie (erst content_hash für jede Zeile,
+// dann article_no+name für die verbleibenden, dann name+category für die
+// verbleibenden) statt zeilenweise sequenziell alle drei Stufen zu prüfen.
+// Grund: bei "Schwester"-Produkten mit gleichem Namen/gleicher Artikelnummer,
+// aber unterschiedlichem Fitment (z. B. "Sportfahrwerk höhenverstellbar" für
+// 20i/30i/18d/20d und separat für M40i/30d/M40d, siehe docs/excel-import.md
+// "Sonderfälle", 65 solche Gruppen im Bestand) hätte eine geänderte Zeile per
+// article_no+name sonst die erstbeste unverbrauchte DB-Zeile greifen können,
+// die eigentlich zur unveränderten Schwesterzeile gehört (deren eigener
+// content_hash-Treffer noch nicht geprüft wurde, weil sie in der Excel-Liste
+// später kommt) - die Reihenfolge der DB-Zeilen ist ohne ORDER BY nicht
+// garantiert. Der volle content_hash-Durchgang zuerst reserviert alle
+// unveränderten Zeilen, bevor irgendeine Fallback-Zuordnung startet. Bleiben
+// für einen article_no+name- bzw. name+category-Schlüssel dennoch mehrere
+// unverbrauchte Kandidaten übrig (z. B. weil auch beide Schwestern geändert
+// wurden), wird zusätzlich die Kandidatin mit gleichem source_row bevorzugt,
+// sonst die mit identischem Fitment.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import type { Product } from "@/lib/supabase/rows";
@@ -73,45 +92,104 @@ export interface ProductMatch {
   matchedBy: ProductMatchedBy;
 }
 
+export interface FamilyProductMatchResult {
+  /** Ein Eintrag je Excel-Zeile, gleiche Reihenfolge/Index wie `parsedProducts`. */
+  matches: (ProductMatch | null)[];
+  /** Bestehende aktive DB-Zeilen, die von keiner Excel-Zeile getroffen wurden. */
+  removedProducts: Product[];
+}
+
 /**
- * Sucht die erste noch nicht verbrauchte Kandidatin für eine Excel-Zeile,
- * gemäss der Match-Reihenfolge oben, und markiert sie als verbraucht
- * (`used`), damit dieselbe DB-Zeile nicht zweimal gematcht wird.
+ * Wählt unter mehreren noch unverbrauchten Kandidatinnen für denselben
+ * Schlüssel (article_no+name bzw. name+category) diejenige, die am
+ * wahrscheinlichsten dieselbe reale Zeile ist: zuerst identischer
+ * source_row (bleibt über Re-Importe stabil, siehe docs/excel-import.md),
+ * sonst identisches Fitment (Menge der Modellnamen). Bei nur einer
+ * Kandidatin oder ohne eindeutigen Treffer: die erste (stabile Reihenfolge
+ * innerhalb des Aufrufs, auch wenn die DB-Reihenfolge selbst unbestimmt ist).
  */
-export function matchProduct(
-  parsed: ParsedProduct,
-  pools: ProductPools,
+function pickBestCandidate(
+  candidates: Product[] | undefined,
   used: Set<string>,
-): ProductMatch | null {
-  const takeFirstUnused = (candidates: Product[] | undefined): Product | null => {
-    if (!candidates) return null;
-    for (const c of candidates) {
-      if (!used.has(c.id)) return c;
+  parsed: ParsedProduct,
+  oldFitsByProductId: Map<string, string[]>,
+): Product | null {
+  if (!candidates) return null;
+  const unused = candidates.filter((c) => !used.has(c.id));
+  if (unused.length === 0) return null;
+  if (unused.length === 1) return unused[0];
+
+  const bySourceRow = unused.find((c) => c.source_row === parsed.sourceRow);
+  if (bySourceRow) return bySourceRow;
+
+  const parsedFits = fitsValue(parsed.fitsAll, parsed.fits);
+  const byFits = unused.find((c) => {
+    const oldFits = fitsValue(c.fits_all, oldFitsByProductId.get(c.id) ?? []);
+    return JSON.stringify(oldFits) === JSON.stringify(parsedFits);
+  });
+  if (byFits) return byFits;
+
+  return unused[0];
+}
+
+/**
+ * Ordnet alle Excel-Zeilen einer Familie den bestehenden aktiven DB-Produkten
+ * zu, in drei vollständigen Durchgängen über die ganze Liste (siehe
+ * Kommentar am Dateianfang, Befund #2): erst content_hash, dann
+ * article_no+name, dann name+category. `oldFitsByProductId` wird nur für die
+ * Kandidaten-Auswahl bei Mehrdeutigkeit gebraucht (siehe pickBestCandidate)
+ * und stammt aus loadFitsByProductId() (DB-Zustand VOR diesem Import).
+ */
+export function matchFamilyProducts(
+  parsedProducts: ParsedProduct[],
+  dbProducts: Product[],
+  oldFitsByProductId: Map<string, string[]>,
+): FamilyProductMatchResult {
+  const pools = buildProductPools(dbProducts);
+  const used = new Set<string>();
+  const matches: (ProductMatch | null)[] = new Array(parsedProducts.length).fill(null);
+
+  // Durchgang 1: content_hash (reserviert alle unveränderten Zeilen zuerst).
+  parsedProducts.forEach((p, i) => {
+    const candidate = pickBestCandidate(pools.byHash.get(p.contentHash), used, p, oldFitsByProductId);
+    if (candidate) {
+      used.add(candidate.id);
+      matches[i] = { product: candidate, matchedBy: "content_hash" };
     }
-    return null;
-  };
+  });
 
-  const byHash = takeFirstUnused(pools.byHash.get(parsed.contentHash));
-  if (byHash) {
-    used.add(byHash.id);
-    return { product: byHash, matchedBy: "content_hash" };
-  }
-
-  if (parsed.articleNo) {
-    const byArticleNo = takeFirstUnused(pools.byArticleNoName.get(`${parsed.articleNo}|${parsed.name}`));
-    if (byArticleNo) {
-      used.add(byArticleNo.id);
-      return { product: byArticleNo, matchedBy: "article_no_name" };
+  // Durchgang 2: article_no + name, nur für noch offene Zeilen.
+  parsedProducts.forEach((p, i) => {
+    if (matches[i] || !p.articleNo) return;
+    const candidate = pickBestCandidate(
+      pools.byArticleNoName.get(`${p.articleNo}|${p.name}`),
+      used,
+      p,
+      oldFitsByProductId,
+    );
+    if (candidate) {
+      used.add(candidate.id);
+      matches[i] = { product: candidate, matchedBy: "article_no_name" };
     }
-  }
+  });
 
-  const byNameCategory = takeFirstUnused(pools.byNameCategory.get(`${parsed.name}|${parsed.category}`));
-  if (byNameCategory) {
-    used.add(byNameCategory.id);
-    return { product: byNameCategory, matchedBy: "name_category" };
-  }
+  // Durchgang 3: name + category, nur für noch offene Zeilen.
+  parsedProducts.forEach((p, i) => {
+    if (matches[i]) return;
+    const candidate = pickBestCandidate(
+      pools.byNameCategory.get(`${p.name}|${p.category}`),
+      used,
+      p,
+      oldFitsByProductId,
+    );
+    if (candidate) {
+      used.add(candidate.id);
+      matches[i] = { product: candidate, matchedBy: "name_category" };
+    }
+  });
 
-  return null;
+  const removedProducts = dbProducts.filter((p) => !used.has(p.id));
+  return { matches, removedProducts };
 }
 
 // ---------------------------------------------------------------------------
@@ -174,21 +252,45 @@ function buildFieldChanges(
 // Fitment-Namen bestehender Produkte laden (für den "fits"-Feldvergleich)
 // ---------------------------------------------------------------------------
 
-async function loadFitsByProductId(db: Db, productIds: string[]): Promise<Map<string, string[]>> {
+// Prüfrunde Import-Modul, Befund "loadFitsByProductId-Pagination" (nicht zu
+// verwechseln mit dem Befund #2 oben zur Match-Reihenfolge, andere
+// Prüfrunde, andere Nummerierung): PostgREST kappt jede Antwort still bei
+// max_rows (supabase/config.toml, aktuell 1000), auch innerhalb eines
+// Chunks - product_fitment hat im Schnitt 4-5 Zeilen je Produkt, eine
+// Familie mit >= 224 Produkten in einem Chunk reisst die Grenze (Beleg:
+// Familie "3er F30, F31, F34, F35" mit 100 Produkten hat bereits 1008
+// Fitment-Zeilen). Deshalb pro Chunk zusätzlich per .range() seitenweise
+// laden, bis eine Seite weniger als PAGE_SIZE Zeilen liefert. Die
+// Sortierung nach (product_id, model_id) - das ist der Primärschlüssel von
+// product_fitment, siehe supabase/migrations/20260911000000_init.sql -
+// macht die Seitenreihenfolge deterministisch, sonst wäre .range() ohne
+// ORDER BY nicht verlässlich.
+const FITMENT_PAGE_SIZE = 1000;
+
+export async function loadFitsByProductId(db: Db, productIds: string[]): Promise<Map<string, string[]>> {
   const map = new Map<string, string[]>();
   if (productIds.length === 0) return map;
   for (const ids of chunk(productIds)) {
-    const { data, error } = await db
-      .from("product_fitment")
-      .select("product_id, models(name)")
-      .in("product_id", ids);
-    if (error) throw new Error(`Fitment laden fehlgeschlagen: ${error.message}`);
-    for (const row of data ?? []) {
-      const name = (row as { models: { name: string } | null }).models?.name;
-      if (!name) continue;
-      const arr = map.get(row.product_id);
-      if (arr) arr.push(name);
-      else map.set(row.product_id, [name]);
+    let from = 0;
+    for (;;) {
+      const { data, error } = await db
+        .from("product_fitment")
+        .select("product_id, model_id, models(name)")
+        .in("product_id", ids)
+        .order("product_id", { ascending: true })
+        .order("model_id", { ascending: true })
+        .range(from, from + FITMENT_PAGE_SIZE - 1);
+      if (error) throw new Error(`Fitment laden fehlgeschlagen: ${error.message}`);
+      const rows = data ?? [];
+      for (const row of rows) {
+        const name = (row as { models: { name: string } | null }).models?.name;
+        if (!name) continue;
+        const arr = map.get(row.product_id);
+        if (arr) arr.push(name);
+        else map.set(row.product_id, [name]);
+      }
+      if (rows.length < FITMENT_PAGE_SIZE) break;
+      from += FITMENT_PAGE_SIZE;
     }
   }
   return map;
@@ -290,19 +392,23 @@ async function buildFamilyDiff(parsed: ParsedFamily, db: Db): Promise<FamilyDiff
     .eq("active", true);
   if (dbProductsRes.error) throw new Error(`Produkte laden fehlgeschlagen: ${dbProductsRes.error.message}`);
   const dbProducts = dbProductsRes.data ?? [];
-  const pools = buildProductPools(dbProducts);
+  // Fits VOR dem Matching laden: pickBestCandidate() braucht sie schon dort
+  // zur Auswahl bei Mehrdeutigkeit (siehe matchFamilyProducts, Befund #2),
+  // buildFieldChanges() danach für den "fits"-Feldvergleich - eine Abfrage
+  // für beides.
   const fitsByProductId = await loadFitsByProductId(
     db,
     dbProducts.map((p) => p.id),
   );
 
-  const used = new Set<string>();
+  const { matches, removedProducts } = matchFamilyProducts(parsed.products, dbProducts, fitsByProductId);
+
   const added: DiffProductAdded[] = [];
   const changed: DiffProductChanged[] = [];
   let unchangedCount = 0;
 
-  for (const p of parsed.products) {
-    const match = matchProduct(p, pools, used);
+  parsed.products.forEach((p, i) => {
+    const match = matches[i];
     if (!match) {
       added.push({
         sourceRow: p.sourceRow,
@@ -312,11 +418,11 @@ async function buildFamilyDiff(parsed: ParsedFamily, db: Db): Promise<FamilyDiff
         priceTotalChf: p.priceTotalChf,
         priceStatus: p.priceStatus,
       });
-      continue;
+      return;
     }
     if (match.matchedBy === "content_hash") {
       unchangedCount++;
-      continue;
+      return;
     }
     const oldFits = fitsByProductId.get(match.product.id) ?? [];
     changed.push({
@@ -327,16 +433,14 @@ async function buildFamilyDiff(parsed: ParsedFamily, db: Db): Promise<FamilyDiff
       matchedBy: match.matchedBy,
       changes: buildFieldChanges(match.product, p, oldFits),
     });
-  }
+  });
 
-  const removed: DiffProductRemoved[] = dbProducts
-    .filter((p) => !used.has(p.id))
-    .map((p) => ({
-      productId: p.id,
-      name: p.name,
-      category: p.category as FlowCategory,
-      sourceCategory: p.source_category ?? "",
-    }));
+  const removed: DiffProductRemoved[] = removedProducts.map((p) => ({
+    productId: p.id,
+    name: p.name,
+    category: p.category as FlowCategory,
+    sourceCategory: p.source_category ?? "",
+  }));
 
   const summary: FamilyDiffSummary = {
     modelsAdded: modelsAdded.length,

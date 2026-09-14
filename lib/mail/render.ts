@@ -60,27 +60,125 @@ export function optionLabel(
   return options.find((o) => o.id === id)?.label ?? null;
 }
 
-/** "BMW M3 Touring" aus Familie/Modell, oder inquiries.vehicle_text als Fallback (Fahrzeug ohne Modellzuordnung). */
+function startsWithBrand(text: string, brand: string): boolean {
+  return text.toLowerCase().startsWith(brand.toLowerCase());
+}
+
+/**
+ * Erkennt die drei Kurzablauf-Platzhalterfamilien aus supabase/seed.sql
+ * («Älteres Modell», «Älteres MINI-Modell», «Anderes Toyota-Modell», siehe
+ * docs/architektur.md "has_pricelist bool (false für Wiesmann und «Älteres
+ * Modell»-Platzhalter)"). Es gibt dafür kein eigenes DB-Flag (has_pricelist
+ * ist auch bei Wiesmann false, dessen Familiennamen aber echte Modellnamen
+ * sind, kein Platzhalter) - deshalb Namensmuster statt has_pricelist.
+ * Exportiert, damit lib/inquiry/share.ts (eigene, schlanke vehicleLabel-
+ * Kopie, siehe dortiger Kommentar) dieselbe Erkennung nutzt statt sie ein
+ * zweites Mal zu duplizieren.
+ */
+export function isPlaceholderFamilyName(name: string): boolean {
+  return /^(Älteres|Anderes)\b.*\bModell$/.test(name.trim());
+}
+
+/**
+ * Kundensichtbare Fahrzeugbezeichnung aus Familie/Modell, oder
+ * inquiries.vehicle_text als Fallback (Fahrzeug ohne Modellzuordnung).
+ *
+ * Vorsicht Duplikate: model_families.name enthält bei BMW/Toyota oft schon
+ * die Baureihen-Codes (z.B. "M2 G87", "1er M E82"), bei MINI zusätzlich die
+ * Marke ("MINI F60 Countryman", siehe docs/excel-import.md "Marke: Name
+ * beginnt mit MINI"). Ein naives Verketten von brand + family.name +
+ * model.name ergab deshalb Dubletten wie "BMW M2 G87 M2" oder "MINI MINI
+ * F60 Countryman Countryman One (Benzin)" (Befund #1 der Mail-Prüfung).
+ *
+ * Deshalb bei vorhandenem Modell: Marke (nur wenn nicht schon Präfix) +
+ * Modellname, dann der Baureihen-Code aus model_families.codes, aber nur
+ * wenn er eindeutig ist (genau ein Code, z.B. M2 G87 -> nur "G87"). Bei
+ * mehreren Codes (z.B. "M3 / M4 G80, G81, G82, G83") gibt es in der DB
+ * keine Zuordnung Modell -> Code (kein Feld dafür, siehe docs/db.md), ein
+ * Code würde also geraten; dann bleibt er weg statt einen falschen
+ * anzuzeigen.
+ *
+ * Ohne Modell (kein Modell zuordenbar, siehe lib/inquiry/schema.ts
+ * vehicleText-Kommentar: "Freitext, wenn kein Modell zuordenbar ist") geht
+ * inquiries.vehicle_text (die vom Kunden selbst genannte Fahrzeugbe-
+ * zeichnung) VOR dem Familien-Fallback, sonst blieb dieser Freitext
+ * ungenutzt, sobald eine familyId gesetzt war - was laut
+ * lib/inquiry/schema.ts immer der Fall ist (Befund #1 der Anfrage-Prüfung:
+ * "vehicle_text wird ... nie verwendet"). Ohne eigenen Text UND bei einer
+ * der drei Platzhalterfamilien (isPlaceholderFamilyName) wäre der
+ * Platzhaltername selbst grammatisch falscher Kundentext, eingesetzt in die
+ * umgebenden draft- und mail-Vorlagen (lib/i18n draft.*, mail.*), die bereits
+ * ein eigenes Possessivpronomen/Artikel mitbringen ("Ihren {model}", "den {vehicle}", "Ihr {model}
+ * auf ..."): "Ihren BMW Älteres Modell" statt "Ihren BMW". Deshalb dann nur
+ * die Marke (family.brand, z.B. "BMW") statt des Platzhalters - fügt sich
+ * grammatisch genauso ein wie jede andere Fahrzeugbezeichnung auch. Ein
+ * eigener, vorformulierter Text ("Ihr BMW") ginge hier NICHT: das
+ * Possessivpronomen steht in den Vorlagen bereits davor, ein zweites hier
+ * ergäbe "Ihren Ihr BMW". Echte Familien ohne Preisliste (Wiesmann)
+ * behalten ihren echten Namen, wie im Sollbeispiel aus docs/architektur.md
+ * ("BMW M2 G87, Nr. 2026-0012" für den Fall mit Modell).
+ *
+ * Bewusst (noch) nicht nach lib/catalog ausgelagert, obwohl lib/draft und
+ * der Flow dieselbe Logik später brauchen werden: diese Korrektur ist auf
+ * das Modul mail beschränkt (siehe Aufgabenstellung), lib/catalog wird
+ * parallel von einem anderen Auftrag bearbeitet.
+ */
 export function vehicleLabel(params: {
   family: ModelFamily | null;
   model: Model | null;
   vehicleText: string | null;
 }): string {
-  if (params.family) {
-    return [params.family.brand, params.family.name, params.model?.name].filter(Boolean).join(" ");
+  const { family, model } = params;
+  const vehicleText = params.vehicleText?.trim() || null;
+  if (!family) {
+    return vehicleText ?? "";
   }
-  return params.vehicleText?.trim() || "";
+
+  if (!model) {
+    if (vehicleText) return vehicleText;
+    if (isPlaceholderFamilyName(family.name)) return family.brand;
+    return startsWithBrand(family.name, family.brand) ? family.name : `${family.brand} ${family.name}`;
+  }
+
+  const modelLabel = startsWithBrand(model.name, family.brand) ? model.name : `${family.brand} ${model.name}`;
+  if (family.codes.length === 1) {
+    return `${modelLabel} ${family.codes[0]}`;
+  }
+  return modelLabel;
 }
 
 // --- Positionszeile (wiederverwendet die draft.*-Textbausteine, siehe
 // docs/architektur.md "• Motor: Stufe 1 (620 PS / 740 Nm), ab CHF 4'180") ---
 
+/**
+ * products.description enthält bei allen Radsätzen echte Zeilenumbrüche aus
+ * der Excel-Zelle (z.B. "10 x 20\" mit 275/30 20\n10 x 20\" mit 285/30 20"
+ * für Vorder-/Hinterachse, siehe docs/excel-import.md). Roh in die
+ * Positionszeile eingesetzt landete der Zeilenumbruch mitten in der
+ * Klammer ("bestehend aus: (10 x 20\" ...\n10 x 20\" ...), ab CHF ...") -
+ * Befund #2 der Anfrage-Prüfung. Für Kundentext (Antwortentwurf, Mails)
+ * stattdessen zu einer Zeile zusammenfassen.
+ */
+function normalizeDescription(description: string): string {
+  return description
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
 /** Eine Positionszeile als reiner Text, exakt wie im Antwortentwurf (lib/draft/template.ts). */
 export function itemLineText(item: MailInquiryItem, locale: Locale): string {
   const dict = getDictionary(locale);
   const category = categoryLabel(item.category, locale);
+  // Produktnamen wie "CDC1 FORGED Radsatz geschmiedet bestehend aus:" enden
+  // in der Excel-Preisliste mit einem Doppelpunkt, der auf die anschliessend
+  // umklammerte Beschreibung verweisen sollte ("... aus: (10 x 20\" ...)"),
+  // vor der Klammer aber wie ein zweites Satzzeichen wirkt. Nur am
+  // Namensende, nicht mitten im Namen (z.B. "Stufe 1: (Basis 480 PS) ...").
+  const name = item.name.replace(/:\s*$/, "");
   const description = item.description
-    ? tf(dict.draft.itemDescription, { description: item.description })
+    ? tf(dict.draft.itemDescription, { description: normalizeDescription(item.description) })
     : "";
   let price = "";
   if (item.price_status === "priced" && item.price_total != null) {
@@ -90,7 +188,7 @@ export function itemLineText(item: MailInquiryItem, locale: Locale): string {
   } else if (item.price_status === "on_request") {
     price = dict.draft.itemPriceOnRequest;
   }
-  return tf(dict.draft.itemLine, { category, name: item.name, description, price });
+  return tf(dict.draft.itemLine, { category, name, description, price });
 }
 
 // --- Bausteine ---------------------------------------------------------------

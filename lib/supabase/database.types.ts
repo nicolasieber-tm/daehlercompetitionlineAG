@@ -75,10 +75,13 @@ export type Database = {
       }
       follow_ups: {
         Row: {
+          attempts: number
           cancelled_at: string | null
           created_at: string
+          failed_at: string | null
           id: string
           inquiry_id: string
+          last_error: string | null
           outbound_email_id: string | null
           rule_id: string | null
           scheduled_for: string
@@ -86,10 +89,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attempts?: number
           cancelled_at?: string | null
           created_at?: string
+          failed_at?: string | null
           id?: string
           inquiry_id: string
+          last_error?: string | null
           outbound_email_id?: string | null
           rule_id?: string | null
           scheduled_for: string
@@ -97,10 +103,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attempts?: number
           cancelled_at?: string | null
           created_at?: string
+          failed_at?: string | null
           id?: string
           inquiry_id?: string
+          last_error?: string | null
           outbound_email_id?: string | null
           rule_id?: string | null
           scheduled_for?: string
@@ -663,8 +672,54 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_follow_up: {
+        Args: { p_id: string }
+        Returns: {
+          attempts: number
+          cancelled_at: string | null
+          created_at: string
+          failed_at: string | null
+          id: string
+          inquiry_id: string
+          last_error: string | null
+          outbound_email_id: string | null
+          rule_id: string | null
+          scheduled_for: string
+          sent_at: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "follow_ups"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       generate_share_token: { Args: never; Returns: string }
       next_inquiry_number: { Args: never; Returns: string }
+      schedule_follow_ups: {
+        Args: { p_inquiry_id: string; p_replied_at: string }
+        Returns: {
+          attempts: number
+          cancelled_at: string | null
+          created_at: string
+          failed_at: string | null
+          id: string
+          inquiry_id: string
+          last_error: string | null
+          outbound_email_id: string | null
+          rule_id: string | null
+          scheduled_for: string
+          sent_at: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "follow_ups"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
     }
     Enums: {
       [_ in never]: never

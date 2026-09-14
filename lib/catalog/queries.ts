@@ -412,22 +412,49 @@ export async function getProductsByIds(ids: string[], db?: Db): Promise<CatalogP
 // getCatalogCompact (Posten 3: kompakter Katalog fürs Sprachmodell)
 // ---------------------------------------------------------------------------
 
+// PostgREST kappt jede Antwort still bei max_rows (supabase/config.toml,
+// aktuell 1000). Bei > 1000 aktiven Produkten insgesamt (Befund #1, Bericht:
+// 2685 aktive Produkte, ein einzelnes select() ohne range() liefert nur die
+// ersten 1000 ohne Fehler) muss seitenweise geladen werden, bis eine Seite
+// weniger als PAGE_SIZE Zeilen liefert. Sortierung nach (sort, id) macht die
+// Seitenreihenfolge deterministisch, sonst wäre .range() ohne eindeutigen
+// ORDER BY nicht verlässlich.
+const PRODUCT_PAGE_SIZE = 1000;
+
+async function loadAllActiveProducts(
+  client: Db,
+  familyIds: string[],
+): Promise<{ id: string; name: string; category: string; price_total: number | null; family_id: string }[]> {
+  const out: { id: string; name: string; category: string; price_total: number | null; family_id: string }[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await client
+      .from("products")
+      .select("id, name, category, price_total, family_id")
+      .in("family_id", familyIds)
+      .eq("active", true)
+      .order("sort", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + PRODUCT_PAGE_SIZE - 1);
+    if (error) throw new Error(`getCatalogCompact fehlgeschlagen: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < PRODUCT_PAGE_SIZE) break;
+    from += PRODUCT_PAGE_SIZE;
+  }
+  return out;
+}
+
 export async function getCatalogCompact(db?: Db): Promise<CompactFamily[]> {
   const client = await resolveClient(db);
   const families = await getFamilies(client);
   const familyIds = families.map((f) => f.id);
   if (familyIds.length === 0) return [];
 
-  const { data, error } = await client
-    .from("products")
-    .select("id, name, category, price_total, family_id")
-    .in("family_id", familyIds)
-    .eq("active", true)
-    .order("sort", { ascending: true });
-  if (error) throw new Error(`getCatalogCompact fehlgeschlagen: ${error.message}`);
+  const data = await loadAllActiveProducts(client, familyIds);
 
   const productsByFamily = new Map<string, CompactProduct[]>();
-  for (const p of data ?? []) {
+  for (const p of data) {
     const arr = productsByFamily.get(p.family_id);
     const item: CompactProduct = { id: p.id, name: p.name, category: p.category as FlowCategory, priceTotal: p.price_total };
     if (arr) arr.push(item);

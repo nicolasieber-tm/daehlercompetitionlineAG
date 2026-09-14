@@ -116,7 +116,15 @@ export async function applyPendingImport(
 
   // revalidateTag ist nur innerhalb eines laufenden Next.js-Servers
   // verfügbar (nicht in einem CLI-Skript via tsx); Fehler hier dürfen den
-  // erfolgreich abgeschlossenen Import nicht zunichtemachen.
+  // erfolgreich abgeschlossenen Import nicht zunichtemachen. Die beiden
+  // Katalog-Routen (app/api/catalog/route.ts, app/api/catalog/products/
+  // route.ts) verwenden seit Befund #3 (Bericht) bewusst KEIN unstable_cache
+  // mit Tag "catalog" mehr - ein einzelner Import war die einzige
+  // Schreibstelle, die revalidateTag aufgerufen hat, alle anderen (Admin-
+  // Feldpflege, CLI-Import) liessen den Katalog bis zu einer Stunde
+  // veraltet. Der Aufruf hier bleibt trotzdem stehen (kostet nichts, ist ein
+  // No-Op ohne passenden Cache-Eintrag) - falls künftig doch wieder ein
+  // next/cache-Tag "catalog" verwendet wird, ist er dann schon korrekt.
   try {
     const { revalidateTag } = await import("next/cache");
     revalidateTag("catalog");

@@ -3,7 +3,6 @@
 // Kundenflows, plus Hinweise. Siehe docs/architektur.md, Abschnitt
 // "Kundenflow", und lib/catalog/queries.ts (getProductsForModel).
 import { NextResponse, type NextRequest } from "next/server";
-import { unstable_cache } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getProductsForModel } from "@/lib/catalog/queries";
@@ -24,12 +23,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const client = await createClient();
-    const loadProducts = unstable_cache(
-      async () => getProductsForModel(model, client),
-      ["catalog", "products", model],
-      { tags: ["catalog"], revalidate: 3600 },
-    );
-    const result = await loadProducts();
+    // Kein next/cache-unstable_cache mehr, siehe Kommentar in
+    // app/api/catalog/route.ts (Befund #3, Bericht).
+    const result = await getProductsForModel(model, client);
 
     if (!result) {
       return NextResponse.json({ ok: false, error: "Modell nicht gefunden." }, { status: 404 });

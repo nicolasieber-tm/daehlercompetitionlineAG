@@ -9,9 +9,10 @@ import { buildSummary } from "@/lib/mail/templates/summary";
 import { buildInbox } from "@/lib/mail/templates/inbox";
 import { buildReply } from "@/lib/mail/templates/reply";
 import { buildFollowUp } from "@/lib/mail/templates/follow_up";
+import { itemLineText, vehicleLabel } from "@/lib/mail/render";
 import type { MailCheck, MailFollowUpContext, MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
 import type { Inquiry, Model, ModelFamily } from "@/lib/supabase/rows";
-import type { Locale } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n/dictionaries";
 
 // --- Fixtures ----------------------------------------------------------
 
@@ -184,7 +185,7 @@ function makeFollowUpContext(locale: Locale): MailFollowUpContext {
 
 // --- Gemeinsame Prüfungen ------------------------------------------------
 
-const DASH_RE = /[–—]/; // – / —
+const DASH_RE = /[–—]/; // Gedankenstriche (en-/em-dash)
 // Ganzwort-Treffer auf gängige deutsche Du-Formen (Wortgrenzen, damit z.B.
 // "Produkt" oder "wieder" nicht fälschlich anschlagen).
 const DU_FORM_RE = /\b(du|dich|dir|dein|deine|deinen|deinem|deiner|deins)\b/i;
@@ -212,6 +213,13 @@ function expectWellFormed(result: { subject: string; html: string; text: string 
   expect(result.text).not.toMatch(DU_FORM_RE);
 }
 
+// Preisformat "CHF 4'180": in der Text-Variante unverändert, in HTML wird das
+// Apostroph korrekt zu &#39; escaped (siehe lib/mail/render.ts, escapeHtml).
+function expectChfFormat(result: { html: string; text: string }) {
+  expect(result.text).toContain("CHF 4'180");
+  expect(result.html).toContain("CHF 4&#39;180");
+}
+
 // --- Tests ---------------------------------------------------------------
 
 describe("Mailvorlagen: gemeinsame Anforderungen", () => {
@@ -231,9 +239,10 @@ describe("Mailvorlagen: gemeinsame Anforderungen", () => {
           expectWellFormed(result);
           for (const item of variant.items) {
             expect(result.html).toContain(item.name);
+            expect(result.text).toContain(item.name);
           }
           if (variant.label === "mit Preisen") {
-            expect(result.html).toContain("CHF 4'180");
+            expectChfFormat(result);
           }
         });
 
@@ -242,9 +251,10 @@ describe("Mailvorlagen: gemeinsame Anforderungen", () => {
           expectWellFormed(result);
           for (const item of variant.items) {
             expect(result.html).toContain(item.name);
+            expect(result.text).toContain(item.name);
           }
           if (variant.label === "mit Preisen") {
-            expect(result.html).toContain("CHF 4'180");
+            expectChfFormat(result);
           }
         });
 
@@ -253,6 +263,7 @@ describe("Mailvorlagen: gemeinsame Anforderungen", () => {
           expectWellFormed(result);
           for (const item of variant.items) {
             expect(result.html).toContain(item.name);
+            expect(result.text).toContain(item.name);
           }
           expect(result.html).toContain(checks[0].text);
         });
@@ -261,7 +272,7 @@ describe("Mailvorlagen: gemeinsame Anforderungen", () => {
           const result = buildReply(ctx);
           expectWellFormed(result);
           expect(result.subject).toBe(draft.subject);
-          expect(result.html).toContain("CHF 4'180");
+          expectChfFormat(result);
         });
       });
     }
@@ -299,4 +310,170 @@ describe("Mailvorlagen: gemeinsame Anforderungen", () => {
       expect(result.text).toContain("Christoph Dähler");
     });
   }
+});
+
+// --- Regression Befund #1 (Mail-Prüfung): vehicleLabel() mit echten
+// Namenspaaren aus der Excel-Preisliste, siehe docs/excel-import.md. Vorher
+// klebte vehicleLabel() brand + family.name + model.name zusammen, was bei
+// diesen realen Kombinationen zu Dubletten führte ("BMW M2 G87 M2", "MINI
+// MINI F60 Countryman Countryman One (Benzin)").
+describe("vehicleLabel: reale Namenspaare aus der Preisliste (Befund #1)", () => {
+  it('BMW M2 G87, Modell "M2": Baureihen-Code nicht doppelt', () => {
+    const family = baseFamily({ brand: "BMW", name: "M2 G87", codes: ["G87"], slug: "bmw-m2-g87" });
+    const model = baseModel({ name: "M2", family_id: family.id });
+    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("BMW M2 G87");
+  });
+
+  it('MINI F60 Countryman, Modell "Countryman One (Benzin)": Marke nicht doppelt', () => {
+    const family = baseFamily({
+      brand: "MINI",
+      name: "MINI F60 Countryman",
+      codes: ["F60"],
+      slug: "mini-f60-countryman",
+    });
+    const model = baseModel({ name: "Countryman One (Benzin)", family_id: family.id });
+    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("MINI Countryman One (Benzin) F60");
+  });
+
+  it('BMW M3 / M4 G80, G81, G82, G83, Modell "M3 Competition": mehrdeutiger Code (4 Codes, keine Modell-Code-Zuordnung in der DB) wird weggelassen statt geraten, kein "M3" doppelt', () => {
+    const family = baseFamily({
+      brand: "BMW",
+      name: "M3 / M4 G80, G81, G82, G83",
+      codes: ["G80", "G81", "G82", "G83"],
+      slug: "bmw-m3-m4",
+    });
+    const model = baseModel({ name: "M3 Competition", family_id: family.id });
+    const label = vehicleLabel({ family, model, vehicleText: null });
+    expect(label).toBe("BMW M3 Competition");
+    expect(label.match(/M3/g)?.length).toBe(1);
+  });
+
+  it('BMW 1er M E82, Modell "1er M": kein doppeltes "1er M"', () => {
+    const family = baseFamily({ brand: "BMW", name: "1er M E82", codes: ["E82"], slug: "bmw-1er-m-e82" });
+    const model = baseModel({ name: "1er M", family_id: family.id });
+    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("BMW 1er M E82");
+  });
+
+  it("Betreff der Bestätigungsmail entspricht dem Sollbeispiel aus docs/architektur.md", () => {
+    const family = baseFamily({ brand: "BMW", name: "M2 G87", codes: ["G87"], slug: "bmw-m2-g87" });
+    const model = baseModel({ name: "M2", family_id: family.id });
+    const ctx: MailInquiryContext = {
+      inquiry: baseInquiry({ number: "2026-0012", family_id: family.id, model_id: model.id }),
+      family,
+      model,
+      items: [],
+      estimatedTotal: null,
+      checks: [],
+      draft,
+      locale: "de",
+      appUrl: "https://anfrage.daehler.com",
+      shareUrl: "https://anfrage.daehler.com/p/share-token-1234567890ab",
+      adminUrl: "https://anfrage.daehler.com/admin/anfragen/11111111-1111-1111-1111-111111111111",
+    };
+    const result = buildConfirmation(ctx);
+    expect(result.subject).toBe("Ihre Anfrage für den BMW M2 G87, Nr. 2026-0012");
+  });
+});
+
+// --- Regression Befund #1 (Anfrage-Prüfung): inquiries.vehicle_text ohne
+// Modell. Vorher gab vehicleLabel() bei gesetzter family (familyId ist in
+// lib/inquiry/schema.ts immer Pflicht) den vehicleText NIE zurück - im
+// Kurzablauf (Platzhalterfamilien "Älteres Modell" / "Älteres MINI-Modell" /
+// "Anderes Toyota-Modell", siehe supabase/seed.sql) erschien so statt des
+// vom Kunden genannten Fahrzeugs der Platzhaltername im Kundentext
+// ("Ihren BMW Älteres Modell").
+describe("vehicleLabel: inquiries.vehicle_text ohne Modell (Befund #1 der Anfrage-Prüfung)", () => {
+  it("Platzhalterfamilie (has_pricelist=false) + vehicleText: Kundentext geht vor dem Platzhalternamen", () => {
+    const family = baseFamily({
+      brand: "BMW",
+      name: "Älteres Modell",
+      codes: [],
+      slug: "bmw-aelteres-modell",
+      has_pricelist: false,
+    });
+    expect(vehicleLabel({ family, model: null, vehicleText: "320i Touring, Baujahr 2011" })).toBe(
+      "320i Touring, Baujahr 2011",
+    );
+  });
+
+  it('Platzhalterfamilie ohne vehicleText: nur die Marke ("BMW"), nicht der Platzhaltername - fügt sich in "Ihren {model}" ein', () => {
+    const family = baseFamily({
+      brand: "BMW",
+      name: "Älteres Modell",
+      codes: [],
+      slug: "bmw-aelteres-modell",
+      has_pricelist: false,
+    });
+    expect(vehicleLabel({ family, model: null, vehicleText: null })).toBe("BMW");
+  });
+
+  it('MINI- und Toyota-Platzhalter ("Älteres MINI-Modell", "Anderes Toyota-Modell") ohne vehicleText: ebenfalls nur die Marke', () => {
+    const mini = baseFamily({
+      brand: "MINI",
+      name: "Älteres MINI-Modell",
+      codes: [],
+      slug: "mini-aelteres-modell",
+      has_pricelist: false,
+    });
+    const toyota = baseFamily({
+      brand: "Toyota",
+      name: "Anderes Toyota-Modell",
+      codes: [],
+      slug: "toyota-anderes-modell",
+      has_pricelist: false,
+    });
+    expect(vehicleLabel({ family: mini, model: null, vehicleText: null })).toBe("MINI");
+    expect(vehicleLabel({ family: toyota, model: null, vehicleText: null })).toBe("Toyota");
+  });
+
+  it("Echte Familie ohne Preisliste (Wiesmann) ohne vehicleText: behält ihren echten Namen statt der Marke (kein Platzhalter)", () => {
+    const family = baseFamily({
+      brand: "Wiesmann",
+      name: "GT MF5",
+      codes: [],
+      slug: "wiesmann-gt-mf5",
+      has_pricelist: false,
+    });
+    expect(vehicleLabel({ family, model: null, vehicleText: null })).toBe("Wiesmann GT MF5");
+  });
+
+  it("Modell vorhanden: vehicleText bleibt unberücksichtigt (Modell/Code-Logik hat Vorrang, unverändert zu Befund #1 der Mail-Prüfung)", () => {
+    const family = baseFamily({ brand: "BMW", name: "M2 G87", codes: ["G87"], slug: "bmw-m2-g87" });
+    const model = baseModel({ name: "M2", family_id: family.id });
+    expect(vehicleLabel({ family, model, vehicleText: "Mein Auto" })).toBe("BMW M2 G87");
+  });
+});
+
+// --- Regression Befund #2 (Anfrage-Prüfung): itemLineText() mit
+// mehrzeiliger Beschreibung. products.description enthält bei allen
+// Radsätzen echte Zeilenumbrüche aus der Excel-Zelle (Vorder-/Hinterachse
+// getrennt, siehe docs/excel-import.md); roh eingesetzt landete der
+// Zeilenumbruch mitten in der Klammer der Positionszeile.
+describe("itemLineText: mehrzeilige Beschreibung und Doppelpunkt am Namensende (Befund #2 der Anfrage-Prüfung)", () => {
+  it("Radsatz-Beschreibung mit Zeilenumbruch (Vorder-/Hinterachse): zu einer Zeile zusammengefasst, kein Doppelpunkt vor der Klammer", () => {
+    const item: MailInquiryItem = {
+      category: "raeder",
+      name: "CDC1 FORGED Radsatz geschmiedet bestehend aus:",
+      description: '10 x 20" mit 275/30 20\n10 x 20" mit 285/30 20',
+      price_total: 7100,
+      price_status: "priced",
+    };
+    const line = itemLineText(item, "de");
+    expect(line).toBe(
+      '• Räder: CDC1 FORGED Radsatz geschmiedet bestehend aus (10 x 20" mit 275/30 20, 10 x 20" mit 285/30 20), ab CHF 7\'100',
+    );
+    expect(line).not.toMatch(/\n/);
+    expect(line).not.toContain("aus:");
+  });
+
+  it("Name ohne abschliessenden Doppelpunkt bleibt unverändert (z.B. Motor-Leistungsstufen mit Doppelpunkt mitten im Namen)", () => {
+    const item: MailInquiryItem = {
+      category: "motor",
+      name: "Stufe 1: (Basis 480 PS) 620PS / 740Nm",
+      description: null,
+      price_total: 4180,
+      price_status: "priced",
+    };
+    expect(itemLineText(item, "de")).toBe("• Motor: Stufe 1: (Basis 480 PS) 620PS / 740Nm, ab CHF 4'180");
+  });
 });

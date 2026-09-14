@@ -2,6 +2,18 @@
 // Hilfsskript für lokale Tests von /api/cron/follow-ups: ruft den Endpoint
 // mit dem Bearer-Token aus CRON_SECRET auf. In Produktion übernimmt das
 // Railway Cron (siehe docs/architektur.md, Abschnitt "Follow-ups").
+//
+// Aufruf: npm run cron:followups (gegen den laufenden Dev-Server, npm run dev).
+
+// .env selbst laden (Node 24, kein dotenv-Paket in der freigegebenen
+// Paketliste), wie scripts/mail-test.ts/create-admin-users.ts: ein
+// eigenständiges tsx-Skript bekommt .env sonst nicht automatisch geladen
+// (anders als `next dev`/`next build`).
+try {
+  process.loadEnvFile(".env");
+} catch {
+  // .env nicht vorhanden: process.env muss die Variablen dann schon enthalten.
+}
 
 async function main() {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
