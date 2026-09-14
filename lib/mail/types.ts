@@ -11,6 +11,20 @@ export interface MailInquiryItem {
   description: string | null;
   price_total: number | null;
   price_status: PriceStatus;
+  /**
+   * Nur für Motor-Leistungsprodukte gefüllt (products.ps_to/nm_to,
+   * variant_group "leistung"), analog zu DraftItem.psTo/nmTo in
+   * lib/draft/template.ts. Optional (statt `number | null`): inquiries.
+   * selections speichert diese beiden Felder bislang nicht (siehe
+   * lib/inquiry/create.ts selectionsJson, ausserhalb der mir für diese
+   * Aufgabe zugewiesenen Dateien), lib/inquiry/context.ts parseItems()
+   * liefert die Felder deshalb aktuell gar nicht mit - Aufrufer, die sie
+   * (noch) nicht kennen, lassen sie einfach weg, statt `null` vortäuschen
+   * zu müssen. lib/mail/templates/inbox.ts nutzt sie für die ZIEL-Zeile,
+   * wenn vorhanden, siehe dortiger Kommentar und Bericht.
+   */
+  ps_to?: number | null;
+  nm_to?: number | null;
 }
 
 /** Ein Prüfhinweis (lib/rules/checks.ts). */
@@ -55,6 +69,12 @@ export interface MailFollowUpContext {
   /** Anzeige-Text fürs Fahrzeug für den Platzhalter {{fahrzeug}}, z.B. "BMW M3 Touring" oder inquiries.vehicle_text. */
   vehicleLabel: string;
   rule: { subject: string; body: string };
-  settings: { signatureName: string; companyAddress: string; signaturePhone: string };
+  /**
+   * companyName (settings.mail_from_name) ist der Firmenname für die
+   * Signatur; companyAddress (settings.company_address) wird nur
+   * angehängt, wenn gesetzt (Prüfung Phase B, Punkt 6, siehe
+   * lib/mail/templates/follow_up.ts).
+   */
+  settings: { signatureName: string; companyName: string; companyAddress: string; signaturePhone: string };
   locale: Locale;
 }

@@ -21,10 +21,20 @@ function appUrl(): string {
 /**
  * inquiries.selections ist jsonb (siehe docs/db.md), an dieser Stelle immer
  * bereits im von lib/inquiry/create.ts geschriebenen Format (product_id,
- * category, name, description, price_total, price_status). Robust gegen
- * eine leere/fremde Struktur (defensiv, kein throw): eine fehlerhafte
- * Positionsliste darf den Mailversand einer sonst gültigen Anfrage nicht
- * verhindern.
+ * category, name, description, price_total, price_status, ps_to, nm_to).
+ * Robust gegen eine leere/fremde Struktur (defensiv, kein throw): eine
+ * fehlerhafte Positionsliste darf den Mailversand einer sonst gültigen
+ * Anfrage nicht verhindern.
+ *
+ * ps_to/nm_to (Prüfung, Befund 4): nur bei Motor-Leistungsprodukten
+ * gefüllt (siehe lib/mail/types.ts MailInquiryItem-Kommentar), auf
+ * MailInquiryItem deshalb optional statt `number | null` - eine ältere,
+ * vor dieser Korrektur gespeicherte Anfrage hat diese Felder in ihrem
+ * gespeicherten inquiries.selections schlicht nicht, `e.ps_to`/`e.nm_to`
+ * sind dort `undefined` und bleiben so (kein `null` vortäuschen).
+ * lib/mail/templates/inbox.ts goalLine() nutzt sie, wenn vorhanden, für die
+ * ZIEL-Zeile ("ca. 620 PS / 740 Nm" statt der bis dahin gezeigten
+ * products.description).
  */
 function parseItems(raw: unknown): MailInquiryItem[] {
   if (!Array.isArray(raw)) return [];
@@ -39,6 +49,8 @@ function parseItems(raw: unknown): MailInquiryItem[] {
       description: typeof e.description === "string" ? e.description : null,
       price_total: typeof e.price_total === "number" ? e.price_total : null,
       price_status: (typeof e.price_status === "string" ? e.price_status : "on_request") as MailInquiryItem["price_status"],
+      ps_to: typeof e.ps_to === "number" ? e.ps_to : null,
+      nm_to: typeof e.nm_to === "number" ? e.nm_to : null,
     });
   }
   return items;

@@ -27,7 +27,10 @@ Ergänzt `docs/architektur.md` (Abschnitt "Datenmodell" und "Sicherheit"). Schem
 - **pricelist_notes** — Hinweistexte aus der Excel (Garantie, Gutachten), je `family_id` und
   Excel-`category` (Originaltext, kein Flow-Enum).
 - **pricelist_imports** — ein Excel-Upload im Admin. `status`: `pending` (Diff angezeigt),
-  `applied` (übernommen), `discarded` (verworfen). `diff`/`summary` als `jsonb`.
+  `applied` (übernommen), `discarded` (verworfen), `failed` (Übernehmen ist bei mindestens einer
+  Familie fehlgeschlagen, siehe `lib/pricelist/imports.ts` `applyPendingImport()`; die Fehler
+  stehen zusätzlich als `errors` im `summary`-jsonb, Status-Check-Constraint erweitert in
+  `20260916000000_followups_and_imports_phase_b.sql`). `diff`/`summary` als `jsonb`.
 
 ### Anfragen
 
@@ -41,9 +44,21 @@ Ergänzt `docs/architektur.md` (Abschnitt "Datenmodell" und "Sicherheit"). Schem
 - **follow_up_rules** — konfigurierbare Regeln (Posten 6), Text mit Platzhaltern `{{vorname}}`,
   `{{name}}`, `{{fahrzeug}}`, `{{nummer}}`.
 - **follow_ups** — geplanter Versand je Anfrage und Regel. `cancelled_at` wird gesetzt, wenn
-  der Kunde im Admin auf "Antwort erhalten" klickt.
+  der Kunde im Admin auf "Antwort erhalten" klickt (oder wenn ein Eintrag zur Laufzeit nicht
+  mehr sinnvoll versendet werden kann, siehe `lib/followups/run.ts`: fehlende Anfrage, fehlende
+  oder deaktivierte Regel, Anfrage ohne E-Mail-Adresse). `attempts` (Migration
+  `20260915000000_followups_retry_limit.sql`) zählt bisherige Versandversuche, atomar zusammen
+  mit dem Claim über `claim_follow_up()` erhöht (siehe unten); maximal `MAX_FOLLOW_UP_ATTEMPTS`
+  (3, `lib/followups/run.ts`). `last_error` hält den Fehlertext des letzten fehlgeschlagenen
+  Versuchs. `failed_at` wird gesetzt, sobald der letzte erlaubte Versuch fehlgeschlagen ist: der
+  Eintrag gilt dann als endgültig aufgegeben (getrennt von `cancelled_at`, das für "Antwort
+  erhalten" bzw. einen sonst nicht mehr sinnvollen Eintrag steht) und taucht in der
+  Fällig-Abfrage nicht mehr auf.
 - **settings** — Key-Value-Einstellungen (Absender, Signatur, Firmenadresse), Defaults in
-  `supabase/seed.sql`.
+  `supabase/seed.sql`. Für die Signatur im Antwortentwurf/Follow-up (`lib/draft/template.ts`,
+  `lib/mail/templates/follow_up.ts`): `mail_from_name` ist der Firmenname, `company_address` die
+  Adresse (wird nur angehängt, wenn gesetzt), `signature_name` der unterzeichnende Mitarbeiter,
+  `signature_phone` die Telefonnummer.
 - **inquiry_counters** — interne Hilfstabelle für `next_inquiry_number()` (ein Zähler pro
   Jahr), nicht Teil des Datenmodells in `docs/architektur.md`, wird von der App nicht direkt
   angesprochen.
@@ -64,6 +79,27 @@ Ergänzt `docs/architektur.md` (Abschnitt "Datenmodell" und "Sicherheit"). Schem
   `authenticated` entzogen).
 - `set_updated_at()` — Trigger-Funktion, setzt `updated_at = now()` bei jedem `UPDATE`. Hängt
   an jeder Tabelle mit `updated_at`-Spalte.
+- `claim_follow_up(p_id uuid, p_max_attempts integer default 3)` — Migration
+  `20260915000000_followups_retry_limit.sql`, Signatur erweitert in
+  `20260916000000_followups_and_imports_phase_b.sql`. Beansprucht einen `follow_ups`-Eintrag für
+  den Versand (`sent_at = now()`) und erhöht `attempts` atomar im selben `UPDATE`; claimt nur,
+  wenn `sent_at`/`cancelled_at`/`failed_at` alle noch `null` sind und `attempts < p_max_attempts`.
+  `p_max_attempts` wird von `lib/followups/run.ts` (Konstante `MAX_FOLLOW_UP_ATTEMPTS`)
+  übergeben, damit das Limit nur an einer Stelle (der TS-Konstante) gepflegt wird, nicht
+  zusätzlich hart codiert in der Funktion. `security definer`, Execute-Recht nur für
+  `service_role`.
+- `schedule_follow_ups(p_inquiry_id uuid, p_replied_at timestamptz)` — Migration
+  `20260915000000_followups_retry_limit.sql`, ergänzt in
+  `20260916000000_followups_and_imports_phase_b.sql`. Plant beim Senden einer Antwort
+  (`lib/followups/schedule.ts` `markReplied()`/`scheduleFollowUps()`) pro aktiver Regel
+  (Reihenfolge `sort`) einen `follow_ups`-Eintrag, `scheduled_for = p_replied_at +
+  days_after_reply` Tage (Europe/Zurich), sofern für Anfrage und Regel noch weniger als
+  `max_count` Einträge existieren UND noch kein OFFENER Eintrag (`sent_at`/`cancelled_at`/
+  `failed_at` alle `null`) für diese Regel/Anfrage existiert (verhindert eine zweite, parallele
+  Planung derselben Regel bei einem erneuten Aufruf, z. B. Antwort im Admin nochmals gesendet).
+  Sperrt die Anfrage für die Dauer der Transaktion (`pg_advisory_xact_lock`), damit zwei
+  gleichzeitige Aufrufe für dieselbe Anfrage nacheinander statt parallel laufen und `max_count`
+  nie überschritten wird. `security definer`, Execute-Recht nur für `service_role`.
 
 ## Sicherheit (RLS)
 

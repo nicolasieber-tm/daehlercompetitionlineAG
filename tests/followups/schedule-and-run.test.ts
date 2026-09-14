@@ -120,18 +120,45 @@ describe("scheduleFollowUps", () => {
     expect(created[0].scheduled_for).toBe(expected);
   });
 
-  it("respektiert max_count: legt nie mehr als max_count Einträge je Anfrage und Regel an", async () => {
+  // Prüfung Phase B, Punkt 4: schedule_follow_ups() überspringt eine Regel,
+  // für die bereits ein OFFENER Eintrag existiert (weder gesendet noch
+  // storniert noch endgültig fehlgeschlagen), statt eine zweite, parallele
+  // Planung derselben Regel anzulegen (z.B. wenn die Antwort im Admin ein
+  // zweites Mal gesendet wird, bevor der erste Follow-up fällig war). Das
+  // ersetzt den früheren Test "respektiert max_count" (der mehrfache
+  // scheduleFollowUps()-Aufrufe OHNE etwas dazwischen zu stornieren/senden
+  // erwartete - genau das lässt der neue Guard jetzt nicht mehr zu): erst
+  // wenn der offene Eintrag storniert/gesendet ist, kann ein weiterer bis
+  // max_count angelegt werden; danach (max_count erreicht) auch dann nicht
+  // mehr, wenn alle bisherigen Einträge bereits storniert sind.
+  it("keine zweite offene Planung derselben Regel, solange ein Eintrag offen ist; max_count zählt trotzdem über die Gesamtzahl", async () => {
     const rule = await createTestRule({ days_after_reply: 0, active: true, max_count: 2 });
     ruleIds.push(rule.id);
     const inquiry = await createTestInquiry();
     inquiryIds.push(inquiry.id);
 
-    await scheduleFollowUps(inquiry.id, new Date());
-    await scheduleFollowUps(inquiry.id, new Date());
-    await scheduleFollowUps(inquiry.id, new Date());
+    const first = await scheduleFollowUps(inquiry.id, new Date());
+    expect(first).toHaveLength(1);
 
-    const rows = await followUpsFor(inquiry.id);
-    expect(rows).toHaveLength(2);
+    // Erster Eintrag noch offen: kein zweiter, obwohl max_count (2) das
+    // erlauben würde.
+    const second = await scheduleFollowUps(inquiry.id, new Date());
+    expect(second).toHaveLength(0);
+    expect(await followUpsFor(inquiry.id)).toHaveLength(1);
+
+    // Erster Eintrag storniert: jetzt darf der zweite (letzte, max_count=2)
+    // Eintrag angelegt werden.
+    await cancelOpenFollowUps(inquiry.id, "test");
+    const third = await scheduleFollowUps(inquiry.id, new Date());
+    expect(third).toHaveLength(1);
+    expect(await followUpsFor(inquiry.id)).toHaveLength(2);
+
+    // max_count (2) über die GESAMTZAHL erreicht: auch nach Stornieren des
+    // zweiten Eintrags wird kein dritter mehr angelegt.
+    await cancelOpenFollowUps(inquiry.id, "test");
+    const fourth = await scheduleFollowUps(inquiry.id, new Date());
+    expect(fourth).toHaveLength(0);
+    expect(await followUpsFor(inquiry.id)).toHaveLength(2);
   });
 
   // Prüfer-Befund: der max_count-Guard war vorher nicht atomar (erst
@@ -415,5 +442,34 @@ describe("runDueFollowUps", () => {
     const secondResult = await runDueFollowUps();
     const secondDetail = secondResult.details.find((d) => d.inquiryId === inquiry.id);
     expect(secondDetail).toBeUndefined(); // bereits storniert, taucht nicht mehr in der Abfrage auf
+  });
+
+  // Prüfung Phase B, Punkt 4: eine Regel, die NACH dem Planen (zur
+  // Laufzeit) im Admin deaktiviert wurde, soll den Eintrag stornieren statt
+  // trotzdem zu senden.
+  it("deaktivierte Regel zur Laufzeit: der fällige Eintrag wird storniert statt gesendet", async () => {
+    const rule = await createTestRule({ days_after_reply: 0, active: true, max_count: 1 });
+    ruleIds.push(rule.id);
+    const inquiry = await createTestInquiry();
+    inquiryIds.push(inquiry.id);
+
+    await scheduleFollowUps(inquiry.id, new Date());
+
+    const { error: deactivateError } = await admin
+      .from("follow_up_rules")
+      .update({ active: false })
+      .eq("id", rule.id);
+    if (deactivateError) throw deactivateError;
+
+    const result = await runDueFollowUps();
+    const detail = result.details.find((d) => d.inquiryId === inquiry.id);
+    expect(detail?.outcome).toBe("skipped");
+    expect(detail?.reason).toBe("rule_inactive");
+    expect(sendMock).not.toHaveBeenCalled();
+
+    const row = await singleFollowUpFor(inquiry.id);
+    expect(row.sent_at).toBeNull();
+    expect(row.cancelled_at).not.toBeNull();
+    expect(row.attempts).toBe(0);
   });
 });

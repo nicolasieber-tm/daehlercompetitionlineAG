@@ -22,6 +22,7 @@ vi.mock("resend", () => ({
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createInquiry, InvalidSelectionError } from "@/lib/inquiry/create";
+import { buildMailContext } from "@/lib/inquiry/context";
 import type { InquiryPayload } from "@/lib/inquiry/schema";
 
 const admin = createAdminClient();
@@ -166,6 +167,16 @@ describe("createInquiry: M2 G87 / M2 mit 3 Produkten (echter Katalog)", () => {
     expect(result.draft.subject).toContain(result.number);
     expect(result.draft.body.length).toBeGreaterThan(0);
     expect(result.shareToken).toHaveLength(22);
+    // Prüfung, Befund 4: DraftSettings.companyName (settings.mail_from_name)
+    // wird jetzt mitgeliefert - die Signatur zeigt den Firmennamen einmal
+    // (companyLine() dedupliziert gegen settings.company_address, das im
+    // Seed bereits mit dem Namen beginnt: "dÄHLer Competition Line AG,
+    // Belp"), nicht doppelt. signature_phone selbst wird hier bewusst nicht
+    // geprüft (settings ist DB-Stand, nicht Testfixture) - lib/inquiry/
+    // draft.test.ts deckt buildDraft()/companyLine() bereits vollständig
+    // mit festen Fixtures ab.
+    expect(result.draft.body).toContain("dÄHLer Competition Line AG, Belp · ");
+    expect(result.draft.body).not.toContain("dÄHLer Competition Line AG, dÄHLer Competition Line AG");
 
     const { data: inquiry, error } = await admin
       .from("inquiries")
@@ -180,12 +191,33 @@ describe("createInquiry: M2 G87 / M2 mit 3 Produkten (echter Katalog)", () => {
     expect(inquiry.draft_subject).toBe(result.draft.subject);
     expect(inquiry.draft_reply).toBe(result.draft.body);
 
-    const selections = inquiry.selections as unknown as Array<{ product_id: string; category: string; price_total: number | null }>;
+    const selections = inquiry.selections as unknown as Array<{
+      product_id: string;
+      category: string;
+      price_total: number | null;
+      ps_to: number | null;
+      nm_to: number | null;
+    }>;
     expect(selections).toHaveLength(3);
     expect(selections.map((s) => s.product_id).sort()).toEqual(
       [motorProductId, auspuffProductId, fahrwerkProductId].sort(),
     );
     expect(selections.find((s) => s.product_id === motorProductId)?.price_total).toBe(4180);
+    // Prüfung, Befund 4: ps_to/nm_to werden je Position mitgespeichert,
+    // damit die ZIEL-Zeile der Inbox-Mail (lib/mail/templates/inbox.ts
+    // goalLine()) "ca. 620 PS / 740 Nm" zeigen kann, statt auf
+    // products.description zurückzufallen.
+    const motorSelection = selections.find((s) => s.product_id === motorProductId);
+    expect(motorSelection?.ps_to).toBe(620);
+    expect(motorSelection?.nm_to).toBe(740);
+
+    // Dieselben Werte müssen über lib/inquiry/context.ts buildMailContext()
+    // (parseItems()) wieder ankommen - das ist der tatsächliche Weg, über
+    // den die Mailvorlagen (inbox.ts) an ps_to/nm_to kommen.
+    const mailCtx = await buildMailContext(result.id, admin);
+    const motorItem = mailCtx.items.find((i) => i.category === "motor");
+    expect(motorItem?.ps_to).toBe(620);
+    expect(motorItem?.nm_to).toBe(740);
 
     const { data: outbound, error: outboundError } = await admin
       .from("outbound_emails")

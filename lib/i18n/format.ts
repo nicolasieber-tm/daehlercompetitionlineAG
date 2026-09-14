@@ -39,10 +39,20 @@ export function chfFrom(amount: number, locale: Locale): string {
 
 /**
  * Formatiert ein Datum lokalisiert: de-CH oder en-GB.
+ *
+ * Mit timeZone: "Europe/Zurich" (analog lib/followups/schedule.ts,
+ * zurichDateString()), damit das angezeigte Datum unabhängig von der
+ * Server-Zeitzone stimmt: in Produktion (Railway, Standard-TZ UTC, siehe
+ * docs/architektur.md, Abschnitt "Umgebungsvariablen") würde eine Anfrage
+ * von 22:30 UTC ohne timeZone als Vortag angezeigt, obwohl sie in
+ * Schweizer Ortszeit (00:30) bereits am Folgetag liegt - und damit auch
+ * nicht mehr zum Kalendertag passen, den lib/admin/inquiries.ts
+ * (zurichDayBoundsUtc()) für den Von/Bis-Filter zugrunde legt.
  */
 export function formatDate(date: Date, locale: Locale): string {
   const intlLocale = locale === "en" ? "en-GB" : "de-CH";
   return new Intl.DateTimeFormat(intlLocale, {
+    timeZone: "Europe/Zurich",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

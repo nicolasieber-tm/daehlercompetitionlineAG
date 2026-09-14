@@ -35,16 +35,25 @@ export function zurichDateString(date: Date): string {
  *
  * Die eigentliche Prüfung+Einfügung läuft in der Postgres-Funktion
  * `schedule_follow_ups` (siehe
- * supabase/migrations/20260915000000_followups_retry_limit.sql), nicht mehr
- * hier als zwei getrennte Roundtrips (erst zählen, dann einfügen): das war
- * nicht atomar, zwei gleichzeitige Aufrufe für dieselbe Anfrage (z.B.
- * Doppelklick auf "Senden" im Admin, zwei Tabs) konnten dadurch mehr
- * Einträge anlegen als max_count erlaubt (Prüfer-Befund). Die
+ * supabase/migrations/20260915000000_followups_retry_limit.sql, ergänzt in
+ * supabase/migrations/20260916000000_followups_and_imports_phase_b.sql),
+ * nicht mehr hier als zwei getrennte Roundtrips (erst zählen, dann
+ * einfügen): das war nicht atomar, zwei gleichzeitige Aufrufe für dieselbe
+ * Anfrage (z.B. Doppelklick auf "Senden" im Admin, zwei Tabs) konnten
+ * dadurch mehr Einträge anlegen als max_count erlaubt (Prüfer-Befund). Die
  * Datenbankfunktion sperrt die Anfrage für die Dauer der Transaktion
  * (`pg_advisory_xact_lock`), wodurch ein zweiter gleichzeitiger Aufruf
  * wartet statt parallel zu zählen. security definer, Execute-Recht nur für
  * `service_role` (siehe Migration), daher nur über den Admin-Client
  * aufrufbar.
+ *
+ * Prüfung Phase B, Punkt 4: zusätzlich überspringt schedule_follow_ups()
+ * jetzt eine Regel, für die bereits ein OFFENER Eintrag existiert (sent_at,
+ * cancelled_at und failed_at alle noch null) - ohne diese Prüfung hätte ein
+ * erneuter markReplied()-Aufruf für dieselbe Anfrage (z.B. der Admin sendet
+ * die Antwort ein zweites Mal nach, bevor der erste Follow-up fällig war)
+ * eine zweite, parallele Planung derselben Regel angelegt, solange
+ * max_count noch nicht erreicht war.
  */
 export async function scheduleFollowUps(inquiryId: string, repliedAt: Date): Promise<FollowUp[]> {
   const admin = createAdminClient();

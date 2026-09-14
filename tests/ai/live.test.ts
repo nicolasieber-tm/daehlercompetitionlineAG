@@ -31,10 +31,18 @@ if (!shouldRun) {
   );
 }
 
+// Prüfung Phase B, Punkt 7: createAdminClient() darf nicht im describe-Body
+// stehen. Der describe-Callback läuft bei der Testsammlung IMMER (Vitest
+// führt ihn synchron aus, um die it()-Blöcke zu registrieren), auch wenn
+// describe.skipIf() sie danach überspringt - createAdminClient() (wirft
+// ohne NEXT_PUBLIC_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY in .env, siehe
+// lib/supabase/admin.ts) hätte damit `npm test` ohne diese Variablen
+// gesprengt, selbst wenn ANTHROPIC_API_KEY/AI_LIVE_TEST=1 fehlen und die
+// Tests eigentlich übersprungen werden sollen. Jeder it()-Block erzeugt den
+// Client deshalb jetzt selbst, läuft also gar nicht erst, wenn skipIf greift.
 describe.skipIf(!shouldRun)("extractInquiry (live, echte Anthropic-Aufrufe)", () => {
-  const admin = createAdminClient();
-
   it("deutsche E-Mail: BMW M2 G87, Stufe 1 + Klappenauspuffanlage, Kontakt Max Muster", async () => {
+    const admin = createAdminClient();
     const text =
       "Guten Tag, ich habe einen M2 G87 Jahrgang 2024 und möchte Stufe 1 und eine Klappenauspuffanlage, " +
       "Termin im November, Gruss Max Muster, 079 555 12 34, max@example.ch";
@@ -60,6 +68,7 @@ describe.skipIf(!shouldRun)("extractInquiry (live, echte Anthropic-Aufrufe)", ()
   }, 60000);
 
   it("Telefonnotiz mit Tippfehlern: X3 G45 M50, Federn + 21 Zoll Räder", async () => {
+    const admin = createAdminClient();
     const text = "x3 g45 m50, will federn + 21 zoll räder, ruft zurück 031 555 22 11";
 
     const extraction = await extractInquiry(text, undefined, admin);
@@ -72,6 +81,7 @@ describe.skipIf(!shouldRun)("extractInquiry (live, echte Anthropic-Aufrufe)", ()
   }, 60000);
 
   it("englische Anfrage: MINI JCW ohne konkrete Produkte, Beratung/Komplettpaket erkannt", async () => {
+    const admin = createAdminClient();
     const text =
       "Hello, I'm interested in a MINI JCW but I'm not sure yet what exactly I want, maybe a bit more power " +
       "and a sportier look. Could you tell me what's possible and send me an offer? Best regards, " +

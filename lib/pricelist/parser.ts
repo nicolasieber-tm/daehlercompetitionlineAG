@@ -136,8 +136,13 @@ export function parsePerformance(rawName: string): PerformanceParseResult {
 
   // Zahl (mit optionalem Apostroph und optionalem *) PS / Zahl Nm. Beide
   // Zahlen sind optional, damit auch "PS/780 Nm" (Zahl vor PS fehlt) und
-  // "PS /  Nm" (beide leer -> null) greifen.
-  const primary = rest.match(/(\d[\d']*)?\*?\s*PS\s*\/\s*(\d[\d']*)?\*?\s*Nm/i);
+  // "PS /  Nm" (beide leer -> null) greifen. Prüfung Phase B, Punkt 8c:
+  // zwischen "PS /" und "Nm" steht bei einem Nm-BEREICH ("360 PS / 480 - 530
+  // Nm", 5er F10/F11 Zeile 12) zusätzlich eine untere Grenze mit
+  // Bindestrich - die optionale, nicht-erfassende Gruppe überspringt sie,
+  // die zweite Erfassungsgruppe nimmt dann die OBERE (zweite) Zahl des
+  // Bereichs (530), nicht die untere.
+  const primary = rest.match(/(\d[\d']*)?\*?\s*PS\s*\/\s*(?:\d[\d']*\s*-\s*)?(\d[\d']*)?\*?\s*Nm/i);
   if (primary) {
     if (primary[1]) psTo = parseNumberToken(primary[1]);
     if (primary[2]) nmTo = parseNumberToken(primary[2]);
@@ -230,7 +235,23 @@ function computePriceFields(
     (v): v is string => v !== null,
   );
   const hasVorb = textCells.some((v) => /vorb/i.test(v));
-  const status: PriceStatus = rTotal.num !== null ? "priced" : hasVorb ? "in_preparation" : "on_request";
+  // Prüfung Phase B, Punkt 8d: "auf Anfr." oder "inkl." im TEILEPREIS
+  // (price_parts) bei gleichzeitig numerischem Total bedeuten trotzdem
+  // price_status "on_request", nicht "priced" - der Total-Betrag ist dann
+  // nur ein Teilbetrag (Montage/Gutachten, siehe totalOnlyPartialSum unten),
+  // der eigentliche Teilepreis ist nicht beziffert. Beispiel (echte Zeile,
+  // 2er F22, F23.xls): "Heckflügel GTS in GFK"/"Heckflügel Carbon",
+  // Teilepreis "auf Anfr.", Montage 350, Total 350. price_note trägt den
+  // Text weiterhin (noteParts unten, unverändert von Befund #5).
+  const partsSignalsOnRequest = rParts.text !== null && /(auf\s*anfr\.?|inkl\.?)/i.test(rParts.text);
+  const status: PriceStatus =
+    rTotal.num !== null
+      ? partsSignalsOnRequest
+        ? "on_request"
+        : "priced"
+      : hasVorb
+        ? "in_preparation"
+        : "on_request";
 
   const noteParts = [pricePrefix, ...textCells].filter((v): v is string => !!v);
   const note = noteParts.length > 0 ? noteParts.join(", ") : null;
@@ -244,6 +265,32 @@ function computePriceFields(
     priceNote: note,
     totalOnlyPartialSum: rTotal.num !== null && rParts.text !== null,
   };
+}
+
+/**
+ * Prüfung Phase B, Punkt 8a: eine DME/DDE-Gruppenzeile ("DME
+ * Leistungssteigerungen:", "DDE Leistungssteigerungen Dieselmotoren:", ...)
+ * gilt nur für die eigentlichen Leistungsstufen-Produkte (variant_group
+ * "leistung") der Kategorie, nicht für andere Motor-Produkte, die in der
+ * Excel zufällig danach in derselben Kategorie folgen, bevor die nächste
+ * Gruppenzeile oder Kategorie kommt (z. B. "Einbau Leistungssteigerung" -
+ * laut lib/catalog/variant-groups.ts ausdrücklich KEIN Leistungsprodukt,
+ * eine reine Montagepauschale zu einer an anderer Stelle gewählten Stufe,
+ * ebenso "Aufhebung der serienmässigen V/max Begrenzung" ohne "Stufe"/
+ * "(Basis"/"Leistungssteigerung" im Namen). Für diese anderen Produkte
+ * bleibt group_label null, auch wenn currentGroupLabel zum Zeitpunkt der
+ * Zeile technisch noch die DME/DDE-Überschrift ist. Andere Gruppenzeilen
+ * (Distanzscheiben, dÄHLer Endrohre, Radsätze, ...) sind unverändert: sie
+ * gelten für ALLE nachfolgenden Produkte der Kategorie bis zur nächsten
+ * Gruppenzeile/Kategorie, wie in docs/excel-import.md beschrieben.
+ */
+function resolveGroupLabel(
+  groupLabel: string | null,
+  category: FlowCategory,
+  productName: string,
+): string | null {
+  if (groupLabel === null || !/^(DME|DDE)\b/i.test(groupLabel)) return groupLabel;
+  return variantGroupFor(category, productName) === "leistung" ? groupLabel : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -278,14 +325,27 @@ function computeContentHash(p: {
 }
 
 /**
- * Befund #2 (Bericht): docs/excel-import.md definiert content_hash ohne
- * Zeilenbezug, wodurch strukturell identische Zeilen (z. B. "Adaptersatz
- * inkl. Radschrauben und Nabenkappen", einmal pro Radsatz mit identischem
- * Namen/Preis/Fitment wiederholt) denselben Hash erhalten. Die Migration
- * (`supabase/migrations/20260911000000_init.sql`) erzwingt aber
- * unique(family_id, content_hash) - eine Kollision würde den Import
- * abbrechen bzw. beim Upsert Zeilen zusammenfallen lassen und die Zuordnung
- * Adaptersatz->Radsatz verlieren. Deshalb: nur bei einer tatsächlichen
+ * Befund #2 (Bericht), Kommentar korrigiert (Prüfung Phase B, Punkt 8):
+ * docs/excel-import.md definiert content_hash ohne Zeilenbezug, wodurch
+ * strukturell identische Zeilen (z. B. "Adaptersatz inkl. Radschrauben und
+ * Nabenkappen", einmal pro Radsatz mit identischem Namen/Preis/Fitment
+ * wiederholt) denselben Hash erhalten - das ist laut docs/excel-import.md
+ * ("content_hash ... ist NICHT eindeutig je Familie ... er dient dem Diff,
+ * nicht als Schlüssel") und der Migration (`supabase/migrations/
+ * 20260911000000_init.sql`, Kommentar an products.content_hash: "bewusst
+ * nicht unique ... Index statt Constraint") ausdrücklich SO VORGESEHEN,
+ * keine Constraint-Verletzung: ein früherer Kommentar hier behauptete
+ * fälschlich einen `unique(family_id, content_hash)`-Constraint, den es
+ * nicht gibt und der den Import angeblich abbrechen würde. Der tatsächliche
+ * Grund für die Disambiguierung: lib/pricelist/diff.ts
+ * matchFamilyProducts() (Durchgang 1, content_hash) und
+ * lib/pricelist/apply.ts planProducts() lesen content_hash über einen Pool
+ * (Map<hash, Product[]>) und wählen bei mehreren Kandidaten über
+ * pickBestCandidate() (source_row, dann Fitment) aus - funktioniert auch
+ * ohne eindeutigen Hash-String. Ein je Duplikat eindeutiger Hash macht die
+ * Zuordnung beim Re-Import (nächstes Quartal) trotzdem robuster und billiger
+ * (direkter Treffer statt Tie-Breaker) und macht jede Zeile für
+ * Debugging/Tests eindeutig identifizierbar. Nur bei einer tatsächlichen
  * Kollision innerhalb der Familie wird der laufende Index der Dublette in
  * den Hash-Input aufgenommen (die dokumentierte Formel bleibt für alle
  * nicht kollidierenden Zeilen, die grosse Mehrheit, unverändert) und eine
@@ -871,6 +931,38 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
     // an DIESE Zeile anhängt? (Beispiel M2 G87 "ECU-Abdeckung in Carbon").
     const forcedProduct = !!name && !anyPriceFilled && isNurPreiseZeile(rows[i + 1]);
 
+    // Ergänzung Prüfung Phase B, Punkt 8b: Zeile beginnt mit "Distanzscheiben"
+    // oder "dÄHLer Endrohre", hat weder RC noch Artikelnummer noch Marker,
+    // und die EINZIGE gefüllte Preiszelle ist Text (kein numerischer Preis,
+    // auch keine Apostroph-Zahl) -> Gruppenzeile (Regel 6), nicht Produkt
+    // (Regel 5). Muss VOR Regel 5 geprüft werden: ein Textwert in pParts/
+    // pTotal löst dort sonst über priceSignal fälschlich ein "Produkt" ohne
+    // echten Preis aus (Beispiel, echte Zeile XM G09.xls: "Distanzscheiben
+    // (schwarz) Satz i.V. mit BMW Serien- od. M Performance Räder", einzige
+    // Preiszelle "in Vorb."). specialGroupPrefix (Regel 6 weiter unten) deckt
+    // nur den Fall OHNE jede gefüllte Preiszelle ab.
+    const resolvedPriceCells = [pParts, pInstall, pApproval, pTotal].map(resolvePriceCell);
+    const filledPriceCells = resolvedPriceCells.filter((c) => c.num !== null || c.text !== null);
+    const onlyPriceCellIsText = filledPriceCells.length === 1 && filledPriceCells[0].text !== null;
+    const distanzscheibenEndrohreTextGroup =
+      !!name &&
+      !rc &&
+      !articleNo &&
+      marksNames.length === 0 &&
+      onlyPriceCellIsText &&
+      (name.startsWith("dÄHLer Endrohre") || name.startsWith("Distanzscheiben"));
+    if (distanzscheibenEndrohreTextGroup) {
+      warnings.push(
+        `Zeile ${excelRow}: "${name}" beginnt mit "Distanzscheiben"/"dÄHLer Endrohre" und trägt nur Text ("${filledPriceCells[0]!.text}") in einer Preiszelle, als Gruppenzeile statt als Produkt behandelt.`,
+      );
+      currentGroupLabel = name;
+      lastKind = "group";
+      currentProduct = null;
+      previousProduct = null;
+      currentHint = null;
+      continue;
+    }
+
     // Regel 5: Produkt. Befund #4: die "ab"-Präfixzelle zählt zusätzlich als
     // "price_parts gefüllt".
     const priceSignal = pTotal !== null || pParts !== null || pricePrefix !== null;
@@ -889,7 +981,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
         sort: productSort++,
         sourceCategory: currentSourceCategory ?? "",
         category: currentFlowCategory,
-        groupLabel: currentGroupLabel,
+        groupLabel: resolveGroupLabel(currentGroupLabel, currentFlowCategory, name),
         name,
         description: null,
         articleNo,
@@ -989,7 +1081,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
             sort: productSort++,
             sourceCategory: currentSourceCategory ?? "",
             category: currentFlowCategory,
-            groupLabel: currentGroupLabel,
+            groupLabel: resolveGroupLabel(currentGroupLabel, currentFlowCategory, name),
             name,
             description: nf.name,
             articleNo: mergedArticleNo,
@@ -1045,7 +1137,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
         sort: productSort++,
         sourceCategory: currentSourceCategory ?? "",
         category: currentFlowCategory,
-        groupLabel: currentGroupLabel,
+        groupLabel: resolveGroupLabel(currentGroupLabel, currentFlowCategory, name),
         name,
         description: null,
         articleNo,

@@ -5,13 +5,19 @@
 // Abfrage nötig: buildDraft() ist eine reine Funktion.
 import { describe, expect, it } from "vitest";
 import { buildDraft } from "@/lib/draft/template";
-import type { DraftContext, DraftItem } from "@/lib/draft/template";
+import type { DraftContext, DraftItem, DraftSettings } from "@/lib/draft/template";
 import { vehicleLabel } from "@/lib/mail/render";
 import type { ModelFamily } from "@/lib/supabase/rows";
 
+// companyName (settings.mail_from_name) + companyAddress (settings.
+// company_address, hier "Belp") ergeben zusammen dieselbe Firmenzeile wie
+// vorher ("dÄHLer Competition Line AG, Belp") - Prüfung Phase B, Punkt 6:
+// Firmenname kommt jetzt aus companyName, companyAddress ist die separate,
+// nur bei Vorhandensein angehängte Adresse (siehe lib/draft/template.ts).
 const SETTINGS = {
   signatureName: "Christoph Dähler",
-  companyAddress: "dÄHLer Competition Line AG, Belp",
+  companyName: "dÄHLer Competition Line AG",
+  companyAddress: "Belp",
   signaturePhone: "+41 31 819 88 77",
 };
 
@@ -75,7 +81,7 @@ const M2_BODY_DE = [
     "• Fahrwerk: Sportfedernsatz für M2 / VA -20mm/ HA -14mm, ab CHF 1'630",
   ].join("\n"),
   "Mit Stufe 1 kommt Ihr BMW M2 G87 auf 620 PS / 740 Nm, WLTP-geprüft und mit CH-Gutachten. Die Ergänzungsgarantie zur Werksgarantie ist für ein Jahr inbegriffen.",
-  "Richtpreis für das Paket: ab CHF 11'070, inklusive Einbau, ohne MFK. Den definitiven Preis bestätige ich Ihnen, sobald wir wissen, ob Ihr Wagen das adaptive M-Fahrwerk hat.",
+  "Richtpreis für das Paket: ab CHF 11'070, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir wissen, ob Ihr Wagen das adaptive M-Fahrwerk hat.",
   "Für die Zeit in ein bis zwei Monaten haben wir Werkstattfenster, wir reservieren Ihnen gerne eines, sobald Sie grünes Licht geben.",
   "Rufen Sie uns an oder antworten Sie kurz auf diese Mail, dann besprechen wir die Details.",
   ["Sportliche Grüsse aus Belp", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
@@ -119,7 +125,7 @@ const WIESMANN_BODY_DE = [
   "Guten Tag Peter Beispiel",
   "Danke für Ihre Anfrage für Ihren Wiesmann. Dezent und trotzdem spürbar, das können wir.",
   ["Grundsätzlich können wir das so umsetzen:", "• Motor", "• Exterieur"].join("\n"),
-  "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Einbau, ohne MFK.",
+  "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir die Details geklärt haben.",
   "Beim Termin sind wir flexibel, sagen Sie uns einfach, was Ihnen passt.",
   "Rufen Sie uns an oder antworten Sie kurz auf diese Mail, dann besprechen wir die Details.",
   ["Sportliche Grüsse aus Belp", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
@@ -161,12 +167,24 @@ describe("buildDraft: Kurzablauf Wiesmann ohne Preise", () => {
   });
 });
 
-// --- Regression Befund #1 (Anfrage-Prüfung): Kurzablauf mit
-// inquiries.vehicle_text. Die Platzhalterfamilie "Älteres Modell" (siehe
-// supabase/seed.sql) hat kein Modell; ctx.vehicleLabel entsteht hier wie in
+// --- Kurzablauf mit Platzhalterfamilie ("Älteres Modell", siehe
+// supabase/seed.sql, kein Modell); ctx.vehicleLabel entsteht hier wie in
 // lib/inquiry/create.ts über die echte vehicleLabel()-Funktion aus
 // lib/mail/render.ts (nicht hart verdrahtet), damit der Test die
 // tatsächliche Pipeline prüft statt nur buildDraft() isoliert.
+//
+// Prüfung Punkt 1 (blocker, seinerzeit): der Familienname bleibt in JEDEM
+// Fall stehen, auch bei den drei Kurzablauf-Platzhalternamen, keine
+// Code-Logik über model_families.codes.
+//
+// Prüfung Punkt 3 (Folgeprüfung): vehicle_text ist bei einer Familie OHNE
+// Modell-Katalog (has_pricelist false, hier also auch ohne gewähltes
+// model) jetzt wieder ein Ersatz für das fehlende Modell - anders als die
+// vorige Fassung, die vehicle_text nur ohne jede bekannte Familie
+// berücksichtigte, siehe lib/catalog/vehicle-label.ts: ohne diese
+// Ergänzung könnte eine Platzhalterfamilie (Älteres Modell, Wiesmann) die
+// vom Kunden/Sprachmodell erfasste konkrete Modellbezeichnung nirgends
+// zeigen.
 const PLACEHOLDER_FAMILY: ModelFamily = {
   active: true,
   brand: "BMW",
@@ -202,20 +220,18 @@ function kurzablaufCtx(vehicleText: string | null): DraftContext {
   };
 }
 
-describe("buildDraft: Kurzablauf Platzhalterfamilie mit vehicle_text (Befund #1 der Anfrage-Prüfung)", () => {
-  it("mit vehicleText: der vom Kunden genannte Fahrzeugtext erscheint statt des Platzhalternamens", () => {
-    const { subject, body } = buildDraft(kurzablaufCtx("320i Touring, Baujahr ca. 2011"), "de");
-    expect(subject).toBe("Ihre Anfrage für den 320i Touring, Baujahr ca. 2011, Nr. 2026-0099");
-    expect(body).toContain("Danke für Ihre Anfrage für Ihren 320i Touring, Baujahr ca. 2011.");
-    expect(body).not.toContain("Älteres Modell");
+describe("buildDraft: Kurzablauf Platzhalterfamilie, Familienname bleibt immer erhalten (Prüfung Phase B, Punkt 1)", () => {
+  it("ohne vehicleText: Marke + Platzhalter-Familienname", () => {
+    const { subject, body } = buildDraft(kurzablaufCtx(null), "de");
+    expect(subject).toBe("Ihre Anfrage für den BMW Älteres Modell, Nr. 2026-0099");
+    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW Älteres Modell.");
     assertClean(body, SETTINGS.signaturePhone);
   });
 
-  it("ohne vehicleText: nur die Marke statt des grammatisch falschen Platzhalternamens", () => {
-    const { subject, body } = buildDraft(kurzablaufCtx(null), "de");
-    expect(subject).toBe("Ihre Anfrage für den BMW, Nr. 2026-0099");
-    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW.");
-    expect(body).not.toContain("Älteres Modell");
+  it("mit vehicleText: ersetzt bei bekannter Familie ohne Modell das fehlende Modell (Familienname bleibt zusätzlich stehen)", () => {
+    const { subject, body } = buildDraft(kurzablaufCtx("320i Touring, Baujahr ca. 2011"), "de");
+    expect(subject).toBe("Ihre Anfrage für den BMW Älteres Modell, 320i Touring, Baujahr ca. 2011, Nr. 2026-0099");
+    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW Älteres Modell, 320i Touring, Baujahr ca. 2011.");
     assertClean(body, SETTINGS.signaturePhone);
   });
 });
@@ -243,5 +259,82 @@ describe("buildDraft: Positionszeile mit mehrzeiliger Beschreibung (Befund #2 de
       '• Räder: CDC1 FORGED Radsatz geschmiedet bestehend aus (10 x 20" mit 275/30 20, 10 x 20" mit 285/30 20), ab CHF 7\'100',
     );
     assertClean(body, SETTINGS.signaturePhone);
+  });
+});
+
+// --- Prüfung Phase B, Punkt 7: character/timing können im Schnellweg
+// (Posten 3) null sein, wenn das Sprachmodell sie nicht extrahieren konnte
+// und der Admin sie (noch) nicht nachgetragen hat (siehe
+// lib/ai/to-payload.ts QuickInquiryPayloadSchema). buildDraft() muss dann
+// neutrale Sätze statt eines kaputten "undefined" liefern.
+describe("buildDraft: character/timing null (Schnellweg ohne erkannten Charakter/Termin)", () => {
+  it("character null: der Charakter-Satz entfällt, der Rest des Dank-Absatzes bleibt", () => {
+    const ctx = { ...m2Ctx(), character: null };
+    const { body } = buildDraft(ctx, "de");
+    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW M2 G87 (Jahrgang 2025).");
+    expect(body).not.toContain("undefined");
+    assertClean(body, SETTINGS.signaturePhone);
+  });
+
+  it("timing null: ein neutraler Satz ersetzt die Zeitraum-Zeile", () => {
+    const ctx = { ...m2Ctx(), timing: null };
+    const { body } = buildDraft(ctx, "de");
+    expect(body).toContain(
+      "Sobald wir Ihren Wunschtermin kennen, reservieren wir Ihnen gerne ein Werkstattfenster.",
+    );
+    expect(body).not.toContain("undefined");
+    assertClean(body, SETTINGS.signaturePhone);
+  });
+
+  it("character UND timing null zusammen (typischer Schnellweg-Rohzustand)", () => {
+    const ctx = { ...m2Ctx(), character: null, timing: null };
+    const { subject, body } = buildDraft(ctx, "de");
+    expect(subject).toBe("Ihre Anfrage für den BMW M2 G87, Nr. 2026-0012");
+    expect(body).not.toContain("undefined");
+    assertClean(body, SETTINGS.signaturePhone);
+  });
+});
+
+// --- Prüfung Phase B, Punkt 6: Signatur ohne gesetzte Adresse.
+describe("buildDraft: Signatur ohne company_address", () => {
+  it("companyAddress leer: nur der Firmenname aus companyName, keine hängende Adresse/Komma", () => {
+    const ctx = { ...m2Ctx(), settings: { ...SETTINGS, companyAddress: "" } };
+    const { body } = buildDraft(ctx, "de");
+    expect(body.endsWith("dÄHLer Competition Line AG · +41 31 819 88 77")).toBe(true);
+    assertClean(body, SETTINGS.signaturePhone);
+  });
+
+  it("ohne companyName (z.B. ein älterer, so gespeicherter Entwurf): Fallback auf companyAddress allein", () => {
+    const settingsWithoutCompanyName: DraftSettings = {
+      signatureName: SETTINGS.signatureName,
+      companyAddress: "dÄHLer Competition Line AG, Belp",
+      signaturePhone: SETTINGS.signaturePhone,
+    };
+    const ctx = { ...m2Ctx(), settings: settingsWithoutCompanyName };
+    const { body } = buildDraft(ctx, "de");
+    expect(body.endsWith("dÄHLer Competition Line AG, Belp · +41 31 819 88 77")).toBe(true);
+  });
+
+  // Befund «polish» #1: companyAddress kann selbst bereits mit companyName
+  // beginnen (der ausgelieferte Seed-Wert von company_address ist "dÄHLer
+  // Competition Line AG, Belp", nicht die reine Adresse) - dann darf der
+  // Name nicht ein zweites Mal davorgesetzt werden. Deckt genau den Fall
+  // ab, den lib/inquiry/create.ts (Prüfung, Befund 4: liefert companyName =
+  // settings.mail_from_name jetzt mit) und lib/admin/inquiries.ts
+  // regenerateDraft() produzieren (siehe companyLine() in
+  // lib/mail/render.ts, dieselbe Korrektur, mit der
+  // lib/mail/templates/follow_up.ts das für den tatsächlichen
+  // Follow-up-Versand bereits macht).
+  it("companyName gesetzt UND companyAddress beginnt bereits mit companyName: keine doppelte Firmenzeile", () => {
+    const settingsWithOverlap: DraftSettings = {
+      signatureName: SETTINGS.signatureName,
+      companyName: "dÄHLer Competition Line AG",
+      companyAddress: "dÄHLer Competition Line AG, Belp",
+      signaturePhone: SETTINGS.signaturePhone,
+    };
+    const ctx = { ...m2Ctx(), settings: settingsWithOverlap };
+    const { body } = buildDraft(ctx, "de");
+    expect(body.endsWith("dÄHLer Competition Line AG, Belp · +41 31 819 88 77")).toBe(true);
+    expect(body).not.toContain("dÄHLer Competition Line AG, dÄHLer Competition Line AG");
   });
 });

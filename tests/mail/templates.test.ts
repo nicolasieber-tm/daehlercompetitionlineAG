@@ -174,9 +174,14 @@ function makeFollowUpContext(locale: Locale): MailFollowUpContext {
         "Gerne möchten wir nachfragen, ob sich bei Ihnen inzwischen Fragen ergeben haben oder ob wir " +
         "für Sie einen Termin vereinbaren dürfen.\n\nWir freuen uns auf Ihre Rückmeldung.\n\nFreundliche Grüsse",
     },
+    // companyName (settings.mail_from_name) + companyAddress (settings.
+    // company_address, hier "Belp") ergeben zusammen dieselbe Firmenzeile
+    // wie vorher ("dÄHLer Competition Line AG, Belp") - Prüfung Phase B,
+    // Punkt 6, siehe lib/mail/templates/follow_up.ts.
     settings: {
       signatureName: "Christoph Dähler",
-      companyAddress: "dÄHLer Competition Line AG, Belp",
+      companyName: "dÄHLer Competition Line AG",
+      companyAddress: "Belp",
       signaturePhone: "+41 31 819 88 77",
     },
     locale,
@@ -310,21 +315,44 @@ describe("Mailvorlagen: gemeinsame Anforderungen", () => {
       expect(result.text).toContain("Christoph Dähler");
     });
   }
+
+  // Befund «polish» #1: der ausgelieferte Seed-Wert für company_address
+  // (supabase/seed.sql) ist bereits "dÄHLer Competition Line AG, Belp"
+  // (voller Firmenname inklusive), nicht die reine Adresse "Belp" wie in
+  // makeFollowUpContext() oben. Mit diesen Werten hängte follow_up.ts den
+  // Firmennamen bisher ein zweites Mal davor ("dÄHLer Competition Line AG,
+  // dÄHLer Competition Line AG, Belp · +41 31 819 88 77").
+  it("follow_up: Signatur mit den ausgelieferten Seed-Werten (settings.company_address enthält den Firmennamen bereits), keine doppelte Firmenzeile", () => {
+    const ctx: MailFollowUpContext = {
+      ...makeFollowUpContext("de"),
+      settings: {
+        signatureName: "Christoph Dähler",
+        companyName: "dÄHLer Competition Line AG",
+        companyAddress: "dÄHLer Competition Line AG, Belp",
+        signaturePhone: "+41 31 819 88 77",
+      },
+    };
+    const result = buildFollowUp(ctx);
+    expect(result.text).toContain("dÄHLer Competition Line AG, Belp · +41 31 819 88 77");
+    expect(result.text).not.toContain("dÄHLer Competition Line AG, dÄHLer Competition Line AG");
+  });
 });
 
-// --- Regression Befund #1 (Mail-Prüfung): vehicleLabel() mit echten
-// Namenspaaren aus der Excel-Preisliste, siehe docs/excel-import.md. Vorher
-// klebte vehicleLabel() brand + family.name + model.name zusammen, was bei
-// diesen realen Kombinationen zu Dubletten führte ("BMW M2 G87 M2", "MINI
-// MINI F60 Countryman Countryman One (Benzin)").
-describe("vehicleLabel: reale Namenspaare aus der Preisliste (Befund #1)", () => {
-  it('BMW M2 G87, Modell "M2": Baureihen-Code nicht doppelt', () => {
+// --- Prüfung Phase B, Punkt 1 (blocker): vehicleLabel() mit echten
+// Namenspaaren aus der Excel-Preisliste, siehe docs/excel-import.md. Eine
+// frühere Fassung liess bei vorhandenem Modell den Familiennamen weg und
+// hängte stattdessen (nur bei genau einem Eintrag in codes[]) einen
+// Baureihen-Code an - korrekt ist stattdessen immer "<brand> <family.name>"
+// (Marke nicht doppeln, wenn der Name sie schon enthält) plus ", <model.
+// name>", ohne jede Code-Logik (siehe lib/mail/render.ts vehicleLabel()).
+describe("vehicleLabel: reale Namenspaare aus der Preisliste (Prüfung Phase B, Punkt 1)", () => {
+  it('BMW M2 G87, Modell "M2": Familienname UND Modellname, kein Baureihen-Code', () => {
     const family = baseFamily({ brand: "BMW", name: "M2 G87", codes: ["G87"], slug: "bmw-m2-g87" });
     const model = baseModel({ name: "M2", family_id: family.id });
-    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("BMW M2 G87");
+    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("BMW M2 G87, M2");
   });
 
-  it('MINI F60 Countryman, Modell "Countryman One (Benzin)": Marke nicht doppelt', () => {
+  it('MINI F60 Countryman, Modell "Countryman One (Benzin)": Marke nicht doppelt, Familienname vor dem Modell', () => {
     const family = baseFamily({
       brand: "MINI",
       name: "MINI F60 Countryman",
@@ -332,10 +360,12 @@ describe("vehicleLabel: reale Namenspaare aus der Preisliste (Befund #1)", () =>
       slug: "mini-f60-countryman",
     });
     const model = baseModel({ name: "Countryman One (Benzin)", family_id: family.id });
-    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("MINI Countryman One (Benzin) F60");
+    expect(vehicleLabel({ family, model, vehicleText: null })).toBe(
+      "MINI F60 Countryman, Countryman One (Benzin)",
+    );
   });
 
-  it('BMW M3 / M4 G80, G81, G82, G83, Modell "M3 Competition": mehrdeutiger Code (4 Codes, keine Modell-Code-Zuordnung in der DB) wird weggelassen statt geraten, kein "M3" doppelt', () => {
+  it('BMW M3 / M4 G80, G81, G82, G83, Modell "M3 Competition": Familienname bleibt vollständig erhalten, egal wie viele Codes', () => {
     const family = baseFamily({
       brand: "BMW",
       name: "M3 / M4 G80, G81, G82, G83",
@@ -343,18 +373,18 @@ describe("vehicleLabel: reale Namenspaare aus der Preisliste (Befund #1)", () =>
       slug: "bmw-m3-m4",
     });
     const model = baseModel({ name: "M3 Competition", family_id: family.id });
-    const label = vehicleLabel({ family, model, vehicleText: null });
-    expect(label).toBe("BMW M3 Competition");
-    expect(label.match(/M3/g)?.length).toBe(1);
+    expect(vehicleLabel({ family, model, vehicleText: null })).toBe(
+      "BMW M3 / M4 G80, G81, G82, G83, M3 Competition",
+    );
   });
 
-  it('BMW 1er M E82, Modell "1er M": kein doppeltes "1er M"', () => {
+  it('BMW 1er M E82, Modell "1er M": Familienname UND Modellname, auch wenn sich beide ähneln', () => {
     const family = baseFamily({ brand: "BMW", name: "1er M E82", codes: ["E82"], slug: "bmw-1er-m-e82" });
     const model = baseModel({ name: "1er M", family_id: family.id });
-    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("BMW 1er M E82");
+    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("BMW 1er M E82, 1er M");
   });
 
-  it("Betreff der Bestätigungsmail entspricht dem Sollbeispiel aus docs/architektur.md", () => {
+  it("Betreff der Bestätigungsmail: Familie + Modell, wie im Beispiel der Aufgabenstellung (BMW M2 G87, M2)", () => {
     const family = baseFamily({ brand: "BMW", name: "M2 G87", codes: ["G87"], slug: "bmw-m2-g87" });
     const model = baseModel({ name: "M2", family_id: family.id });
     const ctx: MailInquiryContext = {
@@ -371,19 +401,28 @@ describe("vehicleLabel: reale Namenspaare aus der Preisliste (Befund #1)", () =>
       adminUrl: "https://anfrage.daehler.com/admin/anfragen/11111111-1111-1111-1111-111111111111",
     };
     const result = buildConfirmation(ctx);
-    expect(result.subject).toBe("Ihre Anfrage für den BMW M2 G87, Nr. 2026-0012");
+    // docs/architektur.md nennt für dieses Beispiel noch "..., Nr. 2026-0012"
+    // ohne Modell; die Aufgabenstellung dieser Prüfung (Punkt 1) gibt
+    // "BMW M2 G87, M2" ausdrücklich als korrektes Ergebnis vor, wenn ein
+    // Modell gewählt ist - docs/architektur.md ist an dieser Stelle noch
+    // nicht nachgeführt (ausserhalb der mir zugewiesenen Dateien, siehe
+    // Bericht).
+    expect(result.subject).toBe("Ihre Anfrage für den BMW M2 G87, M2, Nr. 2026-0012");
   });
 });
 
-// --- Regression Befund #1 (Anfrage-Prüfung): inquiries.vehicle_text ohne
-// Modell. Vorher gab vehicleLabel() bei gesetzter family (familyId ist in
-// lib/inquiry/schema.ts immer Pflicht) den vehicleText NIE zurück - im
-// Kurzablauf (Platzhalterfamilien "Älteres Modell" / "Älteres MINI-Modell" /
-// "Anderes Toyota-Modell", siehe supabase/seed.sql) erschien so statt des
-// vom Kunden genannten Fahrzeugs der Platzhaltername im Kundentext
-// ("Ihren BMW Älteres Modell").
-describe("vehicleLabel: inquiries.vehicle_text ohne Modell (Befund #1 der Anfrage-Prüfung)", () => {
-  it("Platzhalterfamilie (has_pricelist=false) + vehicleText: Kundentext geht vor dem Platzhalternamen", () => {
+// --- Prüfung Phase B, Punkt 1: "kein Weglassen des Familiennamens". Eine
+// frühere Fassung liess bei einer der drei Kurzablauf-Platzhalterfamilien
+// ("Älteres Modell" usw., siehe supabase/seed.sql) ohne eigenen vehicle_text
+// nur die Marke stehen - das ist ausdrücklich nicht gewünscht: der
+// Familienname bleibt IMMER stehen. Prüfung Befund 3 (Folgeprüfung): ohne
+// gewähltes Modell ersetzt vehicle_text seither das fehlende Modell auch
+// bei bekannter Familie (siehe lib/catalog/vehicle-label.ts) - Familien
+// ohne Modell-Katalog (has_pricelist false) hätten sonst keine Möglichkeit,
+// die vom Kunden/Sprachmodell erfasste konkrete Modellbezeichnung zu
+// zeigen.
+describe("vehicleLabel: vehicle_text und Platzhalterfamilien (Prüfung Phase B, Punkt 1)", () => {
+  it("Platzhalterfamilie (has_pricelist=false) MIT vehicleText: vehicleText ersetzt das fehlende Modell", () => {
     const family = baseFamily({
       brand: "BMW",
       name: "Älteres Modell",
@@ -392,11 +431,11 @@ describe("vehicleLabel: inquiries.vehicle_text ohne Modell (Befund #1 der Anfrag
       has_pricelist: false,
     });
     expect(vehicleLabel({ family, model: null, vehicleText: "320i Touring, Baujahr 2011" })).toBe(
-      "320i Touring, Baujahr 2011",
+      "BMW Älteres Modell, 320i Touring, Baujahr 2011",
     );
   });
 
-  it('Platzhalterfamilie ohne vehicleText: nur die Marke ("BMW"), nicht der Platzhaltername - fügt sich in "Ihren {model}" ein', () => {
+  it("Platzhalterfamilie ohne vehicleText: Marke + Platzhaltername (nicht nur die Marke)", () => {
     const family = baseFamily({
       brand: "BMW",
       name: "Älteres Modell",
@@ -404,10 +443,10 @@ describe("vehicleLabel: inquiries.vehicle_text ohne Modell (Befund #1 der Anfrag
       slug: "bmw-aelteres-modell",
       has_pricelist: false,
     });
-    expect(vehicleLabel({ family, model: null, vehicleText: null })).toBe("BMW");
+    expect(vehicleLabel({ family, model: null, vehicleText: null })).toBe("BMW Älteres Modell");
   });
 
-  it('MINI- und Toyota-Platzhalter ("Älteres MINI-Modell", "Anderes Toyota-Modell") ohne vehicleText: ebenfalls nur die Marke', () => {
+  it('MINI- und Toyota-Platzhalter ("Älteres MINI-Modell", "Anderes Toyota-Modell"): Marke wird nur weggelassen, wenn der Name exakt mit ihr BEGINNT', () => {
     const mini = baseFamily({
       brand: "MINI",
       name: "Älteres MINI-Modell",
@@ -422,11 +461,14 @@ describe("vehicleLabel: inquiries.vehicle_text ohne Modell (Befund #1 der Anfrag
       slug: "toyota-anderes-modell",
       has_pricelist: false,
     });
-    expect(vehicleLabel({ family: mini, model: null, vehicleText: null })).toBe("MINI");
-    expect(vehicleLabel({ family: toyota, model: null, vehicleText: null })).toBe("Toyota");
+    // "Älteres MINI-Modell" beginnt nicht mit "MINI" (Marke steht in der
+    // Mitte des Namens) - die einfache Präfix-Prüfung dedupliziert hier
+    // bewusst NICHT, das ist der Preis für "keine Code-Logik".
+    expect(vehicleLabel({ family: mini, model: null, vehicleText: null })).toBe("MINI Älteres MINI-Modell");
+    expect(vehicleLabel({ family: toyota, model: null, vehicleText: null })).toBe("Toyota Anderes Toyota-Modell");
   });
 
-  it("Echte Familie ohne Preisliste (Wiesmann) ohne vehicleText: behält ihren echten Namen statt der Marke (kein Platzhalter)", () => {
+  it("Echte Familie ohne Preisliste (Wiesmann) ohne vehicleText: behält ihren echten Namen (unverändert)", () => {
     const family = baseFamily({
       brand: "Wiesmann",
       name: "GT MF5",
@@ -437,10 +479,15 @@ describe("vehicleLabel: inquiries.vehicle_text ohne Modell (Befund #1 der Anfrag
     expect(vehicleLabel({ family, model: null, vehicleText: null })).toBe("Wiesmann GT MF5");
   });
 
-  it("Modell vorhanden: vehicleText bleibt unberücksichtigt (Modell/Code-Logik hat Vorrang, unverändert zu Befund #1 der Mail-Prüfung)", () => {
+  it("Modell vorhanden: vehicleText bleibt unberücksichtigt, Familienname UND Modellname erscheinen", () => {
     const family = baseFamily({ brand: "BMW", name: "M2 G87", codes: ["G87"], slug: "bmw-m2-g87" });
     const model = baseModel({ name: "M2", family_id: family.id });
-    expect(vehicleLabel({ family, model, vehicleText: "Mein Auto" })).toBe("BMW M2 G87");
+    expect(vehicleLabel({ family, model, vehicleText: "Mein Auto" })).toBe("BMW M2 G87, M2");
+  });
+
+  it("keine Familie bekannt: vehicle_text bleibt der einzige Fallback", () => {
+    expect(vehicleLabel({ family: null, model: null, vehicleText: "Mein Auto" })).toBe("Mein Auto");
+    expect(vehicleLabel({ family: null, model: null, vehicleText: null })).toBe("");
   });
 });
 
@@ -475,5 +522,93 @@ describe("itemLineText: mehrzeilige Beschreibung und Doppelpunkt am Namensende (
       price_status: "priced",
     };
     expect(itemLineText(item, "de")).toBe("• Motor: Stufe 1: (Basis 480 PS) 620PS / 740Nm, ab CHF 4'180");
+  });
+});
+
+// --- Prüfung Phase B, Punkt 2 (major): inbox.ts ZIEL-Zeile aus ps_to/nm_to
+// des gewählten Motor-Leistungsprodukts, nicht aus description, und über
+// lib/inquiry/summary.ts goalText() für die Folgefragen-Antworten (kein
+// eigenes Duplikat mehr). ps_to/nm_to sind auf MailInquiryItem optional
+// (siehe dortiger Kommentar): dieser Test setzt sie explizit, um den
+// gesamten (korrekten) Pfad zu prüfen.
+describe("buildInbox: ZIEL-Zeile aus ps_to/nm_to (Prüfung Phase B, Punkt 2)", () => {
+  it("zeigt die Leistungsangabe aus ps_to/nm_to, nicht aus description, plus die Folgefrage-Antworten", () => {
+    const family = baseFamily();
+    const model = baseModel({ family_id: family.id });
+    const motorItem: MailInquiryItem = {
+      category: "motor",
+      name: "Stufe 1: (Basis 480 PS) 620PS / 740Nm",
+      // description enthält bewusst einen irreführenden Text (z.B. eine
+      // technische Randbemerkung aus der Excel) - die ZIEL-Zeile darf ihn
+      // nicht verwenden.
+      description: "nicht die Leistungsangabe",
+      price_total: 4180,
+      price_status: "priced",
+      ps_to: 620,
+      nm_to: 740,
+    };
+    const ctx: MailInquiryContext = {
+      inquiry: baseInquiry({
+        family_id: family.id,
+        model_id: model.id,
+        categories: ["motor", "auspuff"],
+        follow_up_answers: { motor: "beides", auspuff: "kraeftig" },
+      }),
+      family,
+      model,
+      items: [motorItem],
+      estimatedTotal: 4180,
+      checks: [],
+      draft,
+      locale: "de",
+      appUrl: "https://anfrage.daehler.com",
+      shareUrl: "https://anfrage.daehler.com/p/share-token-1234567890ab",
+      adminUrl: "https://anfrage.daehler.com/admin/anfragen/11111111-1111-1111-1111-111111111111",
+    };
+
+    const result = buildInbox(ctx);
+    const zielLine = result.text.split("\n").find((l) => l.startsWith("ZIEL:"));
+    expect(zielLine).toBe("ZIEL: ca. 620 PS / 740 Nm, Beides, Auspuff: Kräftig");
+    // description ("nicht die Leistungsangabe") landet weiterhin korrekt in
+    // den Positionen (GESCHÄTZTES PAKET), nur nicht mehr in der ZIEL-Zeile.
+    expect(result.text).toContain("nicht die Leistungsangabe");
+  });
+
+  it("ohne ps_to (Feld nicht gesetzt): keine Leistungsangabe, Folgefrage-Antworten bleiben trotzdem sichtbar", () => {
+    const family = baseFamily();
+    const model = baseModel({ family_id: family.id });
+    const motorItem: MailInquiryItem = {
+      category: "motor",
+      name: "Stufe 1",
+      description: "irrelevanter Text",
+      price_total: 4180,
+      price_status: "priced",
+    };
+    const ctx: MailInquiryContext = {
+      inquiry: baseInquiry({
+        family_id: family.id,
+        model_id: model.id,
+        categories: ["auspuff"],
+        follow_up_answers: { auspuff: "kraeftig" },
+      }),
+      family,
+      model,
+      items: [motorItem],
+      estimatedTotal: 4180,
+      checks: [],
+      draft,
+      locale: "de",
+      appUrl: "https://anfrage.daehler.com",
+      shareUrl: "https://anfrage.daehler.com/p/share-token-1234567890ab",
+      adminUrl: "https://anfrage.daehler.com/admin/anfragen/11111111-1111-1111-1111-111111111111",
+    };
+
+    const result = buildInbox(ctx);
+    const zielLine = result.text.split("\n").find((l) => l.startsWith("ZIEL:"));
+    // Ohne ps_to keine Leistungsangabe (nicht "ca. undefined PS" o.ä.), aber
+    // die Folgefrage-Antwort für Auspuff bleibt sichtbar.
+    expect(zielLine).toBe("ZIEL: Auspuff: Kräftig");
+    expect(zielLine).not.toContain("irrelevanter Text");
+    expect(zielLine).not.toContain("PS");
   });
 });

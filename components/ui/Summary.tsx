@@ -30,11 +30,11 @@ export function Summary({ header, headerMeta, lines, totalLabel, totalValue }: S
             key={line.key}
             className="flex justify-between gap-4 border-b border-line px-4 py-2.5 text-[15px] last:border-b-0"
           >
-            <div>
+            <div className="min-w-0 break-words [overflow-wrap:anywhere]">
               <span className="text-muted">{line.category}</span> {line.name}
               {line.detail ? <span className="text-muted"> · {line.detail}</span> : null}
             </div>
-            <em className="whitespace-nowrap font-mono text-[13px] not-italic tabular-nums">{line.price}</em>
+            <em className="shrink-0 whitespace-nowrap font-mono text-[13px] not-italic tabular-nums">{line.price}</em>
           </li>
         ))}
       </ul>

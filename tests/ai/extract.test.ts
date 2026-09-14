@@ -331,9 +331,7 @@ describe("toInquiryPayload", () => {
 
     expect(result.ok).toBe(false);
     expect(result.payload).toBeNull();
-    expect(result.missing).toEqual(
-      expect.arrayContaining(["familyId", "year", "firstName", "lastName", "character", "timing", "channel"]),
-    );
+    expect(result.missing).toEqual(expect.arrayContaining(["familyId", "year", "firstName", "lastName", "channel"]));
     // Ort ist beim Schnellweg optional (Befund #1): ohne Angabe kein
     // eigener missing-Eintrag mehr. Die "Telefon oder E-Mail"-Sammelregel
     // (siehe Test unten) ist ein zod .refine() und läuft nur, wenn die
@@ -342,6 +340,11 @@ describe("toInquiryPayload", () => {
     // diesem konkreten Fall; dedizierter Test unten mit sonst vollständigen
     // Daten und nur fehlendem Kontakt.
     expect(result.missing).not.toContain("city");
+    // Prüfung Phase B, Punkt 7: character/timing sind im Schnellweg optional
+    // (nullable), ein fehlender Wert ist also kein missing-Grund mehr
+    // (anders als im Kundenflow, siehe eigener Test unten).
+    expect(result.missing).not.toContain("character");
+    expect(result.missing).not.toContain("timing");
   });
 
   it("ist ok mit Telefon ohne E-Mail (Telefonnotiz, Prüfbericht Modul ai Befund #1)", async () => {
@@ -357,8 +360,9 @@ describe("toInquiryPayload", () => {
 
     expect(result.ok).toBe(true);
     expect(result.payload?.phone).toBe("031 555 22 11");
-    expect(result.payload?.email).toBe("");
-    expect(result.payload?.city).toBe("");
+    // Prüfung Phase B, Punkt 7: leerer String -> null statt "" (lib/ai/to-payload.ts).
+    expect(result.payload?.email).toBeNull();
+    expect(result.payload?.city).toBeNull();
   });
 
   it("ist ok mit E-Mail ohne Telefon", async () => {
@@ -370,7 +374,7 @@ describe("toInquiryPayload", () => {
 
     expect(result.ok).toBe(true);
     expect(result.payload?.email).toBe("anna@example.com");
-    expect(result.payload?.phone).toBe("");
+    expect(result.payload?.phone).toBeNull();
   });
 
   it("meldet 'phone' als fehlend, wenn weder Telefon noch E-Mail bekannt sind", async () => {
@@ -440,6 +444,21 @@ describe("toInquiryPayload", () => {
 
     expect(result.ok).toBe(true);
     expect(result.payload?.selections).toEqual([{ productId: "33333333-3333-4333-8333-333333333333" }]);
+  });
+
+  // Prüfung Phase B, Punkt 7: character/timing sind im Schnellweg optional
+  // (das Sprachmodell liefert sie oft null, z. B. eine Telefonnotiz ohne
+  // erkennbaren Zeitwunsch) - anders als im Kundenflow (dort Pflicht-Enum)
+  // darf das allein nicht dazu führen, dass toInquiryPayload() scheitert.
+  it("character/timing null bleiben null im Payload, sind kein missing-Grund", async () => {
+    const extraction = completeExtraction({ character: null, timing: null });
+
+    const result = await toInquiryPayload(extraction);
+
+    expect(result.ok).toBe(true);
+    expect(result.payload?.character).toBeNull();
+    expect(result.payload?.timing).toBeNull();
+    expect(result.missing).toEqual([]);
   });
 
   it("overrides überschreiben die aus der Extraction abgeleiteten Werte feldweise", async () => {

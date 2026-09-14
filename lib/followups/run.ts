@@ -65,7 +65,7 @@ interface DueFollowUpRow {
     model_families: Pick<ModelFamily, "brand" | "name" | "codes"> | null;
     models: Pick<Model, "name"> | null;
   } | null;
-  follow_up_rules: { id: string; subject: string; body: string } | null;
+  follow_up_rules: { id: string; subject: string; body: string; active: boolean } | null;
 }
 
 /** Storniert genau einen follow_ups-Eintrag (Guard: nur wenn noch nicht gesendet). */
@@ -102,9 +102,21 @@ interface ClaimedFollowUp {
  * ausgewertet: unter dem Limit wird sent_at wieder zurückgenommen (nächster
  * Lauf versucht es erneut), am Limit wird failed_at gesetzt (endgültig
  * aufgegeben).
+ *
+ * Prüfung Phase B, Punkt 4: das Limit stand bisher an zwei Stellen (die
+ * TS-Konstante MAX_FOLLOW_UP_ATTEMPTS hier UND ein hart codiertes "attempts
+ * < 3" innerhalb von claim_follow_up() in der Migration), die bei einer
+ * künftigen Änderung des Limits leicht auseinanderlaufen. Die Konstante
+ * wird deshalb als Parameter an die DB-Funktion übergeben (siehe
+ * supabase/migrations/20260916000000_followups_and_imports_phase_b.sql,
+ * claim_follow_up(p_id, p_max_attempts)); die einzige Quelle für das Limit
+ * bleibt MAX_FOLLOW_UP_ATTEMPTS hier.
  */
 async function claimFollowUp(admin: Admin, followUpId: string): Promise<ClaimedFollowUp | null> {
-  const { data, error } = await admin.rpc("claim_follow_up", { p_id: followUpId });
+  const { data, error } = await admin.rpc("claim_follow_up", {
+    p_id: followUpId,
+    p_max_attempts: MAX_FOLLOW_UP_ATTEMPTS,
+  });
   if (error) {
     throw new Error(`runDueFollowUps: Beanspruchen von ${followUpId} fehlgeschlagen: ${error.message}`);
   }
@@ -154,11 +166,14 @@ async function linkOutboundEmail(admin: Admin, followUpId: string, outboundEmail
  * Lädt fällige Follow-ups (scheduled_for <= today, sent_at null,
  * cancelled_at null, failed_at null) mit Anfrage und Regel, sendet sie über
  * sendInquiryMail("follow_up", ...) und protokolliert das Ergebnis.
- * Bricht bei einem einzelnen Fehler nicht ab (Fehler werden gesammelt).
- * Nach MAX_FOLLOW_UP_ATTEMPTS erfolglosen Versuchen wird ein Eintrag
- * endgültig aufgegeben (failed_at gesetzt, outcome "failed_final") und
- * taucht danach nicht mehr in dieser Abfrage auf (Prüfer-Befund: vorher
- * unbegrenzte tägliche Wiederholungen bei dauerhaften Fehlern).
+ * Bricht bei einem einzelnen Fehler nicht ab (Fehler werden gesammelt,
+ * inklusive eines Fehlers beim Claim selbst, siehe claimFollowUp()-Aufruf
+ * unten, Prüfung Phase B Punkt 4). Nach MAX_FOLLOW_UP_ATTEMPTS erfolglosen
+ * Versuchen wird ein Eintrag endgültig aufgegeben (failed_at gesetzt,
+ * outcome "failed_final") und taucht danach nicht mehr in dieser Abfrage
+ * auf (Prüfer-Befund: vorher unbegrenzte tägliche Wiederholungen bei
+ * dauerhaften Fehlern). Eine zur Laufzeit (nach dem Planen) deaktivierte
+ * Regel storniert den Eintrag statt zu senden (Prüfung Phase B Punkt 4).
  *
  * `today` optional, Standard: jetzt. Der Vergleich mit scheduled_for läuft
  * über den Kalendertag in Europe/Zurich (siehe lib/followups/schedule.ts,
@@ -174,7 +189,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
       "id, inquiry_id, rule_id, scheduled_for, " +
         "inquiries(id, number, status, answer_received_at, first_name, last_name, email, locale, vehicle_text, " +
         "model_families(brand, name, codes), models(name)), " +
-        "follow_up_rules(id, subject, body)",
+        "follow_up_rules(id, subject, body, active)",
     )
     .lte("scheduled_for", todayStr)
     .is("sent_at", null)
@@ -188,17 +203,21 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
   const rows = (data ?? []) as unknown as DueFollowUpRow[];
   const result: RunDueFollowUpsResult = { sent: 0, skipped: 0, failed: 0, details: [] };
 
-  let signature: { signatureName: string; companyAddress: string; signaturePhone: string };
+  // Prüfung Phase B, Punkt 6: Firmenname aus settings.mail_from_name
+  // (companyName), nicht aus company_address (das ist nur noch die
+  // optionale Adresse, siehe lib/mail/templates/follow_up.ts).
+  let signature: { signatureName: string; companyName: string; companyAddress: string; signaturePhone: string };
   try {
     const settings = await getSettings();
     signature = {
       signatureName: settings.signature_name ?? "",
+      companyName: settings.mail_from_name ?? "",
       companyAddress: settings.company_address ?? "",
       signaturePhone: settings.signature_phone ?? "",
     };
   } catch (err) {
     console.error("runDueFollowUps: settings konnten nicht geladen werden, verwende leere Signatur.", err);
-    signature = { signatureName: "", companyAddress: "", signaturePhone: "" };
+    signature = { signatureName: "", companyName: "", companyAddress: "", signaturePhone: "" };
   }
 
   for (const row of rows) {
@@ -251,6 +270,25 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
       continue;
     }
 
+    if (!rule.active) {
+      // Prüfung Phase B, Punkt 4: die Regel wurde nach dem Planen (siehe
+      // lib/followups/schedule.ts) im Admin deaktiviert. Ohne aktive Regel
+      // soll laut Aufgabenstellung nicht mehr gesendet werden - stornieren
+      // statt (wie bei einer gelöschten Regel oben) endlos jeden Tag erneut
+      // zu versuchen oder den veralteten Text trotzdem zu verschicken.
+      await cancelFollowUp(admin, row.id);
+      result.skipped += 1;
+      result.details.push({
+        followUpId: row.id,
+        inquiryId: inquiry.id,
+        inquiryNumber: inquiry.number,
+        ruleId: rule.id,
+        outcome: "skipped",
+        reason: "rule_inactive",
+      });
+      continue;
+    }
+
     if (!inquiry.email) {
       // Eine Anfrage ohne E-Mail-Adresse kann per Definition nie erfolgreich
       // zugestellt werden - kein Wiederholungsfall, deshalb sofort
@@ -269,7 +307,29 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
       continue;
     }
 
-    const claimed = await claimFollowUp(admin, row.id);
+    // Prüfung Phase B, Punkt 4: ein Fehler beim Claim selbst (z.B. RPC-
+    // Fehler) darf den ganzen Lauf nicht abbrechen (bisher ungefangen, warf
+    // aus claimFollowUp() direkt aus der for-Schleife heraus und liess alle
+    // noch nicht bearbeiteten Einträge dieses Laufs aus) - wie ein
+    // fehlgeschlagener Versand als "failed" zählen und mit der nächsten
+    // Zeile weitermachen.
+    let claimed: ClaimedFollowUp | null;
+    try {
+      claimed = await claimFollowUp(admin, row.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`runDueFollowUps: Claim von ${row.id} fehlgeschlagen.`, err);
+      result.failed += 1;
+      result.details.push({
+        followUpId: row.id,
+        inquiryId: inquiry.id,
+        inquiryNumber: inquiry.number,
+        ruleId: rule.id,
+        outcome: "failed",
+        error: message,
+      });
+      continue;
+    }
     if (!claimed) {
       // Zwischenzeitlich von einem anderen Lauf gesendet oder storniert
       // (z.B. "Antwort erhalten" parallel zum Cron) - nicht doppelt zählen.

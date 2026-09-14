@@ -32,11 +32,11 @@ export function BeforeAfter({ beforeLabel, afterLabel, rows }: BeforeAfterProps)
           key={row.key}
           className="grid grid-cols-2 items-baseline gap-3 border-b border-line px-4 py-[11px] text-[15px] last:border-b-0 sm2:grid-cols-[120px_1fr_1fr]"
         >
-          <span className="hidden font-display text-sm font-semibold uppercase tracking-[0.06em] text-muted sm2:block">
+          <span className="hidden min-w-0 font-display text-sm font-semibold uppercase tracking-[0.06em] text-muted sm2:block">
             {row.category}
           </span>
-          <span className="text-dim">{row.before}</span>
-          <span className="text-text">{row.after}</span>
+          <span className="min-w-0 break-words [overflow-wrap:anywhere] text-dim">{row.before}</span>
+          <span className="min-w-0 break-words [overflow-wrap:anywhere] text-text">{row.after}</span>
         </div>
       ))}
     </div>

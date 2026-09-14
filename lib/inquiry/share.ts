@@ -4,7 +4,7 @@
 // token(), die laut docs/db.md nur ein optionaler Fallback ist).
 import { nanoid } from "nanoid";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isPlaceholderFamilyName } from "@/lib/mail/render";
+import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
 
 const SHARE_TOKEN_LENGTH = 22;
 
@@ -76,12 +76,12 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
   if (error) throw new Error(`getInquiryByShareToken fehlgeschlagen: ${error.message}`);
   if (!inquiry) return null;
 
-  let family: { brand: string; name: string; codes: string[] } | null = null;
+  let family: { brand: string; name: string } | null = null;
   let model: { name: string } | null = null;
   if (inquiry.family_id) {
     const { data, error: familyError } = await admin
       .from("model_families")
-      .select("brand, name, codes")
+      .select("brand, name")
       .eq("id", inquiry.family_id)
       .maybeSingle();
     if (familyError) throw new Error(`getInquiryByShareToken (Familie) fehlgeschlagen: ${familyError.message}`);
@@ -97,32 +97,12 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
     model = data;
   }
 
-  // Dieselbe Marke/Modell-Dublette-Logik wie überall sonst (Mail,
-  // Antwortentwurf), siehe lib/mail/render.ts vehicleLabel(). Kein Import
-  // der vollen vehicleLabel(): die erwartet die vollen ModelFamily/Model-
-  // Row-Typen (u.a. id, slug, active, created_at, ...), hier liegt bewusst
-  // nur ein schlanker Ausschnitt vor (Sicherheitsprinzip "so wenig wie
-  // nötig" laden für eine öffentlich ohne Login erreichbare Route). Eine
-  // dritte, schmalere vehicleLabel()-Variante an einem gemeinsamen Ort wäre
-  // sauberer, war aber nicht Teil der zugewiesenen Dateien, siehe Bericht.
-  //
-  // vehicle_text VOR dem Familien-Fallback (Befund #1 der Anfrage-Prüfung:
-  // "vehicle_text wird ... nie verwendet", dieselbe Korrektur wie in
-  // vehicleLabel()); isPlaceholderFamilyName() wird von dort importiert
-  // (reine Namensprüfung, kein Row-Typ nötig), damit die Erkennung der drei
-  // Kurzablauf-Platzhalterfamilien nicht ein zweites Mal dupliziert wird.
-  const vehicleText = inquiry.vehicle_text?.trim() || null;
-  const vehicleLabel = (() => {
-    if (!family) return vehicleText ?? "";
-    const startsWithBrand = (text: string) => text.toLowerCase().startsWith(family!.brand.toLowerCase());
-    if (!model) {
-      if (vehicleText) return vehicleText;
-      if (isPlaceholderFamilyName(family.name)) return family.brand;
-      return startsWithBrand(family.name) ? family.name : `${family.brand} ${family.name}`;
-    }
-    const modelLabel = startsWithBrand(model.name) ? model.name : `${family.brand} ${model.name}`;
-    return family.codes.length === 1 ? `${modelLabel} ${family.codes[0]}` : modelLabel;
-  })();
+  // Dieselbe gemeinsame Formel wie überall sonst (Mail, Antwortentwurf,
+  // Kundenflow), siehe lib/catalog/vehicle-label.ts (Prüfung, Befund 3):
+  // eine frühere, eigene Kopie dieser Funktion liess hier bei vorhandenem
+  // Modell den Familiennamen weg und hängte stattdessen einen Baureihen-
+  // Code an (Blocker-Befund, siehe lib/mail/render.ts Kommentar-Historie).
+  const vehicleLabel = vehicleDisplayLabel({ family, model, vehicleText: inquiry.vehicle_text });
 
   const selections = Array.isArray(inquiry.selections) ? inquiry.selections : [];
   const items = (selections as unknown as Array<Record<string, unknown>>).map((s) => ({

@@ -15,9 +15,13 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
 // zuverlässig überschreiben, die Reihenfolge im generierten CSS entscheidet,
 // nicht die Reihenfolge in der className-Zeichenkette. Wer kompakter
 // braucht (z.B. Upsell), wählt size="sm" statt className zu überschreiben.
+// min-h-11 (44px) auf beiden Grössen: Touch-Ziel, size="sm" (Upsell,
+// "Dazunehmen"/"Entfernen") liegt allein aus der Padding-Höhe (~39px)
+// sonst knapp darunter (Prüfung, Minor-Befund "Touch-Ziele"). md liegt
+// bereits knapp darüber, min-h-11 ändert dort sichtbar nichts.
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  md: "px-[22px] py-[13px] text-base",
-  sm: "px-4 py-2.5 text-sm",
+  md: "min-h-11 px-[22px] py-[13px] text-base",
+  sm: "min-h-11 px-4 py-2.5 text-sm",
 };
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {

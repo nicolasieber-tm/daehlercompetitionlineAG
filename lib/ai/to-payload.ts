@@ -43,31 +43,64 @@ type Db = SupabaseClient<Database>;
 
 /**
  * Schnellweg-Variante von InquiryPayloadObjectSchema (lib/inquiry/schema.ts):
- * dieselben Regeln für alle Felder ausser phone/email/city, siehe Befund #1
- * oben. Die geparste Form ist feldweise identisch zu InquiryPayload (phone/
- * email/city bleiben vom Typ `string`, nur mit `.optional().default("")`
- * statt `.min(1)`/`.email()`), lässt sich also direkt an createInquiry()
- * (lib/inquiry/create.ts, unverändert) übergeben.
+ * dieselben Regeln für alle Felder ausser phone/email/city (Befund #1 oben)
+ * und character/timing (Prüfung Phase B, Punkt 7).
+ *
+ * Prüfung Phase B, Punkt 7: phone/email/city werden bei leerem String zu
+ * `null` (statt wie zuvor `""`) - ein leerer String sah in Mails/Admin-
+ * Anzeige wie ein tatsächlich befülltes, aber leeres Feld aus, `null` ist
+ * das korrekte "nicht bekannt". character/timing sind zusätzlich `nullable`
+ * (statt Pflicht-Enum): das Sprachmodell (lib/ai/extract.ts) liefert für
+ * beide oft `null` (z. B. eine reine Telefonnotiz ohne erkennbaren
+ * Zeitwunsch), der Admin trägt sie im UI nach, bevor die Anfrage angelegt
+ * wird - bis dahin darf toInquiryPayload() nicht an einem fehlenden
+ * character/timing scheitern (missing-Meldung statt harter Fehler).
+ *
+ * Die geparste Form weicht dadurch von InquiryPayload ab (city/phone/email:
+ * `string | null` statt `string`, character/timing: `Character | null` /
+ * `Timing | null` statt `Character`/`Timing`) - lib/inquiry/create.ts geht
+ * mit beidem bereits robust um (dort bereits vorbereitete `as Character`/
+ * `as Timing`-Zuweisungen; die DB-Spalten city/phone/email/character/timing
+ * sind ebenfalls alle nullable, siehe docs/db.md). toInquiryPayload() macht
+ * das am Ende über einen expliziten, dokumentierten Cast sichtbar (siehe
+ * dort), statt `InquiryPayload` selbst aufzuweichen und damit die
+ * Pflichtfelder des Kundenflow-Schemas (InquiryPayloadSchema, POST
+ * /api/inquiries) zu lockern.
  */
 const QuickInquiryPayloadSchema = withInquiryPayloadRefinements(
-  InquiryPayloadObjectSchema.omit({ phone: true, email: true, city: true }).extend({
-    phone: z.string().trim().max(50).optional().default(""),
+  InquiryPayloadObjectSchema.omit({ phone: true, email: true, city: true, character: true, timing: true }).extend({
+    phone: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .default("")
+      .transform((v) => (v.length > 0 ? v : null)),
     email: z
       .string()
       .trim()
-      .max(200)
+      .max(120)
       .optional()
       .default("")
       .refine((v) => v === "" || z.string().email().safeParse(v).success, {
         message: "Bitte eine gültige E-Mail-Adresse angeben, wenn vorhanden.",
-      }),
-    city: z.string().trim().max(120).optional().default(""),
+      })
+      .transform((v) => (v.length > 0 ? v : null)),
+    city: z
+      .string()
+      .trim()
+      .max(80)
+      .optional()
+      .default("")
+      .transform((v) => (v.length > 0 ? v : null)),
+    character: InquiryPayloadObjectSchema.shape.character.nullable(),
+    timing: InquiryPayloadObjectSchema.shape.timing.nullable(),
   }),
   // Weder Telefon noch E-Mail bekannt: der Admin kann keines von beiden
   // erfinden, aber ohne mindestens eine Kontaktmöglichkeit lässt sich die
   // Anfrage später nicht beantworten - dann `missing` melden statt eine
   // unkontaktierbare Anfrage anzulegen.
-).refine((v) => v.phone.length > 0 || v.email.length > 0, {
+).refine((v) => !!v.phone || !!v.email, {
   message: "Bitte Telefon oder E-Mail angeben.",
   path: ["phone"],
 });
@@ -232,9 +265,16 @@ export async function toInquiryPayload(
     return { ok: false, payload: null, missing };
   }
 
-  // parsed.data ist feldweise identisch zu InquiryPayload (siehe
-  // QuickInquiryPayloadSchema oben) und direkt an createInquiry()
-  // (lib/inquiry/create.ts, source "quick") übergebbar, ohne dessen
-  // Signatur anzufassen.
-  return { ok: true, payload: parsed.data, missing: [] };
+  // parsed.data ist NICHT mehr feldweise identisch zu InquiryPayload (siehe
+  // QuickInquiryPayloadSchema-Kommentar oben: city/phone/email/character/
+  // timing sind hier zusätzlich nullable). Der Cast macht das bewusst
+  // sichtbar statt es zu verstecken: lib/inquiry/create.ts (source "quick",
+  // ausserhalb der mir zugewiesenen Dateien) geht mit den nullable Feldern
+  // bereits robust um (vorbereitete `as Character`/`as Timing`-Zuweisungen,
+  // CheckContext/DraftContext akzeptieren beide als `X | null`, siehe
+  // lib/rules/checks.ts/lib/draft/template.ts), die DB-Spalten sind
+  // ebenfalls alle nullable (docs/db.md) - der Cast erlaubt TypeScript hier
+  // nur, weil InquiryPayload (schmaler) strukturell in den weiteren Typ von
+  // parsed.data passt, keine `unknown`-Umgehung.
+  return { ok: true, payload: parsed.data as InquiryPayload, missing: [] };
 }

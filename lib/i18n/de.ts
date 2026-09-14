@@ -6,6 +6,18 @@ export const de = {
   brand: {
     name: "dÄHLer",
     tagline: "Competition Line · Belp",
+    eyebrow: "Ihre Anfrage in wenigen Schritten",
+    title: "Ihre Anfrage für mehr",
+    titleHighlight: "Charakter",
+    lede: "Wählen Sie Ihr Fahrzeug und Ihren Wunsch. Wir zeigen Ihnen die passenden Optionen aus unserer Produkteliste, mit Richtpreisen live dabei.",
+    meta: {
+      locationLabel: "Standort",
+      location: "Belp",
+      phoneLabel: "Telefon",
+      phone: "+41 31 819 88 77",
+      responseLabel: "Antwort",
+      response: "Innert 1 Arbeitstag",
+    },
   },
 
   language: {
@@ -21,6 +33,7 @@ export const de = {
     soFar: "Bisher {price}",
     stepOf: "Schritt {current} von {total}",
     toInternal: "So kommt es bei dÄHLer an",
+    retry: "Erneut versuchen",
   },
 
   priceStatus: {
@@ -43,9 +56,15 @@ export const de = {
       seriesKnown: "{ps} PS Serie und {nm} Nm Serie",
       seriesUnknown: "Die Serienleistung tragen wir für Sie nach.",
       seriesPsChoice: "Welche Serienleistung hat Ihr Fahrzeug?",
+      seriesPsRequired: "Bitte wählen Sie Ihre Serienleistung, damit wir passende Optionen zeigen können.",
       photoHint: "Preise und Fotos hinterlegt",
       photoFallback: "Foto folgt",
       carShotCaption: "{model} by dÄHLer",
+      fuelGroups: {
+        benzin: "Benzin",
+        diesel: "Diesel",
+        elektro: "Elektro",
+      },
     },
 
     wish: {
@@ -78,6 +97,7 @@ export const de = {
         exterieur: "Was kommt dran?",
         interieur: "Was kommt rein?",
       },
+      loading: "Produkte werden geladen …",
       priceHintData:
         "Richtpreise «ab» aus unserer Produkteliste für den {model}, inklusive Einbau, ohne MFK.",
       priceHintGeneric: "Für dieses Fahrzeug nennen wir Ihnen die Preise persönlich.",
@@ -269,6 +289,7 @@ export const de = {
         then: { title: "Dann", text: "Sie bringen ihn vorbei. Wir machen den Rest." },
       },
       restart: "Nochmals von vorne",
+      ownRequest: "Eigene Anfrage starten",
     },
   },
 
@@ -278,6 +299,10 @@ export const de = {
     selectAtLeastOne: "Bitte wählen Sie mindestens eine Kategorie oder das Komplettpaket.",
     generic: "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
     submitFailed: "Ihre Anfrage konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
+    privacyRequired: "Bitte akzeptieren Sie die Datenschutzbestimmungen.",
+    loadFailed: "Die Produkte konnten nicht geladen werden.",
+    shareCopyFailed: "Der Link konnte nicht kopiert werden.",
+    summaryMailFailed: "Die Zusammenfassung konnte nicht gesendet werden.",
   },
 
   mail: {
@@ -369,19 +394,27 @@ export const de = {
     itemsFallback: "Wir stellen Ihnen ein Paket nach Ihrem Wunsch zusammen.",
     performanceLine:
       "Mit {stage} kommt Ihr {model} auf {detail}, WLTP-geprüft und mit CH-Gutachten. Die Ergänzungsgarantie zur Werksgarantie ist für ein Jahr inbegriffen.",
-    // {clarification} ist bereits ein vollständiger Nebensatz (siehe die drei
-    // clarification*-Bausteine unten, jeweils inkl. Subjekt "wir"), deshalb
-    // hier kein eigenes "wir ... geklärt haben" mehr drumherum bauen.
+    // Prüfung Phase B, Punkt 6: durchgehend "wir" (nie "ich"), wie im
+    // restlichen Antwortentwurf. {clarification} ist bereits ein
+    // vollständiger Nebensatz (siehe die drei clarification*-Bausteine
+    // unten, jeweils inkl. Subjekt "wir"), deshalb hier kein eigenes "wir
+    // ... geklärt haben" mehr drumherum bauen.
     priceLine:
-      "Richtpreis für das Paket: {price}, inklusive Einbau, ohne MFK. Den definitiven Preis bestätige ich Ihnen, sobald {clarification}.",
-    // Für Fahrzeuge ohne Preisliste (Kurzablauf, siehe CLAUDE.md): Entwurf
-    // ohne Summe, ersetzt priceLine vollständig statt {price} leer zu lassen.
+      "Richtpreis für das Paket: {price}, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald {clarification}.",
+    // Für Fahrzeuge ohne Preisliste (Kurzablauf, siehe CLAUDE.md) oder ohne
+    // bekannte Summe: ersetzt nur den Preis-Teilsatz von priceLine, der
+    // Klärungs-Nebensatz {clarification} gehört wie dort weiterhin dazu
+    // (docs/vorschau.html draft(): ein durchgehendes Template für beide
+    // Fälle, siehe lib/draft/template.ts).
     priceLineOnRequest:
-      "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Einbau, ohne MFK.",
+      "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald {clarification}.",
     clarificationFahrwerk: "wir wissen, ob Ihr Wagen das adaptive M-Fahrwerk hat",
     clarificationMotorAuspuff: "wir die Kombination aus Software und Abgasanlage geprüft haben",
     clarificationGeneric: "wir die Details geklärt haben",
     timingFlexible: "Beim Termin sind wir flexibel, sagen Sie uns einfach, was Ihnen passt.",
+    // Schnellweg (Posten 3) ohne erkannten Zeitraum (Prüfung Phase B, Punkt
+    // 7: timing kann null sein, siehe lib/draft/template.ts DraftContext).
+    timingUnknown: "Sobald wir Ihren Wunschtermin kennen, reservieren wir Ihnen gerne ein Werkstattfenster.",
     // Dativ-Formen je Zeitraum-Chip (steps.timing.options), damit
     // timingFixed grammatisch korrekt bleibt ("Für {timing} ...").
     timingPhrases: {
@@ -393,11 +426,12 @@ export const de = {
       "Für {timing} haben wir Werkstattfenster, wir reservieren Ihnen gerne eines, sobald Sie grünes Licht geben.",
     closingCall: "Rufen Sie uns an oder antworten Sie kurz auf diese Mail, dann besprechen wir die Details.",
     signOff: "Sportliche Grüsse aus Belp",
-    // Kein fest verdrahteter Text: Name, Firmenname und Telefon kommen aus
-    // settings (signature_name, signature_phone, company_address) und werden
-    // von lib/draft/template.ts in dieses Muster eingesetzt (auch die
-    // Namenszeile "[Name]" aus der Vorschau). Siehe docs/architektur.md,
-    // Abschnitt Antwortentwurf.
+    // Kein fest verdrahteter Text: Name kommt aus settings.signature_name,
+    // {company} aus settings.mail_from_name plus optional settings.
+    // company_address (nur wenn gesetzt) und Telefon aus settings.
+    // signature_phone, siehe lib/draft/template.ts (auch die Namenszeile
+    // "[Name]" aus der Vorschau). Prüfung Phase B, Punkt 6. Siehe
+    // docs/architektur.md, Abschnitt Antwortentwurf.
     signature: "{name}\n{company} · {phone}",
   },
 } as const;

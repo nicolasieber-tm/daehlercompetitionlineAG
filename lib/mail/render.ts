@@ -11,6 +11,7 @@
 import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { chf, chfFrom } from "@/lib/i18n/format";
+import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
 import type { Model, ModelFamily } from "@/lib/supabase/rows";
 import type { MailInquiryItem } from "./types";
 
@@ -60,10 +61,6 @@ export function optionLabel(
   return options.find((o) => o.id === id)?.label ?? null;
 }
 
-function startsWithBrand(text: string, brand: string): boolean {
-  return text.toLowerCase().startsWith(brand.toLowerCase());
-}
-
 /**
  * Erkennt die drei Kurzablauf-Platzhalterfamilien aus supabase/seed.sql
  * («Älteres Modell», «Älteres MINI-Modell», «Anderes Toyota-Modell», siehe
@@ -71,9 +68,13 @@ function startsWithBrand(text: string, brand: string): boolean {
  * Modell»-Platzhalter)"). Es gibt dafür kein eigenes DB-Flag (has_pricelist
  * ist auch bei Wiesmann false, dessen Familiennamen aber echte Modellnamen
  * sind, kein Platzhalter) - deshalb Namensmuster statt has_pricelist.
- * Exportiert, damit lib/inquiry/share.ts (eigene, schlanke vehicleLabel-
- * Kopie, siehe dortiger Kommentar) dieselbe Erkennung nutzt statt sie ein
- * zweites Mal zu duplizieren.
+ *
+ * Wird von vehicleLabel()/vehicleDisplayLabel() nicht (mehr) verwendet: die
+ * Formel unterscheidet seit Prüfung Punkt 3 nicht mehr zwischen "echter"
+ * Platzhalterfamilie und einer Familie ohne Modell-Katalog wie Wiesmann
+ * (siehe lib/catalog/vehicle-label.ts) - bleibt aber exportiert, falls
+ * andere Stellen (z.B. Admin-Filter) gezielt nach diesen drei Namen
+ * unterscheiden wollen.
  */
 export function isPlaceholderFamilyName(name: string): boolean {
   return /^(Älteres|Anderes)\b.*\bModell$/.test(name.trim());
@@ -81,70 +82,54 @@ export function isPlaceholderFamilyName(name: string): boolean {
 
 /**
  * Kundensichtbare Fahrzeugbezeichnung aus Familie/Modell, oder
- * inquiries.vehicle_text als Fallback (Fahrzeug ohne Modellzuordnung).
+ * inquiries.vehicle_text als Fallback. Reiner Re-Export von
+ * vehicleDisplayLabel() (lib/catalog/vehicle-label.ts) gegen die vollen
+ * ModelFamily/Model-Row-Typen - die eigentliche Formel (samt Beispielen und
+ * Begründung) steht jetzt nur noch dort, damit lib/inquiry/share.ts und
+ * components/flow/vehicleLabel.ts dieselbe Funktion aufrufen statt eigene,
+ * auseinanderlaufende Kopien zu pflegen (Prüfung, Befund 3).
  *
- * Vorsicht Duplikate: model_families.name enthält bei BMW/Toyota oft schon
- * die Baureihen-Codes (z.B. "M2 G87", "1er M E82"), bei MINI zusätzlich die
- * Marke ("MINI F60 Countryman", siehe docs/excel-import.md "Marke: Name
- * beginnt mit MINI"). Ein naives Verketten von brand + family.name +
- * model.name ergab deshalb Dubletten wie "BMW M2 G87 M2" oder "MINI MINI
- * F60 Countryman Countryman One (Benzin)" (Befund #1 der Mail-Prüfung).
- *
- * Deshalb bei vorhandenem Modell: Marke (nur wenn nicht schon Präfix) +
- * Modellname, dann der Baureihen-Code aus model_families.codes, aber nur
- * wenn er eindeutig ist (genau ein Code, z.B. M2 G87 -> nur "G87"). Bei
- * mehreren Codes (z.B. "M3 / M4 G80, G81, G82, G83") gibt es in der DB
- * keine Zuordnung Modell -> Code (kein Feld dafür, siehe docs/db.md), ein
- * Code würde also geraten; dann bleibt er weg statt einen falschen
- * anzuzeigen.
- *
- * Ohne Modell (kein Modell zuordenbar, siehe lib/inquiry/schema.ts
- * vehicleText-Kommentar: "Freitext, wenn kein Modell zuordenbar ist") geht
- * inquiries.vehicle_text (die vom Kunden selbst genannte Fahrzeugbe-
- * zeichnung) VOR dem Familien-Fallback, sonst blieb dieser Freitext
- * ungenutzt, sobald eine familyId gesetzt war - was laut
- * lib/inquiry/schema.ts immer der Fall ist (Befund #1 der Anfrage-Prüfung:
- * "vehicle_text wird ... nie verwendet"). Ohne eigenen Text UND bei einer
- * der drei Platzhalterfamilien (isPlaceholderFamilyName) wäre der
- * Platzhaltername selbst grammatisch falscher Kundentext, eingesetzt in die
- * umgebenden draft- und mail-Vorlagen (lib/i18n draft.*, mail.*), die bereits
- * ein eigenes Possessivpronomen/Artikel mitbringen ("Ihren {model}", "den {vehicle}", "Ihr {model}
- * auf ..."): "Ihren BMW Älteres Modell" statt "Ihren BMW". Deshalb dann nur
- * die Marke (family.brand, z.B. "BMW") statt des Platzhalters - fügt sich
- * grammatisch genauso ein wie jede andere Fahrzeugbezeichnung auch. Ein
- * eigener, vorformulierter Text ("Ihr BMW") ginge hier NICHT: das
- * Possessivpronomen steht in den Vorlagen bereits davor, ein zweites hier
- * ergäbe "Ihren Ihr BMW". Echte Familien ohne Preisliste (Wiesmann)
- * behalten ihren echten Namen, wie im Sollbeispiel aus docs/architektur.md
- * ("BMW M2 G87, Nr. 2026-0012" für den Fall mit Modell).
- *
- * Bewusst (noch) nicht nach lib/catalog ausgelagert, obwohl lib/draft und
- * der Flow dieselbe Logik später brauchen werden: diese Korrektur ist auf
- * das Modul mail beschränkt (siehe Aufgabenstellung), lib/catalog wird
- * parallel von einem anderen Auftrag bearbeitet.
+ * Verhaltensänderung gegenüber der vorigen Fassung dieser Funktion: ohne
+ * gewähltes Modell wird inquiries.vehicle_text jetzt auch bei BEKANNTER
+ * Familie als Modell-Ersatz angehängt ("Wiesmann, MF4", "BMW Älteres
+ * Modell, E46 M3") statt nur, wenn gar keine Familie bekannt ist - Familien
+ * ohne Modell-Katalog (has_pricelist false: die drei Kurzablauf-
+ * Platzhalternamen sowie Wiesmann) haben sonst keine Möglichkeit, die vom
+ * Kunden/Sprachmodell erfasste konkrete Modellbezeichnung überhaupt zu
+ * zeigen. Der Familienname fällt dabei nach wie vor NIE weg.
  */
 export function vehicleLabel(params: {
   family: ModelFamily | null;
   model: Model | null;
   vehicleText: string | null;
 }): string {
-  const { family, model } = params;
-  const vehicleText = params.vehicleText?.trim() || null;
-  if (!family) {
-    return vehicleText ?? "";
-  }
+  return vehicleDisplayLabel(params);
+}
 
-  if (!model) {
-    if (vehicleText) return vehicleText;
-    if (isPlaceholderFamilyName(family.name)) return family.brand;
-    return startsWithBrand(family.name, family.brand) ? family.name : `${family.brand} ${family.name}`;
-  }
-
-  const modelLabel = startsWithBrand(model.name, family.brand) ? model.name : `${family.brand} ${model.name}`;
-  if (family.codes.length === 1) {
-    return `${modelLabel} ${family.codes[0]}`;
-  }
-  return modelLabel;
+/**
+ * Firmenzeile für die Signatur (Antwortentwurf lib/draft/template.ts,
+ * Follow-up-Mail lib/mail/templates/follow_up.ts): Firmenname
+ * (settings.mail_from_name) plus Adresse (settings.company_address), Komma-
+ * getrennt, Adresse nur wenn gesetzt.
+ *
+ * Befund «polish» #1 (Prüfung Phase B, Punkt 6 nachgebessert): der
+ * ausgelieferte Seed-Wert für company_address ist selbst bereits
+ * "dÄHLer Competition Line AG, Belp" (voller Firmenname inklusive), nicht
+ * nur die reine Adresse "Belp" - mail_from_name unbedingt davorzusetzen
+ * ergab dort "dÄHLer Competition Line AG, dÄHLer Competition Line AG,
+ * Belp" (jede Follow-up-Mail betroffen, solange niemand company_address in
+ * den Einstellungen von Hand kürzt). Statt company_address selbst
+ * umzustellen (Migration/Seed/Admin-Hilfetext liegen ausserhalb der für
+ * diese Korrektur zugewiesenen Dateien) hängt companyLine() den Namen nur
+ * an, wenn die Adresse ihn nicht bereits selbst als Anfang enthält -
+ * funktioniert unverändert für eine künftig auf die reine Adresse
+ * gekürzte company_address ("Belp" -> "dÄHLer Competition Line AG, Belp"),
+ * verdoppelt den Namen aber nicht mehr, wenn er schon Teil der Adresse ist.
+ */
+export function companyLine(name: string, address: string): string {
+  if (!address) return name;
+  if (!name) return address;
+  return address.toLowerCase().startsWith(name.toLowerCase()) ? address : `${name}, ${address}`;
 }
 
 // --- Positionszeile (wiederverwendet die draft.*-Textbausteine, siehe
@@ -159,16 +144,18 @@ export function vehicleLabel(params: {
  * Befund #2 der Anfrage-Prüfung. Für Kundentext (Antwortentwurf, Mails)
  * stattdessen zu einer Zeile zusammenfassen.
  */
-function normalizeDescription(description: string): string {
-  return description
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join(", ");
+/** Die Rohteile einer Positionszeile, ohne Zusammensetzung zu einer einzelnen Zeile. */
+interface ItemLineParts {
+  category: string;
+  /** Name ohne trailing ":" (siehe itemLineText-Kommentar), unverändert. */
+  name: string;
+  /** Beschreibung in einzelne, getrimmte Zeilen zerlegt (leer, wenn keine Beschreibung). */
+  descriptionLines: string[];
+  /** Fertig formatierter Preis-Suffix (", ab CHF 4'180" / ", in Vorbereitung" / ", auf Anfrage" / ""). */
+  price: string;
 }
 
-/** Eine Positionszeile als reiner Text, exakt wie im Antwortentwurf (lib/draft/template.ts). */
-export function itemLineText(item: MailInquiryItem, locale: Locale): string {
+function itemLineParts(item: MailInquiryItem, locale: Locale): ItemLineParts {
   const dict = getDictionary(locale);
   const category = categoryLabel(item.category, locale);
   // Produktnamen wie "CDC1 FORGED Radsatz geschmiedet bestehend aus:" enden
@@ -177,9 +164,12 @@ export function itemLineText(item: MailInquiryItem, locale: Locale): string {
   // vor der Klammer aber wie ein zweites Satzzeichen wirkt. Nur am
   // Namensende, nicht mitten im Namen (z.B. "Stufe 1: (Basis 480 PS) ...").
   const name = item.name.replace(/:\s*$/, "");
-  const description = item.description
-    ? tf(dict.draft.itemDescription, { description: normalizeDescription(item.description) })
-    : "";
+  const descriptionLines = item.description
+    ? item.description
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
   let price = "";
   if (item.price_status === "priced" && item.price_total != null) {
     price = tf(dict.draft.itemPrice, { price: chf(item.price_total) });
@@ -188,6 +178,23 @@ export function itemLineText(item: MailInquiryItem, locale: Locale): string {
   } else if (item.price_status === "on_request") {
     price = dict.draft.itemPriceOnRequest;
   }
+  return { category, name, descriptionLines, price };
+}
+
+/**
+ * Eine Positionszeile als reiner Text, exakt wie im Antwortentwurf
+ * (lib/draft/template.ts): mehrzeilige Beschreibungen (Radsätze) werden zu
+ * EINER Zeile mit Komma-Trennung zusammengefasst - der Antwortentwurf ist
+ * reiner Fliesstext ohne die Einrückung, die itemList() (unten) für die
+ * Mailvorlagen verwendet.
+ */
+export function itemLineText(item: MailInquiryItem, locale: Locale): string {
+  const dict = getDictionary(locale);
+  const { category, name, descriptionLines, price } = itemLineParts(item, locale);
+  const description =
+    descriptionLines.length > 0
+      ? tf(dict.draft.itemDescription, { description: descriptionLines.join(", ") })
+      : "";
   return tf(dict.draft.itemLine, { category, name, description, price });
 }
 
@@ -232,25 +239,51 @@ export function definitionList(rows: DefinitionRow[]): MailBlock {
   return { html, text };
 }
 
-/** Positionsliste: Kategorie, Name, Beschreibung, Preis oder Status. Leer -> Fallback-Absatz. */
+/**
+ * Positionsliste für die Mailvorlagen (inbox, confirmation, summary; nicht
+ * für den Antwortentwurf, der itemLineText() direkt verwendet). Leer ->
+ * Fallback-Absatz. Prüfung Phase B, Punkt 2: eine EINZEILIGE Beschreibung
+ * bleibt wie bisher in Klammern auf derselben Zeile ("Name (Beschreibung),
+ * Preis"); eine MEHRZEILIGE Beschreibung (Radsätze mit getrennter Vorder-/
+ * Hinterachsen-Zeile, siehe docs/excel-import.md) wird stattdessen unter der
+ * Name/Preis-Zeile dargestellt - in der HTML-Fassung mit <br> zwischen den
+ * Zeilen, in der Text-Fassung eingerückt -, statt (wie itemLineText() für
+ * den Antwortentwurf) zu einer Komma-Zeile zusammengefasst zu werden.
+ */
 export function itemList(items: MailInquiryItem[], locale: Locale): MailBlock {
   const dict = getDictionary(locale);
   if (items.length === 0) {
     return paragraph(dict.draft.itemsFallback);
   }
-  const lines = items.map((item) => itemLineText(item, locale));
+  const rows = items.map((item) => itemLineParts(item, locale));
   const html =
     `<ul style="margin:0 0 16px;padding:0;list-style:none;">` +
-    lines
-      .map(
-        (line) =>
-          `<li style="margin:0 0 8px;padding:8px 0;border-bottom:1px solid ${BORDER};">${escapeHtml(
-            line.replace(/^•\s*/, ""),
-          )}</li>`,
-      )
+    rows
+      .map((r) => {
+        const head = `${escapeHtml(r.category)}: ${escapeHtml(r.name)}`;
+        const price = escapeHtml(r.price);
+        if (r.descriptionLines.length === 0) {
+          return `<li style="margin:0 0 8px;padding:8px 0;border-bottom:1px solid ${BORDER};">${head}${price}</li>`;
+        }
+        if (r.descriptionLines.length === 1) {
+          return `<li style="margin:0 0 8px;padding:8px 0;border-bottom:1px solid ${BORDER};">${head} (${escapeHtml(
+            r.descriptionLines[0],
+          )})${price}</li>`;
+        }
+        const description = r.descriptionLines.map((line) => escapeHtml(line)).join("<br>");
+        return `<li style="margin:0 0 8px;padding:8px 0;border-bottom:1px solid ${BORDER};">${head}${price}<br>${description}</li>`;
+      })
       .join("") +
     `</ul>`;
-  const text = lines.join("\n");
+  const text = rows
+    .map((r) => {
+      const head = `• ${r.category}: ${r.name}`;
+      if (r.descriptionLines.length === 0) return `${head}${r.price}`;
+      if (r.descriptionLines.length === 1) return `${head} (${r.descriptionLines[0]})${r.price}`;
+      const indented = r.descriptionLines.map((line) => `    ${line}`).join("\n");
+      return `${head}${r.price}\n${indented}`;
+    })
+    .join("\n");
   return { html, text };
 }
 

@@ -95,7 +95,7 @@ export async function applyPendingImport(
 ): Promise<ApplyPendingImportResult> {
   const { data: importRow, error: loadError } = await db
     .from("pricelist_imports")
-    .select("id, status")
+    .select("id, status, summary")
     .eq("id", importId)
     .single();
   if (loadError) throw new Error(`pricelist_imports laden fehlgeschlagen: ${loadError.message}`);
@@ -108,9 +108,29 @@ export async function applyPendingImport(
   const parsed = await downloadParsedFamilies(importId, db);
   const result = await applyImport(parsed, db, { importId });
 
+  // Prüfung Phase B, Punkt 8: applyImport() bricht bei einer einzelnen
+  // Familie nicht ab (siehe lib/pricelist/apply.ts applyImport(), sammelt
+  // Fehler in result.errors statt zu werfen), markierte den Import bisher
+  // aber IMMER als "applied" - auch wenn einzelne oder alle Familien
+  // fehlgeschlagen waren. Bei mindestens einem Fehler wird der Import
+  // stattdessen als "failed" markiert (status-Check-Constraint erweitert,
+  // siehe supabase/migrations/20260916000000_followups_and_imports_phase_b.sql)
+  // und die Fehler werden im summary-jsonb ergänzt (neben dem ursprünglichen
+  // Diff-summary aus createPendingImport()), damit der Admin sie sieht.
+  const hasErrors = result.errors.length > 0;
+  const existingSummary =
+    importRow.summary && typeof importRow.summary === "object" && !Array.isArray(importRow.summary)
+      ? (importRow.summary as Record<string, unknown>)
+      : {};
   const { error: updateError } = await db
     .from("pricelist_imports")
-    .update({ status: "applied", applied_at: new Date().toISOString() })
+    .update({
+      status: hasErrors ? "failed" : "applied",
+      applied_at: new Date().toISOString(),
+      ...(hasErrors
+        ? { summary: { ...existingSummary, errors: result.errors } as unknown as Json }
+        : {}),
+    })
     .eq("id", importId);
   if (updateError) throw new Error(`pricelist_imports als applied markieren fehlgeschlagen: ${updateError.message}`);
 

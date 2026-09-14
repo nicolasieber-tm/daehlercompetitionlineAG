@@ -17,7 +17,9 @@ import type { ParsedFamily } from "./types";
 
 type Db = SupabaseClient<Database>;
 
-const CHUNK_SIZE = 500;
+// Prüfung Phase B, Punkt 8: auf 150 begrenzt (vorher 500), siehe
+// lib/pricelist/diff.ts (gleicher Grund, dieselbe Grenze).
+const CHUNK_SIZE = 150;
 
 function chunk<T>(items: T[], size = CHUNK_SIZE): T[][] {
   const out: T[][] = [];

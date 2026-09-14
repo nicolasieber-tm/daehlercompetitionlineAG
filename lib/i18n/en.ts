@@ -9,6 +9,18 @@ export const en: Dictionary = {
   brand: {
     name: "dÄHLer",
     tagline: "Competition Line · Belp",
+    eyebrow: "Your request in a few short steps",
+    title: "Your request for more",
+    titleHighlight: "Character",
+    lede: "Choose your vehicle and your wish. We show you the matching options from our product list, with indicative prices along the way.",
+    meta: {
+      locationLabel: "Location",
+      location: "Belp",
+      phoneLabel: "Phone",
+      phone: "+41 31 819 88 77",
+      responseLabel: "Reply",
+      response: "Within 1 working day",
+    },
   },
 
   language: {
@@ -24,6 +36,7 @@ export const en: Dictionary = {
     soFar: "So far {price}",
     stepOf: "Step {current} of {total}",
     toInternal: "How this arrives at dÄHLer",
+    retry: "Try again",
   },
 
   priceStatus: {
@@ -46,9 +59,15 @@ export const en: Dictionary = {
       seriesKnown: "{ps} PS standard and {nm} Nm standard",
       seriesUnknown: "We will let you know the standard output personally.",
       seriesPsChoice: "What is the standard output of your vehicle?",
+      seriesPsRequired: "Please select your standard output so we can show the right options.",
       photoHint: "Prices and photos on file",
       photoFallback: "Photo coming soon",
       carShotCaption: "{model} by dÄHLer",
+      fuelGroups: {
+        benzin: "Petrol",
+        diesel: "Diesel",
+        elektro: "Electric",
+      },
     },
 
     wish: {
@@ -81,6 +100,7 @@ export const en: Dictionary = {
         exterieur: "What would you like added?",
         interieur: "What goes inside?",
       },
+      loading: "Loading products …",
       priceHintData:
         "Indicative prices marked \"from\", taken from our product list for the {model}, including fitting, excluding roadworthiness test.",
       priceHintGeneric: "We will let you know the prices for this vehicle personally.",
@@ -271,6 +291,7 @@ export const en: Dictionary = {
         then: { title: "Then", text: "You bring it in. We do the rest." },
       },
       restart: "Start again",
+      ownRequest: "Start your own request",
     },
   },
 
@@ -280,6 +301,10 @@ export const en: Dictionary = {
     selectAtLeastOne: "Please choose at least one category or the complete package.",
     generic: "Something went wrong. Please try again.",
     submitFailed: "Your request could not be sent. Please try again.",
+    privacyRequired: "Please accept the privacy policy.",
+    loadFailed: "The products could not be loaded.",
+    shareCopyFailed: "The link could not be copied.",
+    summaryMailFailed: "The summary could not be sent.",
   },
 
   mail: {
@@ -357,11 +382,12 @@ export const en: Dictionary = {
     priceLine:
       "Indicative price for the package: {price}, including fitting, excluding roadworthiness test. We will confirm the final price once {clarification}.",
     priceLineOnRequest:
-      "We will let you know the indicative price after a short review, including fitting, excluding roadworthiness test.",
+      "We will let you know the indicative price after a short review, including fitting, excluding roadworthiness test. We will confirm the final price once {clarification}.",
     clarificationFahrwerk: "we know whether your car has the adaptive M suspension",
     clarificationMotorAuspuff: "we have checked the combination of software and exhaust system",
     clarificationGeneric: "we have clarified the details",
     timingFlexible: "We are flexible on timing, just let us know what suits you.",
+    timingUnknown: "As soon as we know your preferred timing, we will be happy to reserve a workshop slot for you.",
     timingPhrases: {
       asap: "the coming weeks",
       m1_2: "the period in one to two months",
@@ -371,11 +397,11 @@ export const en: Dictionary = {
       "For {timing} we have workshop slots available, we would be happy to reserve one for you once you give us the go ahead.",
     closingCall: "Call us or simply reply to this email, and we will discuss the details.",
     signOff: "Kind regards from Belp",
-    // No hardcoded text: name, company name and phone come from settings
-    // (signature_name, signature_phone, company_address) and are inserted
-    // into this pattern by lib/draft/template.ts (this also covers the
-    // "[Name]" line from the preview). See docs/architektur.md, section
-    // Antwortentwurf.
+    // No hardcoded text: name comes from settings.signature_name, {company}
+    // from settings.mail_from_name plus optional settings.company_address
+    // (only when set) and phone from settings.signature_phone, see
+    // lib/draft/template.ts (this also covers the "[Name]" line from the
+    // preview). See docs/architektur.md, section Antwortentwurf.
     signature: "{name}\n{company} · {phone}",
   },
 };

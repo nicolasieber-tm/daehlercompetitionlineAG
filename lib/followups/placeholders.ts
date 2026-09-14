@@ -3,14 +3,16 @@
 // Tabelle follow_up_rules ("Text mit Platzhaltern {{vorname}}, {{name}},
 // {{fahrzeug}}, {{nummer}}").
 //
-// Getrennt von der Platzhalter-Ersetzung in lib/mail/templates/follow_up.ts
-// (dort: fillPlaceholders(), reiner Versandpfad ohne Warnungen): dieses
-// Modul liefert zusätzlich die unbekannten Platzhalter zurück, damit der
-// Admin sie beim Speichern einer Regel anzeigen kann (siehe Aufgabenstellung
-// "unbekannte Platzhalter bleiben stehen und werden als Warnung
-// zurückgegeben"). Die beiden Implementierungen bewusst nicht
-// zusammengelegt: lib/mail/templates/follow_up.ts gehört nicht zu den für
-// diese Aufgabe freigegebenen Dateien.
+// renderTemplate() liefert zusätzlich zum ersetzten Text die unbekannten
+// Platzhalter zurück (z.B. ein Tippfehler "{{modell}}"), zweifach genutzt:
+// - Admin, "Regel speichern" (ausserhalb der mir für diese Aufgabe
+//   zugewiesenen Dateien): unbekannte Platzhalter werden dort als
+//   Speicherfehler gemeldet, statt eine kaputte Regel abzulegen.
+// - lib/mail/templates/follow_up.ts (Prüfung Phase B, Punkt 3, inzwischen
+//   ebenfalls über renderTemplate() statt einer eigenen zweiten
+//   Ersetzung): beim tatsächlichen Versand werden unbekannte Platzhalter
+//   zusätzlich geleert (nie roh "{{...}}" an den Kunden) und als Warnung
+//   geloggt, siehe dortiger Kommentar.
 
 /** Die vier laut CLAUDE.md/docs/architektur.md unterstützten Platzhalter. */
 export const KNOWN_FOLLOW_UP_PLACEHOLDERS = ["vorname", "name", "fahrzeug", "nummer"] as const;

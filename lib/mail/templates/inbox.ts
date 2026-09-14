@@ -13,6 +13,7 @@ import { de } from "@/lib/i18n/de";
 import { tf } from "@/lib/i18n/dictionaries";
 import { admin } from "@/lib/i18n/admin";
 import { formatDate, inquiryNumberLabel } from "@/lib/i18n/format";
+import { goalText } from "@/lib/inquiry/summary";
 import type { MailInquiryContext } from "../types";
 import {
   buttonLink,
@@ -36,20 +37,47 @@ function characterLabel(id: string | null): string | null {
   return de.steps.character.options.find((o) => o.id === id)?.title ?? null;
 }
 
+/**
+ * "ZIEL"-Zeile: Leistungsangabe des gewählten Motor-Leistungsprodukts plus
+ * die beantworteten Folgefragen je gewählter Kategorie.
+ *
+ * Prüfung Phase B, Punkt 2 (major): die Leistungsangabe kam bisher aus
+ * `motorItem.description` (products.description, die Fortsetzungszeilen-
+ * Beschreibung aus der Excel, z.B. Reifendimensionen bei Radsätzen - beim
+ * Motor-Leistungsprodukt selbst meist leer oder fachfremd) statt aus
+ * ps_to/nm_to ("ca. 620 PS / 740 Nm", siehe docs/architektur.md Beispiel).
+ * Der Rest der Zeile (Folgefragen je Kategorie) dupliziert bislang die
+ * gleichnamige Logik aus lib/inquiry/summary.ts goalText() eins zu eins -
+ * dieser Teil wird jetzt von dort importiert statt hier ein zweites Mal zu
+ * pflegen (Duplikat entfernen).
+ *
+ * Volle Delegation an goalText() (inkl. seines eigenen, noch auf
+ * description basierenden Motor-Teils) würde die ps_to/nm_to-Korrektur
+ * hier wieder zunichtemachen - lib/inquiry/summary.ts gehört nicht zu den
+ * für diese Aufgabe freigegebenen Dateien (siehe Bericht), kann also nicht
+ * ebenfalls korrigiert werden. Deshalb: das Motor-Item wird für den
+ * goalText()-Aufruf mit description=null übergeben (unterdrückt dessen
+ * eigenen, hier bewusst nicht mehr gewünschten "ca. {description}"-Teil),
+ * die korrekte Leistungsangabe wird davor gesetzt.
+ *
+ * ps_to/nm_to sind auf MailInquiryItem (lib/mail/types.ts) optional: solange
+ * lib/inquiry/create.ts/context.ts (ausserhalb dieser Aufgabe) sie nicht in
+ * inquiries.selections mitspeichern, bleibt die Leistungsangabe schlicht
+ * weg statt die alte, falsche description-Angabe zu zeigen (siehe Bericht).
+ */
 function goalLine(ctx: MailInquiryContext): string {
-  const parts: string[] = [];
   const motorItem = ctx.items.find((i) => i.category === "motor");
-  if (motorItem?.description) parts.push(`ca. ${motorItem.description}`);
+  const performance =
+    motorItem?.ps_to != null
+      ? motorItem.nm_to != null
+        ? `ca. ${motorItem.ps_to} PS / ${motorItem.nm_to} Nm`
+        : `ca. ${motorItem.ps_to} PS`
+      : null;
 
-  const answers = (ctx.inquiry.follow_up_answers ?? {}) as Record<string, string>;
-  const followUp = de.steps.category.followUp as Record<string, { options: readonly { id: string; label: string }[] }>;
-  for (const category of ctx.inquiry.categories) {
-    const answerId = answers[category];
-    const label = optionLabel(followUp[category]?.options, answerId);
-    if (!label) continue;
-    parts.push(category === "motor" ? label : `${categoryLabel(category, LOCALE)}: ${label}`);
-  }
-  return parts.join(", ");
+  const itemsForAnswers = ctx.items.map((i) => (i.category === "motor" ? { ...i, description: null } : i));
+  const answers = goalText({ ...ctx, items: itemsForAnswers });
+
+  return [performance, answers].filter(Boolean).join(", ");
 }
 
 export function buildInbox(ctx: MailInquiryContext): { subject: string; html: string; text: string } {

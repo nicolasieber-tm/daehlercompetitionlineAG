@@ -109,15 +109,22 @@ describe("Erwartete Kennzahlen (docs/excel-import.md)", () => {
   // Produkt zu zählen. Nach Regel 5b werden diese Zeilen korrekt als eigene
   // on_request-Produkte geführt; 17 davon haben selbst keine Marker (siehe
   // z. B. X3 G01/X4 G02 Z89, MINI F60 Z45/46, M3/M4 G80-83 Z158) und erhöhen
-  // "ohne Marker" entsprechend von 71 auf 88 (71 + 17). Gegengeprüft über
-  // `npm run parse` und Zeile-für-Zeile gegen die Rohdaten (siehe Bericht).
-  it('"ohne Marker" (fitsAll): 88 Produkte (nach Korrektur Befund #1, siehe Kommentar - weicht bewusst von der Doku-Zahl "ca. 70" ab)', async () => {
+  // "ohne Marker" entsprechend von 71 auf 88 (71 + 17).
+  //
+  // Korrektur 14.09.2026 (Prüfung Phase B, Punkt 8b): 88 -> 85. Die
+  // XM G09.xls-Zeile "Distanzscheiben (schwarz) Satz i.V. mit BMW Serien-
+  // od. M Performance Räder" (marker- und preislos, einzige Preiszelle
+  // "in Vorb.") zählte bis dahin fälschlich als eigenes (marker-loses)
+  // Produkt statt als Gruppenzeile (siehe docs/excel-import.md, Regel 6,
+  // Ergänzung 14.09.2026 Punkt 8b) - Wert per `npm run parse` erneut
+  // gegengeprüft (Total-Zeile "o.Marker" 85).
+  it('"ohne Marker" (fitsAll): 85 Produkte (nach Korrektur Befund #1 und Punkt 8b, siehe Kommentar)', async () => {
     const parsed = await parseAll();
     const totalNoMarker = parsed.reduce(
       (sum, p) => sum + p.family.products.filter((x) => x.fitsAll).length,
       0,
     );
-    expect(withinTolerance(totalNoMarker, 88)).toBe(true);
+    expect(withinTolerance(totalNoMarker, 85)).toBe(true);
   });
 
   it("10 Nur-Preise-Zeilen in den Rohdaten (Regel 4)", async () => {
@@ -394,11 +401,15 @@ describe("Prüfer-Befund #4: \"ab\"-Präfix links der Teilepreis-Spalte", () => 
 });
 
 describe("Prüfer-Befund #5: price_note auch bei priced, Apostroph-Zahlen", () => {
-  it('2er F22, F23 Heckflügel GTS in GFK: price_status priced, price_note "auf Anfr."', async () => {
+  // Prüfung Phase B, Punkt 8d: Teilepreis "auf Anfr." bei numerischem Total
+  // bedeutet price_status "on_request", nicht "priced" (Total ist hier nur
+  // die Montagepauschale 350, der eigentliche Teilepreis ist offen) - vorher
+  // (Befund #5) galt hier fälschlich "priced", price_note blieb korrekt.
+  it('2er F22, F23 Heckflügel GTS in GFK: price_status on_request (Teilepreis "auf Anfr."), price_note "auf Anfr."', async () => {
     const buf = await readFile(join(PRICELIST_DIR, "Produkteliste 2er F22, F23.xls"));
     const family = parseWorkbook(buf, "Produkteliste 2er F22, F23.xls");
     const product = family.products.find((p) => p.name.startsWith("Heckflügel GTS"));
-    expect(product?.priceStatus).toBe("priced");
+    expect(product?.priceStatus).toBe("on_request");
     expect(product?.priceTotalChf).toBe(350);
     expect(product?.priceNote).toBe("auf Anfr.");
   });
@@ -697,13 +708,79 @@ describe("Befund #4 (Bericht Runde 3): Toyota GR Supra - Gruppenzeile ohne Doppe
     expect(family.products.some((p) => p.name.startsWith("DME Leistungssteigerungen"))).toBe(false);
   });
 
-  it("Motorprodukte danach bekommen dieses group_label", async () => {
+  it("die Leistungsstufe (variant_group leistung) danach bekommt dieses group_label", async () => {
     const buf = await readFile(join(PRICELIST_DIR, "Produkteliste Toyota GR Supra.xls"));
     const family = parseWorkbook(buf, "Produkteliste Toyota GR Supra.xls");
     const stufe1 = family.products.find((p) => p.psTo === 240);
     expect(stufe1?.groupLabel).toBe("DME Leistungssteigerungen «powered by dÄHLer»");
+  });
+
+  // Prüfung Phase B, Punkt 8a (korrigiert eine frühere Erwartung dieses
+  // Tests aus einer vorherigen Prüfrunde): "Carbon Air Intake" ist KEIN
+  // Leistungsprodukt (variantGroupFor liefert null, kein "(Basis"/"Stufe X"/
+  // "Leistungssteigerung" im Namen) - eine DME/DDE-Gruppenzeile gilt laut
+  // aktueller Aufgabenstellung nur für die eigentlichen Leistungsstufen,
+  // nicht für andere Motor-Produkte, die zufällig danach in derselben
+  // Kategorie folgen.
+  it("ein Nicht-Leistungsprodukt (Carbon Air Intake) danach bekommt KEIN group_label", async () => {
+    const buf = await readFile(join(PRICELIST_DIR, "Produkteliste Toyota GR Supra.xls"));
+    const family = parseWorkbook(buf, "Produkteliste Toyota GR Supra.xls");
     const carbonIntake = family.products.find((p) => p.name === "Carbon Air Intake");
-    expect(carbonIntake?.groupLabel).toBe("DME Leistungssteigerungen «powered by dÄHLer»");
+    expect(carbonIntake?.variantGroup).toBeNull();
+    expect(carbonIntake?.groupLabel).toBeNull();
+  });
+});
+
+// Prüfung Phase B, Punkt 8a: reale Zeile 2er F22, F23.xls - "Einbau
+// Leistungssteigerung" (Zeile 22) folgt direkt auf die DDE-Gruppenzeile
+// (Zeile 14) und auf zwei echte Leistungsstufen (Zeile 15/16), ist aber laut
+// lib/catalog/variant-groups.ts ausdrücklich KEIN Leistungsprodukt (reine
+// Montagepauschale zu einer an anderer Stelle gewählten Stufe).
+describe("Prüfung Phase B, Punkt 8a: DME/DDE-group_label nur für variant_group \"leistung\"", () => {
+  it('2er F22, F23: Leistungsstufen unter der DDE-Gruppenzeile behalten group_label, "Einbau Leistungssteigerung" darunter bekommt keins', async () => {
+    const buf = await readFile(join(PRICELIST_DIR, "Produkteliste 2er F22, F23.xls"));
+    const family = parseWorkbook(buf, "Produkteliste 2er F22, F23.xls");
+
+    const dieselStufen = family.products.filter(
+      (p) => p.category === "motor" && p.variantGroup === "leistung" && (p.psTo === 220 || p.psTo === 232),
+    );
+    expect(dieselStufen.length).toBe(2);
+    for (const p of dieselStufen) {
+      expect(p.groupLabel, p.name).toBe("DDE Leistungssteigerungen Dieselmotoren:");
+    }
+
+    const einbau = family.products.find((p) => p.name === "Einbau Leistungssteigerung");
+    expect(einbau?.variantGroup).toBeNull();
+    expect(einbau?.groupLabel).toBeNull();
+  });
+});
+
+// Prüfung Phase B, Punkt 8b: reale Zeile XM G09.xls - "Distanzscheiben
+// (schwarz) Satz i.V. mit BMW Serien- od. M Performance Räder" trägt keine
+// RC/Artikelnummer/Marker, aber als einzige Preiszelle den Text "in Vorb.":
+// muss Gruppenzeile werden (mit Warnung), nicht Produkt ohne echten Preis.
+describe('Prüfung Phase B, Punkt 8b: "Distanzscheiben"/"dÄHLer Endrohre" mit Text statt Preis -> Gruppenzeile', () => {
+  it('XM G09: "Distanzscheiben ... i.V. mit ..." mit einziger Preiszelle "in Vorb." wird zur Gruppenzeile, nicht zum Produkt', async () => {
+    const buf = await readFile(join(PRICELIST_DIR, "Produkteliste XM G09.xls"));
+    const family = parseWorkbook(buf, "Produkteliste XM G09.xls");
+
+    const asProduct = family.products.find((p) =>
+      p.name.startsWith("Distanzscheiben (schwarz) Satz i.V."),
+    );
+    expect(asProduct).toBeUndefined();
+
+    expect(
+      family.warnings.some(
+        (w) => w.includes("Distanzscheiben (schwarz) Satz i.V.") && w.includes("Gruppenzeile"),
+      ),
+    ).toBe(true);
+
+    // Die folgenden Produkte der Kategorie Räder tragen jetzt dieses
+    // group_label (Regel 6 gilt bis zur nächsten Gruppenzeile/Kategorie).
+    const afterward = family.products.find(
+      (p) => p.category === "raeder" && p.sourceRow > 59,
+    );
+    expect(afterward?.groupLabel).toBe("Distanzscheiben (schwarz) Satz i.V. mit BMW Serien- od. M Performance Räder");
   });
 });
 
@@ -890,6 +967,17 @@ describe("Leistungsdaten-Regex (parsePerformance)", () => {
     expect(r.psBase).toEqual([381]);
     expect(r.psTo).toBeNull();
     expect(r.nmTo).toBeNull();
+  });
+
+  // Prüfung Phase B, Punkt 8c: Nm-Bereich statt einer einzelnen Zahl (echte
+  // Zeile, 5er F10, F11.xls, Zeile 12: "(Basis 306 PS) 360 PS / 480 - 530 Nm
+  // N55") - psTo ist die Zahl vor "PS", nmTo die OBERE Grenze des Bereichs
+  // (530), nicht die untere (480) und nicht die untere selbst.
+  it('Nm-Bereich "(Basis 306 PS) 360 PS / 480 - 530 Nm N55" -> psTo 360, nmTo 530 (oberer Wert)', () => {
+    const r = parsePerformance("(Basis 306 PS) 360 PS / 480 - 530 Nm N55");
+    expect(r.psBase).toEqual([306]);
+    expect(r.psTo).toBe(360);
+    expect(r.nmTo).toBe(530);
   });
 });
 

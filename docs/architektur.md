@@ -153,7 +153,7 @@ Array von Regeln `{ id, text: {de, en}, when: (ctx) => boolean }` mit `ctx = { i
 
 ## Antwortentwurf (`lib/draft/template.ts`)
 
-Deterministische Vorlage, Sie-Form, Struktur aus `CLAUDE.md`, Referenz `draft()` in `docs/vorschau.html`, umgestellt auf Sie. Signatur aus `settings`. Betreff (`draft.subject` im Dictionary): «Ihre Anfrage für den BMW M2 G87, Nr. 2026-0012». Positionen im Entwurf mit Beschreibung und Preis: «• Motor: Stufe 1 (620 PS / 740 Nm), ab CHF 4'180». Optional `lib/draft/polish.ts`: wenn `ANTHROPIC_API_KEY` gesetzt, wird die Vorlage sprachlich geglättet, Fakten (Preise, Positionen, Leistungen) dürfen sich nicht ändern; Ergebnis wird gegen die Vorlage geprüft (alle Preise und Positionsnamen müssen vorkommen), sonst Vorlage behalten.
+Deterministische Vorlage, Sie-Form, Struktur aus `CLAUDE.md`, Referenz `draft()` in `docs/vorschau.html`, umgestellt auf Sie. Signatur aus `settings`. Betreff (`draft.subject` im Dictionary): «Ihre Anfrage für den BMW M2 G87, M2, Nr. 2026-0012» (vehicleLabel-Formel, siehe `lib/catalog/vehicle-label.ts`: Familienname plus «, Modellname»). Positionen im Entwurf mit Beschreibung und Preis: «• Motor: Stufe 1 (620 PS / 740 Nm), ab CHF 4'180». Optional `lib/draft/polish.ts`: wenn `ANTHROPIC_API_KEY` gesetzt, wird die Vorlage sprachlich geglättet, Fakten (Preise, Positionen, Leistungen) dürfen sich nicht ändern; Ergebnis wird gegen die Vorlage geprüft (alle Preise und Positionsnamen müssen vorkommen), sonst Vorlage behalten.
 
 ## Mail (`lib/mail/`)
 

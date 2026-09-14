@@ -48,7 +48,12 @@ import type {
 
 type Db = SupabaseClient<Database>;
 
-const CHUNK_SIZE = 500;
+// Prüfung Phase B, Punkt 8: auf 150 begrenzt (vorher 500) - PostgREST/
+// Postgres begrenzen die Länge einer .in()-Liste in der URL bzw. im
+// generierten "IN (...)" faktisch, bei ~2'500 Produkten über 42 Familien
+// und mehreren .in()-Aufrufen (Fitment, deaktivierte IDs) war 500 zu hoch
+// angesetzt, um verlässlich unter jedem Limit zu bleiben.
+const CHUNK_SIZE = 150;
 
 function chunk<T>(items: T[], size = CHUNK_SIZE): T[][] {
   const out: T[][] = [];

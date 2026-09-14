@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { createInquiry, InvalidSelectionError } from "@/lib/inquiry/create";
 import { InquiryPayloadSchema } from "@/lib/inquiry/schema";
+import { clientIp } from "@/lib/http/client-ip";
 
 // Einfaches Rate-Limit im Speicher: max. 10 Anfragen pro IP und 10 Minuten
 // (siehe Aufgabenstellung). Bewusst ohne DB/Redis: Railway (CLAUDE.md
@@ -32,11 +33,10 @@ function isRateLimited(ip: string): boolean {
   return recent.length > RATE_LIMIT_MAX;
 }
 
-function clientIp(request: Request): string {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) return forwardedFor.split(",")[0]!.trim();
-  return request.headers.get("x-real-ip") || "unknown";
-}
+// clientIp() ist nach lib/http/client-ip.ts ausgelagert (Next.js Route
+// Handler erlauben in dieser Datei nur HTTP-Methoden- und Konfig-Exports,
+// siehe Prüfbefund; die IP-Ermittlung selbst inkl. Begründung Railway/
+// x-forwarded-for steht dort).
 
 export async function POST(request: Request) {
   const ip = clientIp(request);

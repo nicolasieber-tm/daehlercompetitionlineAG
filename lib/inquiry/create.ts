@@ -212,6 +212,13 @@ export async function createInquiry(
     estimatedTotal,
     settings: {
       signatureName: settings.signature_name || "dÄHLer Competition Line AG",
+      // Prüfung, Befund 4: companyName (settings.mail_from_name) fehlte
+      // hier bisher, buildDraft() fiel deshalb auf companyAddress allein
+      // zurück (siehe DraftSettings/companyLine()-Kommentar in
+      // lib/draft/template.ts). companyLine() dedupliziert selbst, falls
+      // company_address den Firmennamen bereits als Anfang enthält (wie der
+      // ausgelieferte Seed-Wert "dÄHLer Competition Line AG, Belp").
+      companyName: settings.mail_from_name || "dÄHLer Competition Line AG",
       companyAddress: settings.company_address || "dÄHLer Competition Line AG, Belp",
       signaturePhone: settings.signature_phone || "",
     },
@@ -225,7 +232,12 @@ export async function createInquiry(
   // 7. Teilen-Token.
   const shareToken = generateShareToken();
 
-  // 8. Speichern.
+  // 8. Speichern. ps_to/nm_to mit persistiert (Prüfung, Befund 4): ohne sie
+  // kennt lib/inquiry/context.ts parseItems() sie beim späteren Mailversand
+  // nicht mehr (inquiries.selections ist die einzige Quelle danach, die
+  // Produkte selbst werden nicht erneut geladen) - die ZIEL-Zeile der
+  // Inbox-Mail (lib/mail/templates/inbox.ts goalLine()) fiele dann auf die
+  // description zurück statt "ca. 620 PS / 740 Nm" zu zeigen.
   const selectionsJson = selected.map((p) => ({
     product_id: p.productId,
     category: p.category,
@@ -233,6 +245,8 @@ export async function createInquiry(
     description: p.description,
     price_total: p.priceTotal,
     price_status: p.priceStatus,
+    ps_to: p.psTo,
+    nm_to: p.nmTo,
   }));
 
   const { data: inserted, error: insertError } = await admin

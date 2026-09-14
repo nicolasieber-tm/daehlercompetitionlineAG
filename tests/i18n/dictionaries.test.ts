@@ -188,15 +188,15 @@ describe("draft.priceLine: Satzbau mit clarification", () => {
     const price = "ab CHF 4'180";
 
     expect(tf(de.draft.priceLine, { price, clarification: de.draft.clarificationFahrwerk })).toBe(
-      "Richtpreis für das Paket: ab CHF 4'180, inklusive Einbau, ohne MFK. Den definitiven Preis bestätige ich Ihnen, sobald wir wissen, ob Ihr Wagen das adaptive M-Fahrwerk hat.",
+      "Richtpreis für das Paket: ab CHF 4'180, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir wissen, ob Ihr Wagen das adaptive M-Fahrwerk hat.",
     );
     expect(
       tf(de.draft.priceLine, { price, clarification: de.draft.clarificationMotorAuspuff }),
     ).toBe(
-      "Richtpreis für das Paket: ab CHF 4'180, inklusive Einbau, ohne MFK. Den definitiven Preis bestätige ich Ihnen, sobald wir die Kombination aus Software und Abgasanlage geprüft haben.",
+      "Richtpreis für das Paket: ab CHF 4'180, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir die Kombination aus Software und Abgasanlage geprüft haben.",
     );
     expect(tf(de.draft.priceLine, { price, clarification: de.draft.clarificationGeneric })).toBe(
-      "Richtpreis für das Paket: ab CHF 4'180, inklusive Einbau, ohne MFK. Den definitiven Preis bestätige ich Ihnen, sobald wir die Details geklärt haben.",
+      "Richtpreis für das Paket: ab CHF 4'180, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir die Details geklärt haben.",
     );
   });
 

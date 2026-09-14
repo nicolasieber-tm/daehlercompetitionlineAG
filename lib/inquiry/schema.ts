@@ -70,11 +70,14 @@ export const InquiryPayloadObjectSchema = z.object({
   followUpAnswers: followUpAnswersSchema.optional().default({}),
   character: z.enum(CHARACTER_VALUES),
   timing: z.enum(TIMING_VALUES),
-  firstName: z.string().trim().min(1, "Vorname ist ein Pflichtfeld."),
-  lastName: z.string().trim().min(1, "Name ist ein Pflichtfeld."),
-  city: z.string().trim().min(1, "Ort ist ein Pflichtfeld."),
-  phone: z.string().trim().min(1, "Telefon ist ein Pflichtfeld."),
-  email: z.string().trim().email({ message: "Bitte eine gültige E-Mail-Adresse angeben." }),
+  // Maximallängen (Prüfung Phase B, Punkt 5): ohne Obergrenze könnte ein
+  // manipulierter Request (der Client-Flow selbst begrenzt die Felder nicht)
+  // beliebig lange Werte in Mails, Antwortentwurf und DB-Spalten schreiben.
+  firstName: z.string().trim().min(1, "Vorname ist ein Pflichtfeld.").max(80),
+  lastName: z.string().trim().min(1, "Name ist ein Pflichtfeld.").max(80),
+  city: z.string().trim().min(1, "Ort ist ein Pflichtfeld.").max(80),
+  phone: z.string().trim().min(1, "Telefon ist ein Pflichtfeld.").max(40),
+  email: z.string().trim().max(120).email({ message: "Bitte eine gültige E-Mail-Adresse angeben." }),
   channel: z.enum(CHANNEL_VALUES),
   message: z.string().max(2000).optional().default(""),
   privacyAccepted: z.literal(true, {

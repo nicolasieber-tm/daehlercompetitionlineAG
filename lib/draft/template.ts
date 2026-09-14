@@ -9,7 +9,7 @@ import type { Locale } from "@/lib/i18n/dictionaries";
 import { de } from "@/lib/i18n/de";
 import { en } from "@/lib/i18n/en";
 import { chfFrom } from "@/lib/i18n/format";
-import { categoryLabel, itemLineText } from "@/lib/mail/render";
+import { categoryLabel, companyLine, itemLineText } from "@/lib/mail/render";
 import type { Character, FlowCategory, PriceStatus, Timing } from "@/lib/supabase/rows";
 
 export interface DraftItem {
@@ -26,6 +26,16 @@ export interface DraftItem {
 
 export interface DraftSettings {
   signatureName: string;
+  /**
+   * Firmenname für die Signatur (settings.mail_from_name), Prüfung Phase B
+   * Punkt 6. Optional, damit lib/inquiry/create.ts (ausserhalb der mir für
+   * diese Aufgabe zugewiesenen Dateien, siehe Bericht) unverändert bleibt,
+   * solange es companyName dort noch nicht mitliefert: ohne companyName
+   * fällt buildDraft() auf das bisherige Verhalten zurück (nur
+   * companyAddress als Firmenzeile, siehe dortiger Kommentar).
+   */
+  companyName?: string;
+  /** settings.company_address, wird in der Signatur nur angehängt, wenn gesetzt. */
   companyAddress: string;
   signaturePhone: string;
 }
@@ -50,10 +60,18 @@ export interface DraftContext {
   vehicleLabel: string;
   /** Freitext-Baujahr oder der lokalisierte "älter"-Sentinel (steps.car.yearOlder). */
   year: string | null;
-  character: Character;
+  /**
+   * null im Schnellweg (Posten 3), wenn das Sprachmodell keinen Charakter
+   * extrahieren konnte und der Admin ihn (noch) nicht nachgetragen hat
+   * (siehe lib/ai/to-payload.ts QuickInquiryPayloadSchema, Prüfung Phase B
+   * Punkt 7). buildDraft() lässt den Charakter-Satz dann einfach weg statt
+   * `d.character[null]` (undefined) einzusetzen.
+   */
+  character: Character | null;
   categories: FlowCategory[];
   consulting: boolean;
-  timing: Timing;
+  /** null im Schnellweg, siehe character oben; buildDraft() verwendet dann einen neutralen Satz (draft.timingUnknown). */
+  timing: Timing | null;
   /** family.has_pricelist: steuert den Kurzablauf (siehe CLAUDE.md "Modelle ohne Preisliste"). */
   hasPricelist: boolean;
   /** Gewählte Produkte mit bereits serverseitig geladenen Preisen (leer im Kurzablauf). */
@@ -119,7 +137,12 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
   const subject = tf(d.subject, { vehicle: ctx.vehicleLabel, number: ctx.number });
 
   const yearSuffix = ctx.year && !isOlderYear(ctx.year) ? tf(d.yearSuffix, { year: ctx.year }) : "";
-  const thanksParagraph = `${tf(d.thanks, { model: ctx.vehicleLabel, yearSuffix })} ${d.character[ctx.character]}`;
+  // Prüfung Phase B, Punkt 7: character ist im Schnellweg optional (null),
+  // wenn das Sprachmodell keinen erkennen konnte (siehe DraftContext.character-
+  // Kommentar). Ohne character bleibt der Charakter-Satz einfach weg statt
+  // `d.character[null]` (undefined, ergäbe "... Modell. undefined").
+  const thanksBase = tf(d.thanks, { model: ctx.vehicleLabel, yearSuffix });
+  const thanksParagraph = ctx.character ? `${thanksBase} ${d.character[ctx.character]}` : thanksBase;
 
   // Positionen: im Kurzablauf (family.has_pricelist === false, siehe
   // CLAUDE.md "Modelle ohne Preisliste") gibt es keinen Produkt-Schritt,
@@ -157,44 +180,50 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
       })
     : null;
 
-  // Richtpreis-Satz mit Vorbehalt: priceLine enthält bereits BEIDE Sätze
-  // ("Richtpreis ...", "Den definitiven Preis bestätige ich Ihnen, sobald
-  // {clarification}.") als eine zusammenhängende Vorlage, siehe der
-  // Kommentar über draft.priceLine in lib/i18n/de.ts ("{clarification} ist
-  // bereits ein vollständiger Nebensatz ... kein eigenes 'wir ... geklärt
-  // haben' mehr drumherum bauen"). Ohne bekannte Summe (Kurzablauf, oder
-  // Preisliste vorhanden aber alle gewählten Positionen "in Vorbereitung"/
-  // "auf Anfrage" ohne price_total) ersetzt draft.priceLineOnRequest laut
-  // dortigem Kommentar ("ersetzt priceLine VOLLSTÄNDIG statt {price} leer
-  // zu lassen") die gesamte Vorlage inklusive der Klärungs-Nebensatz-Hälfte
-  // - priceLineOnRequest ist selbst schon ein vollständiger, in sich
-  // stimmiger Vorbehalts-Satz ("... nach kurzer Prüfung ..."), ein
-  // zusätzlicher {clarification}-Nebensatz hat dafür keine eigene Vorlage
-  // und würde angehängt grammatisch nicht mehr passen (zwei Satzenden ohne
-  // Verbindung). Diese Lesart ist eine bewusste Entscheidung gegen den
-  // Wortlaut der Aufgabenstellung ("priceLineOnRequest + clarification"),
-  // siehe Bericht.
+  // Richtpreis-Satz mit Vorbehalt. Prüfung Phase B, Punkt 6 (korrigiert eine
+  // frühere, bewusste Abweichung von der Vorschau, siehe docs/vorschau.html
+  // draft(): dort ist der Satz EIN durchgehendes Template ("Richtpreis für
+  // das Paket: {ab CHF x / nennen wir dir nach kurzer Prüfung}, inklusive
+  // Einbau, ohne MFK. Den definitiven Preis bestätige ich dir, sobald
+  // {clarification}.") - der Klärungs-Nebensatz gehört in BEIDEN Fällen
+  // dazu, nicht nur wenn eine Summe bekannt ist. draft.priceLine und
+  // draft.priceLineOnRequest tragen deshalb jetzt beide {clarification} als
+  // eigenen, vollständigen zweiten Satz.
   const clarification = d[clarificationKey(ctx.categories)];
   const priceParagraph =
     ctx.estimatedTotal != null
       ? tf(d.priceLine, { price: chfFrom(ctx.estimatedTotal, locale), clarification })
-      : d.priceLineOnRequest;
+      : tf(d.priceLineOnRequest, { clarification });
 
+  // Prüfung Phase B, Punkt 7: timing ist im Schnellweg optional (null), wenn
+  // das Sprachmodell keinen Zeitraum erkennen konnte (siehe DraftContext.
+  // timing-Kommentar). draft.timingUnknown ist ein neutraler Satz, der ohne
+  // Zeitraumangabe an dessen Stelle tritt.
   const timingParagraph =
-    ctx.timing === "flexible"
-      ? d.timingFlexible
-      : tf(d.timingFixed, { timing: d.timingPhrases[ctx.timing as "asap" | "m1_2" | "m3_6"] });
+    ctx.timing == null
+      ? d.timingUnknown
+      : ctx.timing === "flexible"
+        ? d.timingFlexible
+        : tf(d.timingFixed, { timing: d.timingPhrases[ctx.timing] });
 
-  // {company}: bewusst settings.company_address (nicht settings.
-  // mail_from_name), damit draft.signature exakt so befüllt wird wie in
-  // lib/mail/templates/follow_up.ts (dieselbe Vorlage, dieselbe Zuordnung
-  // company -> companyAddress). Mit mail_from_name (wie eine frühere Fassung
-  // dieser Aufgabenstellung nahelegte) hätte derselbe Signatur-Baustein je
-  // nach Mailtyp eine andere Firmenzeile gezeigt (Antwort "dÄHLer
-  // Competition Line AG", Follow-up "dÄHLer Competition Line AG, Belp").
+  // Prüfung Phase B, Punkt 6: Firmenname aus settings.mail_from_name
+  // (ctx.settings.companyName), die Adresse (companyAddress) wird nur
+  // angehängt, wenn gesetzt (siehe docs/vorschau.html draft(): die Signatur
+  // zeigt dort ohne Adresse nur "dÄHLer Competition Line AG · Telefon").
+  // Ohne companyName (lib/inquiry/create.ts liefert es noch nicht, siehe
+  // DraftSettings-Kommentar) bleibt es beim bisherigen Verhalten
+  // (companyAddress allein als Firmenzeile). Über companyLine()
+  // (lib/mail/render.ts), damit ein künftig doch übergebenes companyName
+  // nicht doppelt erscheint, wenn companyAddress ihn (wie der ausgelieferte
+  // Seed-Wert "dÄHLer Competition Line AG, Belp") bereits selbst enthält -
+  // Befund «polish» #1, dieselbe Korrektur wie in
+  // lib/mail/templates/follow_up.ts.
+  const company = ctx.settings.companyName
+    ? companyLine(ctx.settings.companyName, ctx.settings.companyAddress)
+    : ctx.settings.companyAddress;
   const signature = tf(d.signature, {
     name: ctx.settings.signatureName,
-    company: ctx.settings.companyAddress,
+    company,
     phone: ctx.settings.signaturePhone,
   });
   const closingParagraph = `${d.signOff}\n${signature}`;

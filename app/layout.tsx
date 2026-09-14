@@ -41,10 +41,22 @@ export default async function RootLayout({
   const lang = await getLocaleFromCookies();
 
   return (
-    <html lang={lang} data-theme="dark">
-      <body
-        className={`${barlowCondensed.variable} ${barlow.variable} ${ibmPlexMono.variable} antialiased`}
-      >
+    // Die next/font-Variablenklassen müssen auf <html> (== :root) sitzen,
+    // nicht auf <body>: app/globals.css setzt --font-display/--font-body/
+    // --font-mono im @theme-Block auf :root und referenziert dort
+    // --font-barlow-condensed usw. per var(...) OHNE Fallback-Argument. Ein
+    // var()-Verweis auf eine an diesem Element (hier :root) nicht
+    // deklarierte Eigenschaft macht die GANZE Deklaration am Punkt ihrer
+    // eigenen Zuweisung ungültig ("guaranteed-invalid value") - dieser
+    // ungültige Wert vererbt sich dann unverändert an alle Nachfahren
+    // (body, h1, ...), unabhängig davon, dass --font-barlow-condensed dort
+    // (vormals nur auf <body>) durchaus definiert war: Custom Properties
+    // werden pro deklarierendem Element aufgelöst, nicht pro Verwendung.
+    // Ergebnis: --font-display/--font-body/--font-mono griffen im gesamten
+    // Kundenflow nie, der Browser fiel auf die Fallback-Schriften
+    // ("Arial Narrow"/"Helvetica Neue"/Menlo) zurück (Prüfung, Befund 1).
+    <html lang={lang} data-theme="dark" className={`${barlowCondensed.variable} ${barlow.variable} ${ibmPlexMono.variable}`}>
+      <body className="antialiased">
         <LocaleProvider initialLocale={lang}>{children}</LocaleProvider>
       </body>
     </html>

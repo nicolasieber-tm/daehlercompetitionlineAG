@@ -57,11 +57,20 @@ export function Tile({
               : "from-bg/15 via-bg/55 to-bg/90",
           ].join(" ")}
         />
-        <span className="relative z-[1] flex flex-col gap-1 px-3.5 pb-3 pt-2">
-          <span className="font-display text-xl font-semibold uppercase leading-none tracking-[0.02em] sm:text-2xl">
+        <span className="relative z-[1] flex min-w-0 flex-col gap-1 px-3.5 pb-3 pt-2">
+          <span className="font-display text-xl font-semibold uppercase leading-none tracking-[0.02em] break-words [overflow-wrap:anywhere] sm:text-2xl">
             {title}
           </span>
-          {description ? <span className="text-[13px] leading-snug text-text-soft">{description}</span> : null}
+          {description ? (
+            <span className="break-words [overflow-wrap:anywhere] text-[13px] leading-snug text-text-soft">
+              {description}
+            </span>
+          ) : null}
+          {badge ? (
+            <span className="mt-1 font-display text-[10px] font-semibold uppercase tracking-[0.1em] text-ok">
+              {badge}
+            </span>
+          ) : null}
         </span>
       </button>
     );
@@ -74,7 +83,7 @@ export function Tile({
       aria-pressed={selected}
       style={style}
       className={[
-        "relative flex min-h-[74px] flex-col gap-1 rounded-[2px] border px-3.5 pb-3 pt-3.5 text-left transition-colors duration-150",
+        "relative flex min-h-[74px] min-w-0 flex-col gap-1 rounded-[2px] border px-3.5 pb-3 pt-3.5 text-left transition-colors duration-150",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-bright focus-visible:outline-offset-2",
         selected ? "border-red-bright bg-red-soft" : "border-line bg-panel hover:border-line-alt hover:bg-panel-alt",
         className,
@@ -86,8 +95,14 @@ export function Tile({
           className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-red-bright shadow-[0_0_0_3px_var(--color-red-soft)]"
         />
       ) : null}
-      <span className="font-display text-xl font-semibold uppercase leading-none tracking-[0.02em]">{title}</span>
-      {description ? <span className="text-[13px] leading-snug text-muted">{description}</span> : null}
+      <span className="break-words [overflow-wrap:anywhere] pr-4 font-display text-xl font-semibold uppercase leading-none tracking-[0.02em]">
+        {title}
+      </span>
+      {description ? (
+        <span className="break-words [overflow-wrap:anywhere] text-[13px] leading-snug text-muted">
+          {description}
+        </span>
+      ) : null}
       {price ? (
         <span className={["mt-auto pt-1.5 font-mono text-xs tabular-nums", priceMuted ? "text-dim" : "text-text"].join(" ")}>
           {price}
