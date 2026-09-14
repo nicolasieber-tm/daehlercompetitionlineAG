@@ -1,6 +1,48 @@
 {
-  "name": "daehler-anfrage-vorschau",
+  "name": "daehler-anfrage-erlebnis",
+  "version": "0.1.0",
   "private": true,
-  "scripts": { "start": "serve -s . -l ${PORT:-3000}" },
-  "dependencies": { "serve": "^14.2.4" }
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "parse": "tsx scripts/parse-pricelists.ts",
+    "import": "tsx scripts/import-pricelists.ts",
+    "db:start": "supabase start",
+    "db:reset": "supabase db reset",
+    "db:types": "supabase gen types typescript --local > lib/supabase/database.types.ts",
+    "cron:followups": "tsx scripts/cron-followups.ts"
+  },
+  "dependencies": {
+    "next": "15.5.25",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "@supabase/supabase-js": "^2.116.0",
+    "@supabase/ssr": "^0.12.7",
+    "resend": "^6.27.0",
+    "@anthropic-ai/sdk": "^0.125.0",
+    "zod": "^4.6.2",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "nanoid": "^6.0.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^24.13.4",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@playwright/test": "^1.63.0",
+    "@vitest/coverage-v8": "^5.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.25",
+    "supabase": "^2.117.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.13",
+    "typescript": "^5",
+    "vitest": "^5.0.0"
+  }
 }

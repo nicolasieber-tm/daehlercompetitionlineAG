@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/*
+ * Design-Tokens aus docs/architektur.md, Abschnitt "Design"
+ * (übernommen aus docs/vorschau.html). Dunkler Hintergrund ist der
+ * einzige Zustand, kein Light Mode.
+ */
+@theme {
+  --color-bg: #121516;
+  --color-bg-alt: #171b1c;
+  --color-panel: #1c2122;
+  --color-panel-alt: #22282a;
+  --color-line: #2b3234;
+  --color-line-alt: #3a4346;
+
+  --color-text: #f1f2f2;
+  --color-text-soft: #c9cfd1;
+  --color-muted: #9aa3a5;
+  --color-dim: #626b6d;
+  --color-white: #ffffff;
+
+  --color-red: #e21014;
+  --color-red-bright: #f0393d;
+  --color-red-soft: rgba(226, 16, 20, 0.15);
+
+  --color-ok: #3dbe7a;
+  --color-warn: #e2a83c;
+
+  --font-display: var(--font-barlow-condensed), "Arial Narrow", Impact, sans-serif;
+  --font-body: var(--font-barlow), "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), Menlo, Consolas, monospace;
+
+  /*
+   * Eigene Breakpoints zusätzlich zu Tailwinds Standardskala (sm 40rem,
+   * md 48rem, ...): xs/md2 für die Kachelraster (docs/architektur.md:
+   * "Kacheln 1-spaltig unter 480px, 2-spaltig bis 800px"), sm2 für den
+   * Umbruch der Vorher/Nachher-Tabelle bei 600px (components/ui/BeforeAfter).
+   */
+  --breakpoint-xs: 30rem; /* 480px */
+  --breakpoint-sm2: 37.5rem; /* 600px */
+  --breakpoint-md2: 50rem; /* 800px */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+}
+
+a {
+  color: var(--color-red-bright);
+}
