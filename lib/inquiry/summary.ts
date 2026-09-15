@@ -19,6 +19,7 @@ import { de } from "@/lib/i18n/de";
 import { admin } from "@/lib/i18n/admin";
 import { chfFrom, formatDate, inquiryNumberLabel } from "@/lib/i18n/format";
 import { categoryLabel, itemLineText, optionLabel, vehicleLabel } from "@/lib/mail/render";
+import { vehicleInternalLine } from "@/lib/catalog/vehicle-label";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import type { MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
 
@@ -121,11 +122,16 @@ export function buildSummaryText(ctx: MailInquiryContext): string {
     : "";
   // "Getriebe: Handschalter" wie "Serie ... PS / ... Nm" oben hart in die
   // Fahrzeug-Zeile eingesetzt statt über admin.mail.inbox.ticket (das trägt
-  // nur GROSSGESCHRIEBENE Zeilen-Labels, kein Sub-Wert-Präfix).
+  // nur GROSSGESCHRIEBENE Zeilen-Labels, kein Sub-Wert-Präfix). Ergänzung
+  // 15.09.2026 (docs/architektur.md, Abschnitt "Fahrzeugbezeichnung", Regel
+  // 5): "Baureihe: ... · Motorisierung: ..." roh (ohne die Aufbereitung von
+  // vehicleLabel() oben) an die Zeile angehängt, damit dÄHLer die
+  // Excel-Preisliste sofort zuordnen kann.
   const gearboxText = gearboxValue(inquiry.gearbox);
+  const internalLine = ctx.family ? ` · ${vehicleInternalLine(ctx.family, ctx.model)}` : "";
   const vehicleLine = `${vehicle}${inquiry.year ? ` · Baujahr ${inquiry.year}` : ""}${seriesText}${
     gearboxText ? ` · Getriebe: ${gearboxText}` : ""
-  }`;
+  }${internalLine}`;
   const wish =
     inquiry.categories
       .map((c) => categoryLabel(c, LOCALE))

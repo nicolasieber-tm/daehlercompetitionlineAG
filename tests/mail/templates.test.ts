@@ -390,21 +390,22 @@ describe("Mailvorlagen: Leistungsstufe ohne ps_to (Prüfung Modul Produkte, Befu
   });
 });
 
-// --- Prüfung Phase B, Punkt 1 (blocker): vehicleLabel() mit echten
-// Namenspaaren aus der Excel-Preisliste, siehe docs/excel-import.md. Eine
-// frühere Fassung liess bei vorhandenem Modell den Familiennamen weg und
-// hängte stattdessen (nur bei genau einem Eintrag in codes[]) einen
-// Baureihen-Code an - korrekt ist stattdessen immer "<brand> <family.name>"
-// (Marke nicht doppeln, wenn der Name sie schon enthält) plus ", <model.
-// name>", ohne jede Code-Logik (siehe lib/mail/render.ts vehicleLabel()).
-describe("vehicleLabel: reale Namenspaare aus der Preisliste (Prüfung Phase B, Punkt 1)", () => {
-  it('BMW M2 G87, Modell "M2": Familienname UND Modellname, kein Baureihen-Code', () => {
+// --- Fahrzeugbezeichnung (docs/architektur.md, Abschnitt
+// "Fahrzeugbezeichnung", Stand 15.09.2026): vehicleLabel() mit echten
+// Namenspaaren aus der Excel-Preisliste, siehe docs/excel-import.md.
+// Kundenrückmeldung "BMW M2 G87, M2 liest sich doppelt": die Codes stehen
+// jetzt in Klammern am Ende statt als Teil der Familienzeile, Linie und
+// Modellname werden zu einem Satz verschmolzen statt komma-getrennt
+// aneinandergehängt (siehe lib/mail/render.ts vehicleLabel(), lib/catalog/
+// vehicle-label.ts).
+describe("vehicleLabel: reale Namenspaare aus der Preisliste (Fahrzeugbezeichnung, docs/architektur.md)", () => {
+  it('BMW M2 G87, Modell "M2": kein doppeltes Lesen mehr, Code in Klammern', () => {
     const family = baseFamily({ brand: "BMW", name: "M2 G87", codes: ["G87"], slug: "bmw-m2-g87" });
     const model = baseModel({ name: "M2", family_id: family.id });
-    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("BMW M2 G87, M2");
+    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("BMW M2 (G87)");
   });
 
-  it('MINI F60 Countryman, Modell "Countryman One (Benzin)": Marke nicht doppelt, Familienname vor dem Modell', () => {
+  it('MINI F60 Countryman, Modell "Countryman One (Benzin)": Marke nicht doppelt, Linie und Modellname verschmolzen', () => {
     const family = baseFamily({
       brand: "MINI",
       name: "MINI F60 Countryman",
@@ -413,11 +414,11 @@ describe("vehicleLabel: reale Namenspaare aus der Preisliste (Prüfung Phase B, 
     });
     const model = baseModel({ name: "Countryman One (Benzin)", family_id: family.id });
     expect(vehicleLabel({ family, model, vehicleText: null })).toBe(
-      "MINI F60 Countryman, Countryman One (Benzin)",
+      "MINI Countryman One (Benzin) (F60)",
     );
   });
 
-  it('BMW M3 / M4 G80, G81, G82, G83, Modell "M3 Competition": Familienname bleibt vollständig erhalten, egal wie viele Codes', () => {
+  it('BMW M3 / M4 G80, G81, G82, G83, Modell "M3 Competition": Alternative "M3" teilt mehr Wörter mit der Motorisierung als "M4"', () => {
     const family = baseFamily({
       brand: "BMW",
       name: "M3 / M4 G80, G81, G82, G83",
@@ -426,17 +427,17 @@ describe("vehicleLabel: reale Namenspaare aus der Preisliste (Prüfung Phase B, 
     });
     const model = baseModel({ name: "M3 Competition", family_id: family.id });
     expect(vehicleLabel({ family, model, vehicleText: null })).toBe(
-      "BMW M3 / M4 G80, G81, G82, G83, M3 Competition",
+      "BMW M3 Competition (G80, G81, G82, G83)",
     );
   });
 
-  it('BMW 1er M E82, Modell "1er M": Familienname UND Modellname, auch wenn sich beide ähneln', () => {
+  it('BMW 1er M E82, Modell "1er M": Codes in Klammern, "1er M" nicht verdoppelt (schon Teil der Linie)', () => {
     const family = baseFamily({ brand: "BMW", name: "1er M E82", codes: ["E82"], slug: "bmw-1er-m-e82" });
     const model = baseModel({ name: "1er M", family_id: family.id });
-    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("BMW 1er M E82, 1er M");
+    expect(vehicleLabel({ family, model, vehicleText: null })).toBe("BMW 1er M (E82)");
   });
 
-  it("Betreff der Bestätigungsmail: Familie + Modell, wie im Beispiel der Aufgabenstellung (BMW M2 G87, M2)", () => {
+  it("Betreff der Bestätigungsmail: Familie + Modell, kein doppeltes Lesen (Kundenrückmeldung)", () => {
     const family = baseFamily({ brand: "BMW", name: "M2 G87", codes: ["G87"], slug: "bmw-m2-g87" });
     const model = baseModel({ name: "M2", family_id: family.id });
     const ctx: MailInquiryContext = {
@@ -453,28 +454,22 @@ describe("vehicleLabel: reale Namenspaare aus der Preisliste (Prüfung Phase B, 
       adminUrl: "https://anfrage.daehler.com/admin/anfragen/11111111-1111-1111-1111-111111111111",
     };
     const result = buildConfirmation(ctx);
-    // docs/architektur.md nennt für dieses Beispiel noch "..., Nr. 2026-0012"
-    // ohne Modell; die Aufgabenstellung dieser Prüfung (Punkt 1) gibt
-    // "BMW M2 G87, M2" ausdrücklich als korrektes Ergebnis vor, wenn ein
-    // Modell gewählt ist - docs/architektur.md ist an dieser Stelle noch
-    // nicht nachgeführt (ausserhalb der mir zugewiesenen Dateien, siehe
-    // Bericht).
-    expect(result.subject).toBe("Ihre Anfrage für den BMW M2 G87, M2, Nr. 2026-0012");
+    // docs/architektur.md, Abschnitt "Fahrzeugbezeichnung": "Ihre Anfrage
+    // für den BMW M2 (G87), Nr. 2026-0012".
+    expect(result.subject).toBe("Ihre Anfrage für den BMW M2 (G87), Nr. 2026-0012");
   });
 });
 
-// --- Prüfung Phase B, Punkt 1: "kein Weglassen des Familiennamens". Eine
-// frühere Fassung liess bei einer der drei Kurzablauf-Platzhalterfamilien
-// ("Älteres Modell" usw., siehe supabase/seed.sql) ohne eigenen vehicle_text
-// nur die Marke stehen - das ist ausdrücklich nicht gewünscht: der
-// Familienname bleibt IMMER stehen. Prüfung Befund 3 (Folgeprüfung): ohne
-// gewähltes Modell ersetzt vehicle_text seither das fehlende Modell auch
-// bei bekannter Familie (siehe lib/catalog/vehicle-label.ts) - Familien
-// ohne Modell-Katalog (has_pricelist false) hätten sonst keine Möglichkeit,
-// die vom Kunden/Sprachmodell erfasste konkrete Modellbezeichnung zu
-// zeigen.
-describe("vehicleLabel: vehicle_text und Platzhalterfamilien (Prüfung Phase B, Punkt 1)", () => {
-  it("Platzhalterfamilie (has_pricelist=false) MIT vehicleText: vehicleText ersetzt das fehlende Modell", () => {
+// --- docs/architektur.md, Abschnitt "Fahrzeugbezeichnung", Regel 4: "kein
+// Weglassen des Familiennamens" gilt weiterhin OHNE vehicleText (die
+// Platzhalterfamilie bleibt dann der einzige Anhaltspunkt) - MIT
+// vehicleText ersetzt vehicleText die Familienzeile jetzt vollständig
+// (Marke + vehicleText, nicht mehr "Marke + Linie + vehicleText"):
+// Kundenrückmeldung "BMW M2 G87, M2 liest sich doppelt" gilt genauso für
+// "BMW Älteres Modell, 320i Touring" - der nichtssagende Platzhaltername
+// bringt dort nichts Zusätzliches, der Freitext allein ist aussagekräftiger.
+describe("vehicleLabel: vehicle_text und Platzhalterfamilien (Fahrzeugbezeichnung, docs/architektur.md)", () => {
+  it("Platzhalterfamilie (has_pricelist=false) MIT vehicleText: Marke + vehicleText, der Platzhaltername bleibt weg", () => {
     const family = baseFamily({
       brand: "BMW",
       name: "Älteres Modell",
@@ -483,7 +478,7 @@ describe("vehicleLabel: vehicle_text und Platzhalterfamilien (Prüfung Phase B, 
       has_pricelist: false,
     });
     expect(vehicleLabel({ family, model: null, vehicleText: "320i Touring, Baujahr 2011" })).toBe(
-      "BMW Älteres Modell, 320i Touring, Baujahr 2011",
+      "BMW 320i Touring, Baujahr 2011",
     );
   });
 
@@ -534,7 +529,7 @@ describe("vehicleLabel: vehicle_text und Platzhalterfamilien (Prüfung Phase B, 
   it("Modell vorhanden: vehicleText bleibt unberücksichtigt, Familienname UND Modellname erscheinen", () => {
     const family = baseFamily({ brand: "BMW", name: "M2 G87", codes: ["G87"], slug: "bmw-m2-g87" });
     const model = baseModel({ name: "M2", family_id: family.id });
-    expect(vehicleLabel({ family, model, vehicleText: "Mein Auto" })).toBe("BMW M2 G87, M2");
+    expect(vehicleLabel({ family, model, vehicleText: "Mein Auto" })).toBe("BMW M2 (G87)");
   });
 
   it("keine Familie bekannt: vehicle_text bleibt der einzige Fallback", () => {
@@ -719,6 +714,18 @@ describe("Klicktest-Rückmeldung: Getriebe-Zeile und Positionsdarstellung", () =
     const result = buildInbox(m2Ctx({ inquiry: { ...m2Ctx().inquiry, gearbox: null } }));
     const vehicleLine = result.text.split("\n").find((l) => l.startsWith("FAHRZEUG:"));
     expect(vehicleLine).not.toContain("Getriebe");
+  });
+
+  // docs/architektur.md, Abschnitt "Fahrzeugbezeichnung", Regel 5: intern
+  // zusätzlich "Baureihe: ... · Motorisierung: ..." (roh), damit dÄHLer die
+  // Excel-Preisliste sofort zuordnen kann.
+  it("buildInbox zeigt 'Baureihe: ... · Motorisierung: ...' (roh, aus family.name/model.name) in der FAHRZEUG-Zeile", () => {
+    const result = buildInbox(m2Ctx());
+    const vehicleLine = result.text.split("\n").find((l) => l.startsWith("FAHRZEUG:"));
+    // m2Ctx() (siehe oben) nutzt baseFamily()/baseModel(): name "3er G20,
+    // G21" / "M3 Touring" - vehicleInternalLine() zeigt beide Rohnamen
+    // unverändert, unabhängig von der aufbereiteten Kundenbezeichnung davor.
+    expect(vehicleLine).toContain("Baureihe: 3er G20, G21 · Motorisierung: M3 Touring");
   });
 
   it("buildConfirmation zeigt den gefalteten Positionsnamen (kein voller Excel-Rohname)", () => {

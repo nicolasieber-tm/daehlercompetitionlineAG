@@ -41,23 +41,23 @@ function model(overrides: Partial<Model> & { name: string }): Model {
   };
 }
 
-describe("vehicleLabel: <brand> <family.name>, plus <model.name>, keine Code-Logik (Prüfung Phase B, Punkt 1)", () => {
-  it('BMW 3er G20, G21, M40i: family.name ohne Marken-Präfix + Modellname', () => {
+describe("vehicleLabel: Formel aus docs/architektur.md, Abschnitt 'Fahrzeugbezeichnung' (Kundenrückmeldung 'BMW M2 G87, M2 liest sich doppelt')", () => {
+  it('BMW 3er M40i (G20, G21): Codes in Klammern, nicht in der Linie', () => {
     const f = family({ brand: "BMW", name: "3er G20, G21", codes: ["G20", "G21"] });
     const m = model({ name: "M40i" });
-    expect(vehicleLabel({ family: f, model: m, vehicleText: null })).toBe("BMW 3er G20, G21, M40i");
+    expect(vehicleLabel({ family: f, model: m, vehicleText: null })).toBe("BMW 3er M40i (G20, G21)");
   });
 
-  it('BMW M2 G87, M2: Familienname bleibt trotz Modell erhalten (nicht durch einen Baureihen-Code ersetzt)', () => {
+  it('BMW M2 (G87): Linie und Modellname zu einem Satz verschmolzen statt komma-getrennt', () => {
     const f = family({ brand: "BMW", name: "M2 G87", codes: ["G87"] });
     const m = model({ name: "M2" });
-    expect(vehicleLabel({ family: f, model: m, vehicleText: null })).toBe("BMW M2 G87, M2");
+    expect(vehicleLabel({ family: f, model: m, vehicleText: null })).toBe("BMW M2 (G87)");
   });
 
-  it('MINI F60 Countryman, Cooper S: Marke nicht doppeln, wenn family.name sie schon enthält', () => {
+  it('MINI Countryman Cooper S (F60): Marke nicht doppeln, wenn family.name sie schon enthält', () => {
     const f = family({ brand: "MINI", name: "MINI F60 Countryman", codes: ["F60"] });
     const m = model({ name: "Cooper S" });
-    expect(vehicleLabel({ family: f, model: m, vehicleText: null })).toBe("MINI F60 Countryman, Cooper S");
+    expect(vehicleLabel({ family: f, model: m, vehicleText: null })).toBe("MINI Countryman Cooper S (F60)");
   });
 
   it("Wiesmann: kein Modell, family.name = family.brand -> keine Dublette", () => {
@@ -65,14 +65,17 @@ describe("vehicleLabel: <brand> <family.name>, plus <model.name>, keine Code-Log
     expect(vehicleLabel({ family: f, model: null, vehicleText: null })).toBe("Wiesmann");
   });
 
-  it("Platzhalterfamilie ohne Modell: Familienname bleibt erhalten (kein Weglassen); vehicleText ersetzt das fehlende Modell", () => {
+  it("Platzhalterfamilie ohne Modell: Familienzeile allein; MIT vehicleText ersetzt vehicleText die Linie ganz (Marke + vehicleText, kein Doppel-Lesen mehr)", () => {
     const f = family({ brand: "BMW", name: "Älteres Modell", has_pricelist: false });
     expect(vehicleLabel({ family: f, model: null, vehicleText: null })).toBe("BMW Älteres Modell");
     // Ohne Modell im Katalog (has_pricelist false) ist vehicleText der
-    // einzige Weg, die konkrete Modellbezeichnung zu zeigen - siehe
-    // lib/catalog/vehicle-label.ts, Prüfung Befund 3.
+    // einzige Weg, die konkrete Modellbezeichnung zu zeigen - die
+    // Platzhalter-Familienzeile selbst wird dann NICHT mehr zusätzlich
+    // gezeigt (Regel 4, docs/architektur.md): "BMW Älteres Modell, 320i
+    // Touring" liest sich genauso doppelt/unnötig wie der ursprüngliche
+    // Kundenbefund.
     expect(vehicleLabel({ family: f, model: null, vehicleText: "320i Touring, Baujahr ca. 2011" })).toBe(
-      "BMW Älteres Modell, 320i Touring, Baujahr ca. 2011",
+      "BMW 320i Touring, Baujahr ca. 2011",
     );
   });
 
@@ -84,9 +87,9 @@ describe("vehicleLabel: <brand> <family.name>, plus <model.name>, keine Code-Log
     expect(vehicleLabel({ family: null, model: null, vehicleText: "  " })).toBe("");
   });
 
-  it("TOYOTA-Familienname: Marke nicht doppeln", () => {
+  it("TOYOTA-Familienname: Marke nicht doppeln, Markenschreibweise aus brand (TOYOTA -> Toyota)", () => {
     const f = family({ brand: "Toyota", name: "TOYOTA GR Supra", codes: [] });
-    expect(vehicleLabel({ family: f, model: null, vehicleText: null })).toBe("TOYOTA GR Supra");
+    expect(vehicleLabel({ family: f, model: null, vehicleText: null })).toBe("Toyota GR Supra");
   });
 });
 

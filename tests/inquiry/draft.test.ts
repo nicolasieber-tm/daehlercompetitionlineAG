@@ -58,7 +58,7 @@ function m2Ctx(): DraftContext {
     number: "2026-0012",
     firstName: "Max",
     lastName: "Muster",
-    vehicleLabel: "BMW M2 G87",
+    vehicleLabel: "BMW M2 (G87)",
     year: "2025",
     character: "sportlich",
     categories: ["motor", "auspuff", "fahrwerk"],
@@ -73,7 +73,7 @@ function m2Ctx(): DraftContext {
 
 const M2_BODY_DE = [
   "Guten Tag Max Muster",
-  "Danke für Ihre Anfrage für Ihren BMW M2 G87 (Jahrgang 2025). Sportlich und alltagstauglich, das ist genau unsere Linie.",
+  "Danke für Ihre Anfrage für Ihren BMW M2 (G87) (Jahrgang 2025). Sportlich und alltagstauglich, das ist genau unsere Linie.",
   [
     "Grundsätzlich können wir das so umsetzen:",
     // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
@@ -84,7 +84,7 @@ const M2_BODY_DE = [
     "• Auspuff: Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, ab CHF 5'260",
     "• Fahrwerk: Sportfedernsatz für M2 / VA -20mm/ HA -14mm, ab CHF 1'630",
   ].join("\n"),
-  "Mit Stufe 1 kommt Ihr BMW M2 G87 auf 620 PS / 740 Nm, WLTP-geprüft und mit CH-Gutachten. Die Ergänzungsgarantie zur Werksgarantie ist für ein Jahr inbegriffen.",
+  "Mit Stufe 1 kommt Ihr BMW M2 (G87) auf 620 PS / 740 Nm, WLTP-geprüft und mit CH-Gutachten. Die Ergänzungsgarantie zur Werksgarantie ist für ein Jahr inbegriffen.",
   "Richtpreis für das Paket: ab CHF 11'070, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir wissen, ob Ihr Wagen das adaptive M-Fahrwerk hat.",
   "Für die Zeit in ein bis zwei Monaten haben wir Werkstattfenster, wir reservieren Ihnen gerne eines, sobald Sie grünes Licht geben.",
   "Rufen Sie uns an oder antworten Sie kurz auf diese Mail, dann besprechen wir die Details.",
@@ -93,14 +93,14 @@ const M2_BODY_DE = [
 
 const M2_BODY_EN = [
   "Dear Max Muster",
-  "Thank you for your request for your BMW M2 G87 (model year 2025). Sporty and still practical for everyday use, that is exactly our line.",
+  "Thank you for your request for your BMW M2 (G87) (model year 2025). Sporty and still practical for everyday use, that is exactly our line.",
   [
     "In principle, we can put this together:",
     "• Engine: Stage 1 (620 PS / 740 Nm, M6 & A8-Getriebe), from CHF 4'180",
     "• Exhaust: Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, from CHF 5'260",
     "• Suspension: Sportfedernsatz für M2 / VA -20mm/ HA -14mm, from CHF 1'630",
   ].join("\n"),
-  "With Stufe 1 your BMW M2 G87 reaches 620 PS / 740 Nm, WLTP tested and with a Swiss approval certificate. The one year warranty extension to the factory warranty is included.",
+  "With Stufe 1 your BMW M2 (G87) reaches 620 PS / 740 Nm, WLTP tested and with a Swiss approval certificate. The one year warranty extension to the factory warranty is included.",
   "Indicative price for the package: from CHF 11'070, including fitting, excluding roadworthiness test. We will confirm the final price once we know whether your car has the adaptive M suspension.",
   "For the period in one to two months we have workshop slots available, we would be happy to reserve one for you once you give us the go ahead.",
   "Call us or simply reply to this email, and we will discuss the details.",
@@ -149,14 +149,14 @@ function assertClean(body: string, phone: string): void {
 describe("buildDraft: M2 G87, Stufe 1 + Komplettanlage + Sportfedern, timing m1_2, character sportlich", () => {
   it("de: Betreff und Volltext", () => {
     const { subject, body } = buildDraft(m2Ctx(), "de");
-    expect(subject).toBe("Ihre Anfrage für den BMW M2 G87, Nr. 2026-0012");
+    expect(subject).toBe("Ihre Anfrage für den BMW M2 (G87), Nr. 2026-0012");
     expect(body).toBe(M2_BODY_DE);
     assertClean(body, SETTINGS.signaturePhone);
   });
 
   it("en: Betreff und Volltext", () => {
     const { subject, body } = buildDraft(m2Ctx(), "en");
-    expect(subject).toBe("Your request for the BMW M2 G87, No. 2026-0012");
+    expect(subject).toBe("Your request for the BMW M2 (G87), No. 2026-0012");
     expect(body).toBe(M2_BODY_EN);
     assertClean(body, SETTINGS.signaturePhone);
   });
@@ -224,18 +224,18 @@ function kurzablaufCtx(vehicleText: string | null): DraftContext {
   };
 }
 
-describe("buildDraft: Kurzablauf Platzhalterfamilie, Familienname bleibt immer erhalten (Prüfung Phase B, Punkt 1)", () => {
-  it("ohne vehicleText: Marke + Platzhalter-Familienname", () => {
+describe("buildDraft: Kurzablauf Platzhalterfamilie (docs/architektur.md, Abschnitt 'Fahrzeugbezeichnung', Regel 4)", () => {
+  it("ohne vehicleText: Marke + Platzhalter-Familienname (einzig verfügbarer Anhaltspunkt)", () => {
     const { subject, body } = buildDraft(kurzablaufCtx(null), "de");
     expect(subject).toBe("Ihre Anfrage für den BMW Älteres Modell, Nr. 2026-0099");
     expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW Älteres Modell.");
     assertClean(body, SETTINGS.signaturePhone);
   });
 
-  it("mit vehicleText: ersetzt bei bekannter Familie ohne Modell das fehlende Modell (Familienname bleibt zusätzlich stehen)", () => {
+  it("mit vehicleText: Marke + vehicleText, der nichtssagende Platzhaltername bleibt weg (kein doppeltes Lesen, Kundenrückmeldung)", () => {
     const { subject, body } = buildDraft(kurzablaufCtx("320i Touring, Baujahr ca. 2011"), "de");
-    expect(subject).toBe("Ihre Anfrage für den BMW Älteres Modell, 320i Touring, Baujahr ca. 2011, Nr. 2026-0099");
-    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW Älteres Modell, 320i Touring, Baujahr ca. 2011.");
+    expect(subject).toBe("Ihre Anfrage für den BMW 320i Touring, Baujahr ca. 2011, Nr. 2026-0099");
+    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW 320i Touring, Baujahr ca. 2011.");
     assertClean(body, SETTINGS.signaturePhone);
   });
 });
@@ -329,7 +329,7 @@ describe("buildDraft: character/timing null (Schnellweg ohne erkannten Charakter
   it("character null: der Charakter-Satz entfällt, der Rest des Dank-Absatzes bleibt", () => {
     const ctx = { ...m2Ctx(), character: null };
     const { body } = buildDraft(ctx, "de");
-    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW M2 G87 (Jahrgang 2025).");
+    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW M2 (G87) (Jahrgang 2025).");
     expect(body).not.toContain("undefined");
     assertClean(body, SETTINGS.signaturePhone);
   });
@@ -347,7 +347,7 @@ describe("buildDraft: character/timing null (Schnellweg ohne erkannten Charakter
   it("character UND timing null zusammen (typischer Schnellweg-Rohzustand)", () => {
     const ctx = { ...m2Ctx(), character: null, timing: null };
     const { subject, body } = buildDraft(ctx, "de");
-    expect(subject).toBe("Ihre Anfrage für den BMW M2 G87, Nr. 2026-0012");
+    expect(subject).toBe("Ihre Anfrage für den BMW M2 (G87), Nr. 2026-0012");
     expect(body).not.toContain("undefined");
     assertClean(body, SETTINGS.signaturePhone);
   });

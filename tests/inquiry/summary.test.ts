@@ -142,6 +142,24 @@ describe("buildSummaryText: Getriebe-Zeile (Rückmeldung erster Klicktest)", () 
   });
 });
 
+// docs/architektur.md, Abschnitt "Fahrzeugbezeichnung", Regel 5: intern
+// zusätzlich "Baureihe: ... · Motorisierung: ..." (roh, ohne die
+// Aufbereitung der kundensichtbaren Bezeichnung), damit dÄHLer die
+// Excel-Preisliste sofort zuordnen kann.
+describe("buildSummaryText: 'Baureihe: ... · Motorisierung: ...' in der FAHRZEUG-Zeile", () => {
+  it("mit Familie und Modell", () => {
+    const text = buildSummaryText(ctx());
+    const vehicleLine = text.split("\n").find((l) => l.trim().startsWith("FAHRZEUG"));
+    expect(vehicleLine).toContain("Baureihe: M2 G87 · Motorisierung: M2");
+  });
+
+  it("Kurzablauf ohne Familie: keine Baureihen-Zeile (nichts, worüber dÄHLer die Preisliste zuordnen könnte)", () => {
+    const text = buildSummaryText(ctx({ family: null, model: null, inquiry: baseInquiry({ family_id: null, model_id: null, vehicle_text: "320i Touring" }) }));
+    const vehicleLine = text.split("\n").find((l) => l.trim().startsWith("FAHRZEUG"));
+    expect(vehicleLine).not.toContain("Baureihe");
+  });
+});
+
 describe("buildSummaryText: Positionsdarstellung wie im Antwortentwurf", () => {
   it("zeigt den gefalteten Namen, nicht den vollen Excel-Rohnamen", () => {
     const text = buildSummaryText(ctx());

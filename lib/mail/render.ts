@@ -83,28 +83,28 @@ export function isPlaceholderFamilyName(name: string): boolean {
 
 /**
  * Kundensichtbare Fahrzeugbezeichnung aus Familie/Modell, oder
- * inquiries.vehicle_text als Fallback. Reiner Re-Export von
- * vehicleDisplayLabel() (lib/catalog/vehicle-label.ts) gegen die vollen
- * ModelFamily/Model-Row-Typen - die eigentliche Formel (samt Beispielen und
- * Begründung) steht jetzt nur noch dort, damit lib/inquiry/share.ts und
- * components/flow/vehicleLabel.ts dieselbe Funktion aufrufen statt eigene,
- * auseinanderlaufende Kopien zu pflegen (Prüfung, Befund 3).
+ * inquiries.vehicle_text als Fallback. Dünner Wrapper um vehicleDisplayLabel()
+ * (lib/catalog/vehicle-label.ts) gegen die vollen ModelFamily/Model-Row-Typen
+ * - die eigentliche Formel (samt den fünf Regeln aus docs/architektur.md,
+ * Abschnitt "Fahrzeugbezeichnung") steht nur noch dort, damit
+ * lib/inquiry/share.ts und components/flow/vehicleLabel.ts dieselbe Funktion
+ * aufrufen statt eigene, auseinanderlaufende Kopien zu pflegen. Behält
+ * bewusst die bisherige Objekt-Signatur ({family, model, vehicleText}) bei
+ * (statt der positionalen Signatur von vehicleDisplayLabel()): sie wird an
+ * gut einem Dutzend Stellen in lib/ und tests/ so aufgerufen, eine
+ * Signaturänderung hier hätte keinen funktionalen Nutzen, nur unnötigen Diff.
  *
- * Verhaltensänderung gegenüber der vorigen Fassung dieser Funktion: ohne
- * gewähltes Modell wird inquiries.vehicle_text jetzt auch bei BEKANNTER
- * Familie als Modell-Ersatz angehängt ("Wiesmann, MF4", "BMW Älteres
- * Modell, E46 M3") statt nur, wenn gar keine Familie bekannt ist - Familien
- * ohne Modell-Katalog (has_pricelist false: die drei Kurzablauf-
- * Platzhalternamen sowie Wiesmann) haben sonst keine Möglichkeit, die vom
- * Kunden/Sprachmodell erfasste konkrete Modellbezeichnung überhaupt zu
- * zeigen. Der Familienname fällt dabei nach wie vor NIE weg.
+ * Korrektur 15.09.2026 (Kundenrückmeldung "BMW M2 G87, M2 liest sich
+ * doppelt"): Linie und Modellname werden jetzt zu einem Satz verschmolzen
+ * statt komma-getrennt aneinandergehängt, Codes stehen in Klammern am Ende
+ * ("BMW M2 (G87)" statt "BMW M2 G87, M2") - siehe lib/catalog/vehicle-label.ts.
  */
 export function vehicleLabel(params: {
   family: ModelFamily | null;
   model: Model | null;
   vehicleText: string | null;
 }): string {
-  return vehicleDisplayLabel(params);
+  return vehicleDisplayLabel(params.family, params.model, params.vehicleText);
 }
 
 /**

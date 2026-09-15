@@ -150,6 +150,14 @@ test.describe("Kundenflow Desktop, BMW M2 G87 mit Preisen", () => {
     // mehr den rohen Excel-Namen mit der Basis-Angabe ("(Basis 480 PS)").
     await expect(page.getByText("(Basis", { exact: false })).toHaveCount(0);
 
+    // Fahrzeugbezeichnung (docs/architektur.md, Abschnitt
+    // "Fahrzeugbezeichnung"; Kundenrückmeldung "BMW M2 G87, M2 liest sich
+    // doppelt"): der Abschluss-Screen zeigt "BMW M2 (G87)" - Linie und
+    // Modellname zu einem Satz verschmolzen, Code in Klammern - statt des
+    // alten "BMW M2 G87, M2".
+    await expect(page.getByText("BMW M2 (G87)").first()).toBeVisible();
+    await expect(page.getByText("G87, M2")).toHaveCount(0);
+
     // Teilen-Link: kopieren und die read-only Seite öffnen.
     await page.getByRole("button", { name: /Ihr Paket als Link/ }).click();
     const code = page.locator("code");
@@ -164,6 +172,9 @@ test.describe("Kundenflow Desktop, BMW M2 G87 mit Preisen", () => {
     // Dieselbe Prüfung wie oben: die Teilen-Seite zeigt keinen rohen
     // Excel-Namen mit der Basis-Angabe.
     await expect(sharePage.getByText("(Basis", { exact: false })).toHaveCount(0);
+    // /p/<token> zeigt dieselbe Fahrzeugbezeichnung wie der Abschluss-Screen.
+    await expect(sharePage.getByText("BMW M2 (G87)").first()).toBeVisible();
+    await expect(sharePage.getByText("G87, M2")).toHaveCount(0);
     await sharePage.close();
   });
 });

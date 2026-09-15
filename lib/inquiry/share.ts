@@ -97,12 +97,12 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
   if (error) throw new Error(`getInquiryByShareToken fehlgeschlagen: ${error.message}`);
   if (!inquiry) return null;
 
-  let family: { brand: string; name: string } | null = null;
+  let family: { brand: string; name: string; codes: string[] } | null = null;
   let model: { name: string; series_nm: number | null } | null = null;
   if (inquiry.family_id) {
     const { data, error: familyError } = await admin
       .from("model_families")
-      .select("brand, name")
+      .select("brand, name, codes")
       .eq("id", inquiry.family_id)
       .maybeSingle();
     if (familyError) throw new Error(`getInquiryByShareToken (Familie) fehlgeschlagen: ${familyError.message}`);
@@ -123,11 +123,9 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
   }
 
   // Dieselbe gemeinsame Formel wie überall sonst (Mail, Antwortentwurf,
-  // Kundenflow), siehe lib/catalog/vehicle-label.ts (Prüfung, Befund 3):
-  // eine frühere, eigene Kopie dieser Funktion liess hier bei vorhandenem
-  // Modell den Familiennamen weg und hängte stattdessen einen Baureihen-
-  // Code an (Blocker-Befund, siehe lib/mail/render.ts Kommentar-Historie).
-  const vehicleLabel = vehicleDisplayLabel({ family, model, vehicleText: inquiry.vehicle_text });
+  // Kundenflow), siehe lib/catalog/vehicle-label.ts und docs/architektur.md
+  // Abschnitt "Fahrzeugbezeichnung".
+  const vehicleLabel = vehicleDisplayLabel(family, model, inquiry.vehicle_text);
 
   // Nachzug Prüfung Phase D, Punkt 1: name/description/variantGroup/psTo/
   // nmTo werden ROH aus inquiries.selections durchgereicht (variant_group

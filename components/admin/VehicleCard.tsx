@@ -1,5 +1,6 @@
 import { admin } from "@/lib/i18n/admin";
 import { vehicleLabel } from "@/lib/mail/render";
+import { vehicleInternalLine } from "@/lib/catalog/vehicle-label";
 import type { MailInquiryContext } from "@/lib/mail/types";
 import { Card } from "./Card";
 
@@ -43,6 +44,13 @@ export function VehicleCard({ ctx }: { ctx: MailInquiryContext }) {
           </>
         )}
       </dl>
+      {/* Ergänzung 15.09.2026 (docs/architektur.md, Abschnitt
+          "Fahrzeugbezeichnung", Regel 5): roh, ohne die Aufbereitung von
+          vehicleLabel() oben - damit dÄHLer die Excel-Preisliste (benannt
+          nach dem rohen Familiennamen) sofort zuordnen kann. */}
+      {family && (
+        <p className="mt-2 text-xs text-dim">{vehicleInternalLine(family, model)}</p>
+      )}
     </Card>
   );
 }
