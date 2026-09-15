@@ -715,18 +715,22 @@ describe("Befund #4 (Bericht Runde 3): Toyota GR Supra - Gruppenzeile ohne Doppe
     expect(stufe1?.groupLabel).toBe("DME Leistungssteigerungen «powered by dÄHLer»");
   });
 
-  // Prüfung Phase B, Punkt 8a (korrigiert eine frühere Erwartung dieses
-  // Tests aus einer vorherigen Prüfrunde): "Carbon Air Intake" ist KEIN
-  // Leistungsprodukt (variantGroupFor liefert null, kein "(Basis"/"Stufe X"/
+  // Prüfung Phase B, Punkt 8a: "Carbon Air Intake" ist KEIN Leistungsprodukt
+  // (variantGroupFor liefert nicht "leistung", kein "(Basis"/"Stufe X"/
   // "Leistungssteigerung" im Namen) - eine DME/DDE-Gruppenzeile gilt laut
-  // aktueller Aufgabenstellung nur für die eigentlichen Leistungsstufen,
-  // nicht für andere Motor-Produkte, die zufällig danach in derselben
-  // Kategorie folgen.
-  it("ein Nicht-Leistungsprodukt (Carbon Air Intake) danach bekommt KEIN group_label", async () => {
+  // Aufgabenstellung nur für die eigentlichen Leistungsstufen, nicht für
+  // andere Motor-Produkte, die zufällig danach in derselben Kategorie
+  // folgen. Rückmeldung aus dem ersten Klicktest (CLAUDE.md Abschnitt
+  // "AUFGABE", Punkt 4): "Carbon Air Intake" bekommt seit der neuen
+  // "ansaugung"-Exklusivgruppe (lib/catalog/variant-groups.ts) trotzdem eine
+  // variant_group - das ist gewollt (exklusiv zu einem alternativen
+  // Ansaugungs-Upgrade), nur eben nicht "leistung" und damit unabhängig vom
+  // group_label der DME-Zeile.
+  it("ein Nicht-Leistungsprodukt (Carbon Air Intake) danach bekommt KEIN group_label, aber die ansaugung-Gruppe", async () => {
     const buf = await readFile(join(PRICELIST_DIR, "Produkteliste Toyota GR Supra.xls"));
     const family = parseWorkbook(buf, "Produkteliste Toyota GR Supra.xls");
     const carbonIntake = family.products.find((p) => p.name === "Carbon Air Intake");
-    expect(carbonIntake?.variantGroup).toBeNull();
+    expect(carbonIntake?.variantGroup).toBe("ansaugung");
     expect(carbonIntake?.groupLabel).toBeNull();
   });
 });
@@ -978,6 +982,45 @@ describe("Leistungsdaten-Regex (parsePerformance)", () => {
     expect(r.psBase).toEqual([306]);
     expect(r.psTo).toBe(360);
     expect(r.nmTo).toBe(530);
+  });
+});
+
+// Rückmeldung aus dem ersten Klicktest (Kundenflow M2 G87), siehe
+// CLAUDE.md Abschnitt "AUFGABE", Punkte 1 und 3.
+describe("Klicktest-Rückmeldung: gearbox und NBSP-Normalisierung (M2 G87)", () => {
+  it("Kraftübertragung-Produkte bekommen das aus dem Namen abgeleitete Getriebe", async () => {
+    const buf = await readFile(join(PRICELIST_DIR, "Produkteliste M2 G87.xls"));
+    const family = parseWorkbook(buf, "Produkteliste M2 G87.xls");
+
+    const schaltweg = family.products.find((p) => p.name === "Schaltwegverkürzung für Handschalter");
+    expect(schaltweg?.gearbox).toBe("manual");
+
+    const getriebeSt1 = family.products.find((p) => p.name === "Getriebeoptimierung St.1 / 8 HP");
+    expect(getriebeSt1?.gearbox).toBe("automatic");
+  });
+
+  it("Leistungsstufen mit 'M6 & A8-Getriebe' im Namen bekommen KEIN Getriebe (gelten für beide)", async () => {
+    const buf = await readFile(join(PRICELIST_DIR, "Produkteliste M2 G87.xls"));
+    const family = parseWorkbook(buf, "Produkteliste M2 G87.xls");
+    const stufe1 = family.products.find((p) => p.psTo === 590);
+    expect(stufe1?.name).toContain("M6 & A8-Getriebe");
+    expect(stufe1?.gearbox).toBeNull();
+  });
+
+  it("getriebeneutrale Produkte (z.B. Fahrwerk/Exterieur) bekommen null", async () => {
+    const buf = await readFile(join(PRICELIST_DIR, "Produkteliste M2 G87.xls"));
+    const family = parseWorkbook(buf, "Produkteliste M2 G87.xls");
+    const motorhaube = family.products.find((p) => p.name === "Motorhaube Carbon");
+    expect(motorhaube?.gearbox).toBeNull();
+  });
+
+  it("U+00A0 (geschütztes Leerzeichen) in Namen/Beschreibungen wird zu einem normalen Leerzeichen normalisiert", async () => {
+    const buf = await readFile(join(PRICELIST_DIR, "Produkteliste M2 G87.xls"));
+    const family = parseWorkbook(buf, "Produkteliste M2 G87.xls");
+    for (const p of family.products) {
+      expect(p.name).not.toMatch(/\u00A0/);
+      if (p.description) expect(p.description).not.toMatch(/\u00A0/);
+    }
   });
 });
 

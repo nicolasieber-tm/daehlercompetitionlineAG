@@ -98,9 +98,40 @@ Im Kategorie-Schritt werden Produkte nach `source_category` und darunter nach `g
 Regex auf den Namen, je Flow-Kategorie. Treffer → `variant_group`, sonst `null` (kombinierbar):
 
 - motor: `/\(Basis|Stufe\s*\d|Leistungssteigerung/i` → `leistung`, ausser der Name passt auf `/^Einbau\b|i\.V\.\s*mit\s+Leistungssteigerung/i` (Ergänzung 14.09.2026, Prüfung Runde 5, Befund 2): `Einbau Leistungssteigerung` (17 Familien, reine Montagepauschale CHF 330 zu einer an anderer Stelle gewählten Stufe, kein eigenes Leistungsprodukt) und `Anhebung der serienmässigen V/max. Begr. auf 327km/h i.V. mit Leistungssteigerung` (M5 F10/M6 F06, ausdrücklich in Verbindung mit einer Stufe gekauft) sind sonst fälschlich exklusiv zu Stufe 1/Stufe 2 (Auswahl der Stufe wählt beim Zusatz ab oder umgekehrt, PS-Zähler zeigt bei `Einbau Leistungssteigerung` `null`). Bewusst **nicht** ausgenommen: `Aufhebung der serienmässigen V/max Begrenzung ohne Leistungssteigerung` (M2 F87, M3/M4 G80) - Exklusivität zu einer Stufe ist hier vertretbar.
+- motor: `/Air Intake|Sportluftfilter|Ansaugsystem/i` → `ansaugung` (Ergänzung 15.09.2026, Rückmeldung erster Klicktest: M2 G87 «Sportluftfilter Satz» vs. «Carbon Air Intake», alternative Ansaugungs-Upgrades). Steht in der Regelliste NACH `leistung`, damit ein (in der Praxis nicht vorkommender) Leistungsstufen-Name mit einem dieser Begriffe weiterhin `leistung` bekommt.
 - auspuff: zuerst `/Komplettanlage|Endschalld|Nachschalld|Auspuffanlage/i` → `anlage`, erst danach `/Endrohre/i` → `endrohre` (Reihenfolge ist wichtig: «Komplettanlage HP ... ohne Endrohre» ist eine Anlage, keine Endrohre)
 - fahrwerk: `/Sportfeder|Sportfahrwerk|Gewindefahrwerk|Performance Fahrwerk|Race Fahrwerk/i` → `fahrwerk`
 - raeder: `/Radsatz/i` → `radsatz`
+- exterieur (Ergänzung 15.09.2026, Rückmeldung erster Klicktest, Kundenflow M2 G87):
+  - `/(^|dÄHLer )Frontgrill(?!.*unten)|^M Niere|Niere/i` → `frontgrill` («Frontgrill Carbon» vs. «Frontgrill CS Carbon» exklusiv; «Frontgrill Carbon gross / unten» bleibt über die Ausnahme kombinierbar, kein Ersatz für den oberen Grill; erfasst zusätzlich die Nieren-Varianten, z. B. 3er G20/G21 «dÄHLer Niere M Doppelsteg schwarz glanz» vs. «dÄHLer Niere schwarz glanz»). **Korrektur 15.09.2026** (Prüfung Modul Parser, Befund 4): der reine Anfangs-Anker `^Frontgrill` griff bei 1er F40 nicht - «dÄHLer Frontgrill Diamont schwarz glanz» und «dÄHLer Frontgrill doppelsteg schwarz glanz» (gleiche Modelle, je CHF 430) blieben ohne Gruppe und gemeinsam wählbar. Anker um die vorangestellte «dÄHLer »-Marke erweitert.
+  - `/Heckdif+us+or/i` → `heckdiffusor`. **Abweichung von der ursprünglichen Vorgabe** (`/Heckdif+usor/i`, deckt nur die korrekte Schreibweise «Heckdiffusor» ab): die tatsächliche Excel-Schreibweise in allen 42 Preislisten ist **«Heckdifussor»** (ein f, doppeltes s statt umgekehrt), z. B. M2 G87 «Heckdifussor Carbon»/«Heckdifussor Race Carbon». `Heckdif+us+or` (f einmal oder mehrfach, s einmal oder mehrfach) trifft beide Schreibweisen.
+  - `/Frontspoiler|Frontlippe/i` → `frontspoiler`, ausser `/i\.V\.\s*mit|in Verb(?:indung|\.)\s*mit|Flaps/i` (**Korrektur 15.09.2026**, Prüfung Modul Parser, Befund 5): M2 F87 hatte alle vier Frontspoiler-Produkte in einer Gruppe, obwohl «Frontspoilerlippe i.V. mit Frontspoiler mittig» laut eigenem Namen die Kombination mit genau «Frontspoiler mittig» voraussetzt (kein Ersatz dafür) und «Frontspoiler Flaps seitlich» eine Ergänzung ist, keine Alternative. Namen mit «i.V. mit»/«in Verbindung mit»/«in Verb. mit» oder «Flaps» bleiben ausserhalb der Gruppe kombinierbar.
+  - `/Heckspoiler|Heckflügel/i` → `heckspoiler`
+  - `/Motorhaube/i` → `motorhaube`
+- interieur (Ergänzung 15.09.2026): `/Lenkrad/i` → `lenkrad`, ausser `/Lenkradtaste|Griffbereich/i` (**Korrektur 15.09.2026**, Prüfung Modul Parser, Befund 3): «Abgasklappensteuerung bedienbar über Lenkradtaste (oder Fernbedienung)» (18 aktive Produkte) und «Farblich abgestimmte Steppnähte und Lenkrad-Griffbereich in Alcantara» (M5 F10) sind keine Lenkrad-Alternativen zum Sportlenkrad und wurden fälschlich mit ihm exklusiv gruppiert.
+
+### Abgeleitete Produkttitel (`lib/catalog/product-display.ts`, Korrekturen 15.09.2026, Prüfung Modul Parser)
+
+`productDisplay()` behandelt ein Produkt nur dann als Leistungsstufe (Titel «Stufe N»/«Leistungssteigerung»), wenn `variant_group === 'leistung'` **und** der Name nicht auf `/ohne\s+Leistungssteigerung/i` passt (Befund 1): «Aufhebung der serienmässigen V/max Begrenzung ohne Leistungssteigerung» (M2 F87, M3/M4 G80) liegt zwar bewusst in `variant_group` `leistung` (Exklusivität, siehe oben), ist aber keine Stufe - Titel ist stattdessen der Name, die Kachel fällt im Motor-Schritt unter «Weitere Optionen» statt «Leistungsstufen» (`components/flow/steps/CategoryStep.tsx` `isStageProduct()`, dieselbe Ausnahme). Name und `description` werden für eine Stufe als EIN Text behandelt, sowohl für die V/max-Titel-Erkennung als auch für die Detailzeile (Befund 2): 8 aktive Stufen tragen die V/max-Angabe ganz oder teilweise nur in der `description` (Excel-Zelle über zwei Spalten umgebrochen), vorher ging diese Information beim Kürzen verloren. `lib/rules/checks.ts` `isVmaxMentionOf()` prüft dieselbe kombinierte Zeichenkette. Eine erkannte Bauzeitangabe («ab»/«bis» MM.JJ[JJ], optional mit Bereichsende) wird zusätzlich aus der Detailzeile in den Titel gezogen (Befund 6), z. B. «Leistungssteigerung ab 10.20» statt nur «Leistungssteigerung» - vorher nicht mehr unterscheidbare, gleichzeitig sichtbare Duplikate mit identischem Titel+Nebenzeile innerhalb desselben Modells.
+
+## Getriebe (`lib/catalog/gearbox.ts`, Ergänzung 15.09.2026, Rückmeldung erster Klicktest; Korrektur 15.09.2026, Prüfung Modul Getriebe, Befund 1)
+
+Die Excel-Preisliste enthält **keine** Getriebe-Spalte je Modell, aber Produktnamen (nicht nur der Kategorie Kraftübertragung, z. B. auch Interieur-Zubehör wie Pedale) sind oft getriebespezifisch (z. B. M2 G87 «Schaltwegverkürzung für Handschalter» vs. «Getriebeoptimierung St.1 / 8 HP»). `products.gearbox` wird deshalb **aus dem Namen abgeleitet**, nicht aus der Excel gelesen, bei jedem Import neu berechnet (auch bei content_hash-Match, siehe unten):
+
+- `/Handschalt|Schaltgetr|manuell/i` → `manual` (das kürzere `Schaltgetr` statt `Schaltgetriebe` deckt auch den Excel-Tippfehler «Schaltgetribe» ab, z. B. «dÄHLer Alupedale Schaltgetribe» bei Z4 G29 - ohne diese Lockerung blieb das Produkt fälschlich getriebeneutral, während das Gegenstück «dÄHLer Alupedale Automatik» korrekt erkannt wurde, siehe `tests/catalog/gearbox.test.ts`)
+- `/Automat|8\s*HP|8HP|DKG|DCT|Steptronic|Wandler/i` → `automatic`
+- beide Muster gleichzeitig, oder der Name enthält `M6 & A8` (z. B. eine Leistungsstufe «... (M6 & A8-Getriebe)», gilt für beide Getriebevarianten) → `null` (getriebeneutral/beide)
+- sonst → `null`
+
+`inquiries.gearbox` (Kundenantwort im Fahrzeug-Schritt) ist ein eigenes Feld mit einem dritten Wert `unknown` («Weiss ich nicht»), siehe Migration `20260915010000_gearbox.sql`.
+
+## U+00A0-Normalisierung (Ergänzung 15.09.2026, Rückmeldung erster Klicktest)
+
+Vereinzelte Zellen (54 Produkte im Bestand, Stand 15.09.2026) enthalten U+00A0 (geschütztes Leerzeichen) statt eines normalen Leerzeichens in Name/Beschreibung, vermutlich aus einem Copy/Paste aus Word/PDF in die Excel-Zelle. `lib/pricelist/parser.ts` normalisiert das zentral in `trimOrNull()` (betrifft alle über diese Funktion gelesenen Zellen: Namen, Beschreibungen, Hinweise, Gruppenbezeichnungen, RC, Artikelnummer, Preis-Präfix) zu einem normalen Leerzeichen. **Wirkung auf `content_hash`**: da der Name Teil der Hash-Eingabe ist, ändert sich `content_hash` für die betroffenen 54 Produkte einmalig - der einmalige Re-Import dieser Zeilen erscheint im Diff als «entfernt + neu» statt als «geändert» (keine der drei Match-Stufen - content_hash, article_no+name, name+category - toleriert eine Namensänderung, auch eine reine NBSP-Normalisierung), die alte Zeile wird dabei korrekt deaktiviert (nie gelöscht). Das ist einmalig und erwartet; jeder **folgende** Re-Import (Preisliste unverändert) matcht wieder unverändert, weil beide Seiten (Excel und DB) dann normalisierte Namen tragen.
+
+## Abgeleitete Felder bei unverändertem content_hash (Ergänzung 15.09.2026)
+
+`variant_group` und `gearbox` werden aus dem (ggf. mehrzeilig zusammengesetzten) Namen abgeleitet, sind aber nicht Teil der `content_hash`-Eingabe. `lib/pricelist/apply.ts` `planProducts()`/`applyProductPlan()` schreiben bei JEDEM Match (auch `content_hash`-Treffer, "unverändert") das komplette `buildProductRow()`-Ergebnis inkl. `variant_group`/`gearbox` in die DB-Zeile - eine spätere Regeländerung in `variant-groups.ts`/`gearbox.ts` wirkt sich damit auch auf inhaltlich unveränderte Produkte beim nächsten Import aus, ohne dass sich ihr `content_hash` ändert oder sie im Diff als «geändert» auftauchen (der Diff vergleicht `variant_group`/`gearbox` zusätzlich als eigene Felder, siehe `lib/pricelist/diff.ts` `buildFieldChanges()`, rein informativ für die "geändert"-Liste bestehender Matches).
 
 ## Ausgabe des Parsers (`lib/pricelist/types.ts`)
 
@@ -113,6 +144,7 @@ type ParsedFamily = {
     pricePartsChf: number|null; priceInstallChf: number|null; priceApprovalChf: number|null; priceTotalChf: number|null;
     priceStatus: 'priced'|'in_preparation'|'on_request'; priceNote: string|null;
     psBase: number[]; psTo: number|null; nmTo: number|null; variantGroup: string|null;
+    gearbox: 'manual'|'automatic'|null;
     fits: string[]; fitsAll: boolean; contentHash: string }[];
   notes: { sourceCategory: string; text: string; sort: number }[];
   warnings: string[];   // z. B. «Zeile 45: Produkt ohne Marker», «Zeile 23: Preis 'ab' nicht numerisch»

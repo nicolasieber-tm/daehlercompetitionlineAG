@@ -19,6 +19,7 @@ function basePayload(overrides: Partial<Record<string, unknown>> = {}): unknown 
     vehicleText: null,
     year: "2024",
     beenHere: false,
+    gearbox: null,
     categories: ["motor"],
     consulting: false,
     selections: [],

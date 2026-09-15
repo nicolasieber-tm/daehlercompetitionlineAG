@@ -242,6 +242,7 @@ function buildFieldChanges(
     { field: "ps_to", oldVal: dbProduct.ps_to, newVal: parsed.psTo },
     { field: "nm_to", oldVal: dbProduct.nm_to, newVal: parsed.nmTo },
     { field: "variant_group", oldVal: dbProduct.variant_group, newVal: parsed.variantGroup },
+    { field: "gearbox", oldVal: dbProduct.gearbox, newVal: parsed.gearbox },
     {
       field: "fits",
       oldVal: fitsValue(dbProduct.fits_all, oldFits),

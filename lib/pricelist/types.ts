@@ -45,6 +45,9 @@ export interface ParsedProduct {
   psTo: number | null;
   nmTo: number | null;
   variantGroup: string | null;
+  /** Aus dem Namen abgeleitet (lib/catalog/gearbox.ts gearboxFor()), siehe
+   * CLAUDE.md Abschnitt "AUFGABE", Punkt 3. null = getriebeneutral. */
+  gearbox: "manual" | "automatic" | null;
   fits: string[];
   fitsAll: boolean;
   contentHash: string;

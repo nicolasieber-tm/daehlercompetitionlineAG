@@ -19,7 +19,8 @@ import { de } from "@/lib/i18n/de";
 import { admin } from "@/lib/i18n/admin";
 import { chfFrom, formatDate, inquiryNumberLabel } from "@/lib/i18n/format";
 import { categoryLabel, itemLineText, optionLabel, vehicleLabel } from "@/lib/mail/render";
-import type { MailInquiryContext } from "@/lib/mail/types";
+import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
+import type { MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
 
 const LOCALE = "de" as const;
 const t = admin.mail.inbox.ticket;
@@ -35,6 +36,33 @@ function line(label: string, value: string): string {
 /** steps.character.options trägt "title" statt "label" (siehe lib/i18n/de.ts), deshalb kein optionLabel(). */
 function characterLabel(id: string | null): string | null {
   return de.steps.character.options.find((o) => o.id === id)?.title ?? null;
+}
+
+/**
+ * Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+ * dieselbe Positionsdarstellung wie im Antwortentwurf/den Mails ("Stufe 1
+ * (590 PS / 720 Nm, M6 & A8-Getriebe)" statt des vollen Excel-Namens).
+ *
+ * Korrektur 15.09.2026 (Prüfung Modul Produkte, Befund 2): isStage über
+ * lib/catalog/product-display.ts isStageItem() (MailInquiryItem kennt
+ * variant_group inzwischen, siehe lib/mail/types.ts; Fallback auf
+ * `ps_to != null` nur noch für ältere, vor dieser Korrektur gespeicherte
+ * Anfragen ohne dieses Feld) statt der bisherigen reinen
+ * `ps_to != null`-Herleitung, dieselbe Herleitung wie
+ * lib/mail/templates/inbox.ts inboxItems().
+ */
+function displayItem(item: MailInquiryItem): MailInquiryItem {
+  const display = displayItemFields(
+    { name: item.name, description: item.description, isStage: isStageItem(item), psTo: item.ps_to ?? null, nmTo: item.nm_to ?? null },
+    LOCALE,
+  );
+  return { ...item, name: display.name, description: display.description };
+}
+
+/** Rückmeldung erster Klicktest, CLAUDE.md Abschnitt "AUFGABE", Punkt 3: "Handschalter"/"Automat"/"unbekannt", oder null wenn nie gefragt (dann keine eigene Zeile). */
+function gearboxValue(gearbox: string | null): string | null {
+  if (!gearbox) return null;
+  return (admin.gearbox as Record<string, string>)[gearbox] ?? null;
 }
 
 /**
@@ -91,7 +119,13 @@ export function buildSummaryText(ctx: MailInquiryContext): string {
   const seriesText = ctx.model?.series_ps
     ? ` · Serie ${ctx.model.series_ps} PS / ${ctx.model.series_nm ?? "?"} Nm`
     : "";
-  const vehicleLine = `${vehicle}${inquiry.year ? ` · Baujahr ${inquiry.year}` : ""}${seriesText}`;
+  // "Getriebe: Handschalter" wie "Serie ... PS / ... Nm" oben hart in die
+  // Fahrzeug-Zeile eingesetzt statt über admin.mail.inbox.ticket (das trägt
+  // nur GROSSGESCHRIEBENE Zeilen-Labels, kein Sub-Wert-Präfix).
+  const gearboxText = gearboxValue(inquiry.gearbox);
+  const vehicleLine = `${vehicle}${inquiry.year ? ` · Baujahr ${inquiry.year}` : ""}${seriesText}${
+    gearboxText ? ` · Getriebe: ${gearboxText}` : ""
+  }`;
   const wish =
     inquiry.categories
       .map((c) => categoryLabel(c, LOCALE))
@@ -102,7 +136,7 @@ export function buildSummaryText(ctx: MailInquiryContext): string {
 
   const packageLines =
     ctx.items.length > 0
-      ? ctx.items.map((item) => `  ${itemLineText(item, LOCALE).replace(/^•\s*/, "")}`)
+      ? ctx.items.map((item) => `  ${itemLineText(displayItem(item), LOCALE).replace(/^•\s*/, "")}`)
       : [`  ${de.draft.itemsFallback}`];
   const totalValue =
     ctx.estimatedTotal != null ? chfFrom(ctx.estimatedTotal, LOCALE) : de.steps.done.package.onRequest;

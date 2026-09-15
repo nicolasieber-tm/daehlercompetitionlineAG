@@ -164,12 +164,17 @@ export async function createInquiry(
       character: payload.character as Character,
       timing: payload.timing as Timing,
       year: payload.year,
+      gearbox: payload.gearbox,
     },
     family: { hasPricelist: family.has_pricelist },
     model: model ? { id: model.id, name: model.name } : null,
     products: selected.map((p) => ({
       category: p.category,
       name: p.name,
+      // Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 2): checks.ts
+      // isVmaxMentionOf() prüft jetzt auch die description (einige V/max-
+      // Nennungen stehen nur dort, siehe lib/catalog/product-display.ts).
+      description: p.description,
       variantGroup: p.variantGroup,
       priceStatus: p.priceStatus,
       psTo: p.psTo,
@@ -237,7 +242,12 @@ export async function createInquiry(
   // nicht mehr (inquiries.selections ist die einzige Quelle danach, die
   // Produkte selbst werden nicht erneut geladen) - die ZIEL-Zeile der
   // Inbox-Mail (lib/mail/templates/inbox.ts goalLine()) fiele dann auf die
-  // description zurück statt "ca. 620 PS / 740 Nm" zu zeigen.
+  // description zurück statt "ca. 620 PS / 740 Nm" zu zeigen. variant_group
+  // ebenso mit persistiert (Korrektur 15.09.2026, Prüfung Modul Produkte,
+  // Befund 2): ohne sie fällt lib/catalog/product-display.ts isStageItem()
+  // beim späteren Mailversand auf die ungenaue ps_to!=null-Herleitung
+  // zurück (13 aktive Stufen ohne ps_to würden dann in confirmation-/
+  // summary-/inbox-Mail fälschlich nicht als Stufe erkannt, siehe Bericht).
   const selectionsJson = selected.map((p) => ({
     product_id: p.productId,
     category: p.category,
@@ -247,6 +257,7 @@ export async function createInquiry(
     price_status: p.priceStatus,
     ps_to: p.psTo,
     nm_to: p.nmTo,
+    variant_group: p.variantGroup,
   }));
 
   const { data: inserted, error: insertError } = await admin
@@ -261,6 +272,7 @@ export async function createInquiry(
       vehicle_text: payload.vehicleText,
       year: payload.year,
       been_here: payload.beenHere,
+      gearbox: payload.gearbox,
       categories: payload.categories,
       consulting: payload.consulting,
       selections: selectionsJson,

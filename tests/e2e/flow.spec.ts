@@ -48,6 +48,10 @@ test.describe("Web-Fonts im Kundenflow (Prüfung, Befund 1)", () => {
     await page.getByRole("button", { name: /^M2 G87/ }).click();
     await page.getByRole("button", { name: "M2", exact: true }).click();
     await page.getByRole("button", { name: "480 PS", exact: true }).click();
+    // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+    // M2 hat getriebespezifische Produkte (Kraftübertragung), die
+    // Getriebefrage ist Pflicht vor "Weiter".
+    await page.getByRole("button", { name: "Handschalter", exact: true }).click();
     await page.getByRole("button", { name: "Weiter →" }).click();
     await page.getByRole("button", { name: /^Motor/ }).click();
     await page.getByRole("button", { name: "Weiter →" }).click();
@@ -74,6 +78,10 @@ test.describe("Kundenflow Desktop, BMW M2 G87 mit Preisen", () => {
     // Werte -> Serienleistungs-Chips erscheinen).
     await page.getByRole("button", { name: "M2", exact: true }).click();
     await page.getByRole("button", { name: "480 PS", exact: true }).click();
+    // Getriebefrage (Rückmeldung erster Klicktest, CLAUDE.md Abschnitt
+    // "AUFGABE", Punkt 3): M2 hat getriebespezifische Produkte, Pflicht vor
+    // "Weiter".
+    await page.getByRole("button", { name: "Handschalter", exact: true }).click();
 
     await page.getByRole("button", { name: "Weiter →" }).click();
 
@@ -83,9 +91,15 @@ test.describe("Kundenflow Desktop, BMW M2 G87 mit Preisen", () => {
     await page.getByRole("button", { name: /^Auspuff/ }).click();
     await page.getByRole("button", { name: "Weiter →" }).click();
 
-    // Schritt 3: Motor. Stufe 1 (Basis 480 PS) wählen, PS-Zähler prüfen.
+    // Schritt 3: Motor. Stufe 1 (Basis 480 PS, 620 PS / 740 Nm) wählen,
+    // PS-Zähler prüfen. Rückmeldung erster Klicktest (CLAUDE.md Abschnitt
+    // "AUFGABE", Punkt 1): die Kachel zeigt jetzt "Stufe 1" · "620 PS / 740
+    // Nm" · "M6 & A8-Getriebe" statt des vollen, mehrdeutigen Excel-Namens
+    // (lib/catalog/product-display.ts) - "^Stufe 1.*620" grenzt sie von der
+    // benachbarten "Stufe 1 mit V/max-Aufhebung"-Kachel (640 PS) ab.
     await expect(page.getByRole("heading", { name: "Wie viel darf es sein?" })).toBeVisible();
-    await page.getByRole("button", { name: /Stufe 1.*480.*PS.*620PS/ }).click();
+    await expect(page.getByText("Leistungsstufen", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /^Stufe 1.*620/ }).click();
     await expect(page.locator("text=620").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Weiter →" }).click();
@@ -150,6 +164,7 @@ test.describe("Kundenflow Desktop, Upsell Räder", () => {
     await page.getByRole("button", { name: /^M2 G87/ }).click();
     await page.getByRole("button", { name: "M2", exact: true }).click();
     await page.getByRole("button", { name: "480 PS", exact: true }).click();
+    await page.getByRole("button", { name: "Handschalter", exact: true }).click();
     await page.getByRole("button", { name: "Weiter →" }).click();
 
     await page.getByRole("button", { name: /^Fahrwerk/ }).click();
@@ -210,6 +225,7 @@ test.describe("Sprachwechsel", () => {
     await page.getByRole("button", { name: /^M2 G87/ }).click();
     await page.getByRole("button", { name: "M2", exact: true }).click();
     await page.getByRole("button", { name: "480 PS", exact: true }).click();
+    await page.getByRole("button", { name: "Manual", exact: true }).click();
     await page.getByRole("button", { name: "Next →" }).click();
 
     await expect(page.getByRole("heading", { name: "What would you like?" })).toBeVisible();
@@ -217,7 +233,55 @@ test.describe("Sprachwechsel", () => {
     await page.getByRole("button", { name: "Next →" }).click();
 
     await expect(page.getByRole("heading", { name: "How much would you like?" })).toBeVisible();
-    // Produktname bleibt Deutsch ("Stufe 1: ..."), auch in der englischen UI.
-    await expect(page.getByText(/Stufe 1:.*480.*PS.*620PS/)).toBeVisible();
+    // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+    // Titel lokalisiert ("Stage 1" statt "Stufe 1"), Rest des Produktnamens
+    // (Detail "M6 & A8-Getriebe") bleibt Deutsch, auch in der englischen UI.
+    // Eine Regex statt zwei separater Assertions: "M6 & A8-Getriebe" allein
+    // träfe auch die benachbarte "Stage 1 with V-max removal"-Kachel
+    // (dieselbe Getriebeangabe im Detail, andere PS/Nm-Werte).
+    await expect(page.getByRole("button", { name: /^Stage 1.*620.*M6 & A8-Getriebe/ })).toBeVisible();
+  });
+});
+
+// Rückmeldung erster Klicktest (Kundenflow M2 G87), siehe CLAUDE.md
+// Abschnitt "AUFGABE", Punkt 3: Getriebefrage filtert die Kraftübertragung-
+// Optionen im Motor-Schritt.
+test.describe("Getriebefrage filtert Kraftübertragung-Optionen (Rückmeldung erster Klicktest)", () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test("Handschalter: Schaltwegverkürzung sichtbar, Getriebeoptimierung ausgeblendet", async ({ page }) => {
+    await openFlow(page);
+    await page.getByRole("button", { name: "BMW", exact: true }).click();
+    await page.getByRole("button", { name: /^M2 G87/ }).click();
+    await page.getByRole("button", { name: "M2", exact: true }).click();
+    await page.getByRole("button", { name: "480 PS", exact: true }).click();
+    await page.getByRole("button", { name: "Handschalter", exact: true }).click();
+    await page.getByRole("button", { name: "Weiter →" }).click();
+
+    await page.getByRole("button", { name: /^Motor/ }).click();
+    await page.getByRole("button", { name: "Weiter →" }).click();
+    await expect(page.getByRole("heading", { name: "Wie viel darf es sein?" })).toBeVisible();
+    await expect(page.getByText("Kraftübertragung", { exact: true })).toBeVisible();
+
+    await expect(page.getByRole("button", { name: /Schaltwegverkürzung für Handschalter/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Getriebeoptimierung/ })).toHaveCount(0);
+  });
+
+  test("Automat: Getriebeoptimierung sichtbar, Schaltwegverkürzung ausgeblendet", async ({ page }) => {
+    await openFlow(page);
+    await page.getByRole("button", { name: "BMW", exact: true }).click();
+    await page.getByRole("button", { name: /^M2 G87/ }).click();
+    await page.getByRole("button", { name: "M2", exact: true }).click();
+    await page.getByRole("button", { name: "480 PS", exact: true }).click();
+    await page.getByRole("button", { name: "Automat", exact: true }).click();
+    await page.getByRole("button", { name: "Weiter →" }).click();
+
+    await page.getByRole("button", { name: /^Motor/ }).click();
+    await page.getByRole("button", { name: "Weiter →" }).click();
+    await expect(page.getByRole("heading", { name: "Wie viel darf es sein?" })).toBeVisible();
+    await expect(page.getByText("Kraftübertragung", { exact: true })).toBeVisible();
+
+    await expect(page.getByRole("button", { name: /Getriebeoptimierung St\.1 \/ 8 HP/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Schaltwegverkürzung/ })).toHaveCount(0);
   });
 });

@@ -44,6 +44,15 @@ export const admin = {
     in_preparation: "In Vorbereitung",
     on_request: "Auf Anfrage",
   } as const,
+  // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+  // Getriebe-Label für die Fahrzeug-Karte (components/admin/VehicleCard.tsx)
+  // und das Ticket (lib/inquiry/summary.ts). "" (Modellauswahl-Wert null)
+  // wird von den Aufrufern selbst gefiltert (admin.common.none), nicht hier.
+  gearbox: {
+    manual: "Handschalter",
+    automatic: "Automat",
+    unknown: "unbekannt",
+  } as const,
   emailType: {
     confirmation: "Bestätigung",
     inbox: "Anfrage-Mail",
@@ -130,6 +139,10 @@ export const admin = {
       title: "Fahrzeug",
       year: "Baujahr",
       series: "Serie",
+      // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt
+      // 3): eigene Zeile in components/admin/VehicleCard.tsx, nur wenn die
+      // Getriebefrage gestellt wurde (inquiry.gearbox nicht null).
+      gearbox: "Getriebe",
       noPricelist: "Ohne Preisliste (Kurzablauf)",
     },
     package: {
@@ -480,6 +493,37 @@ export const admin = {
       channels: { phone: "Telefon", email: "E-Mail", whatsapp: "WhatsApp" } as const,
       message: "Nachricht",
       missingTitle: "Fehlende oder ungültige Angaben",
+      // Mapping zod-Feldpfad (toInquiryPayload()/QuickInquiryPayloadSchema,
+      // lib/ai/to-payload.ts, `missing`: ein Eintrag je zod-issue-Pfad, z.B.
+      // "familyId", "phone") -> deutsche Bezeichnung (Prüfbefund
+      // admin-quick, Punkt 5: "keine rohen Pfade" in der UI). Deckt alle
+      // Felder aus InquiryPayloadObjectSchema/QuickInquiryPayloadSchema ab;
+      // missingFieldFallback greift nur, falls das Schema künftig ein
+      // weiteres Feld bekommt, das hier noch nicht nachgetragen wurde.
+      missingFieldLabels: {
+        locale: "Sprache",
+        familyId: "Baureihe",
+        modelId: "Modell",
+        vehicleText: "Fahrzeugtext",
+        year: "Baujahr",
+        beenHere: "Schon einmal bei uns gewesen",
+        gearbox: "Getriebe",
+        categories: "Kategorien",
+        consulting: "Komplettpaket, Beratung gewünscht",
+        selections: "Produktauswahl",
+        followUpAnswers: "Rückfragen",
+        character: "Charakter",
+        timing: "Termin",
+        firstName: "Vorname",
+        lastName: "Name",
+        city: "Ort",
+        phone: "Telefon",
+        email: "E-Mail",
+        channel: "Bevorzugter Kanal",
+        message: "Nachricht",
+        privacyAccepted: "Datenschutz",
+      } as Record<string, string>,
+      missingFieldFallback: "Weitere Pflichtangabe",
       create: "Anfrage anlegen",
       creating: "Wird angelegt …",
       createError: "Anfrage anlegen fehlgeschlagen: {error}",

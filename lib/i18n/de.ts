@@ -57,7 +57,17 @@ export const de = {
       seriesUnknown: "Die Serienleistung tragen wir für Sie nach.",
       seriesPsChoice: "Welche Serienleistung hat Ihr Fahrzeug?",
       seriesPsRequired: "Bitte wählen Sie Ihre Serienleistung, damit wir passende Optionen zeigen können.",
-      photoHint: "Preise und Fotos hinterlegt",
+      // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt
+      // 3): nur sichtbar, wenn das gewählte Modell mindestens ein
+      // getriebespezifisches Produkt hat (CatalogModel.
+      // hasGearboxSpecificProducts), Pflicht vor "Weiter" wie die
+      // Serienleistungs-Chips.
+      gearboxQuestion: "Welches Getriebe hat Ihr Fahrzeug?",
+      gearboxManual: "Handschalter",
+      gearboxAutomatic: "Automat",
+      gearboxUnknown: "Weiss ich nicht",
+      gearboxRequired: "Bitte wählen Sie Ihr Getriebe, damit wir passende Optionen zeigen können.",
+      photoHint: "Preise hinterlegt",
       photoFallback: "Foto folgt",
       carShotCaption: "{model} by dÄHLer",
       fuelGroups: {
@@ -103,6 +113,31 @@ export const de = {
       priceHintGeneric: "Für dieses Fahrzeug nennen wir Ihnen die Preise persönlich.",
       variantHint: "Eine Variante, Ergänzungen beliebig dazu.",
       multiHint: "Mehrfachauswahl möglich.",
+      // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt
+      // 2): Zwischenüberschriften im Motor-Schritt, gruppiert nach
+      // variant_group/source_category (siehe components/flow/steps/
+      // CategoryStep.tsx), damit "Leistungsstufen" nicht mehr mit "Weitere
+      // Optionen" (Sportluftfilter, V/max, ...) und "Kraftübertragung"
+      // (Schaltwegverkürzung, Getriebeoptimierung) in einer Liste stehen.
+      motorSections: {
+        leistungsstufen: "Leistungsstufen",
+        weitereOptionen: "Weitere Optionen",
+        kraftuebertragung: "Kraftübertragung",
+      },
+      // Analoge Zwischenüberschriften für Auspuff (Anlagen/Endrohre/Weitere
+      // Optionen/Active-Sound) und Fahrwerk (Fahrwerk/Weitere Optionen/
+      // Bremse), über source_category/variant_group ermittelt statt über
+      // Namenslisten - siehe CategoryStep.tsx buildSubsections(). Ein
+      // gemeinsames Wörterbuch statt je Kategorie eigener Schlüssel, da
+      // "Weitere Optionen" und "Bremse"/"Fahrwerk" wortgleich wiederkehren.
+      sections: {
+        anlagen: "Anlagen",
+        endrohre: "Endrohre",
+        weitereOptionen: "Weitere Optionen",
+        activeSound: "Active-Sound",
+        fahrwerk: "Fahrwerk",
+        bremse: "Bremse",
+      },
       psCounter: {
         seriesUnit: "PS Serie",
         targetUnitWithStage: "PS mit {stage}",
@@ -363,6 +398,10 @@ export const de = {
     familie_ohne_preisliste: "Fahrzeug ohne Preisliste: Preise und Verfügbarkeit manuell ergänzen.",
     produkt_auf_anfrage: "Position mit Status «auf Anfrage» gewählt: Preis manuell bestätigen.",
     komplettpaket_gewuenscht: "Komplettpaket gewünscht: Vorschlag nach Charakter zusammenstellen.",
+    getriebe_unbekannt:
+      "Getriebespezifische Position gewählt, Getriebe (Handschalter/Automat) aber nicht bekannt: vor der Bestätigung klären.",
+    vmax_doppelt:
+      "Die gewählte Leistungsstufe enthält die V/max-Aufhebung bereits, zusätzlich wurde das eigenständige V/max-Produkt gewählt: doppelt, bitte bereinigen.",
   },
 
   draft: {

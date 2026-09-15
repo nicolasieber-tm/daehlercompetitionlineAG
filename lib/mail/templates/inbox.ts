@@ -14,7 +14,8 @@ import { tf } from "@/lib/i18n/dictionaries";
 import { admin } from "@/lib/i18n/admin";
 import { formatDate, inquiryNumberLabel } from "@/lib/i18n/format";
 import { goalText } from "@/lib/inquiry/summary";
-import type { MailInquiryContext } from "../types";
+import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
+import type { MailInquiryContext, MailInquiryItem } from "../types";
 import {
   buttonLink,
   categoryLabel,
@@ -35,6 +36,37 @@ const t = admin.mail.inbox.ticket;
 /** steps.character.options trägt "title" statt "label" (siehe lib/i18n/de.ts), deshalb kein optionLabel(). */
 function characterLabel(id: string | null): string | null {
   return de.steps.character.options.find((o) => o.id === id)?.title ?? null;
+}
+
+/**
+ * Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+ * dieselbe Positionsdarstellung wie im Antwortentwurf ("Stufe 1 (590 PS /
+ * 720 Nm, M6 & A8-Getriebe)"), PLUS den Original-Excel-Namen als zweite
+ * Beschreibungszeile ("dÄHLer kennt seine Bezeichnungen") - nur bei
+ * Positionen, wo sich der angezeigte Name vom Excel-Namen unterscheidet
+ * (Motor-Leistungsstufen), sonst wäre die Zeile für die meisten Positionen
+ * nur eine redundante Wiederholung.
+ *
+ * Korrektur 15.09.2026 (Prüfung Modul Produkte, Befund 2): isStage über
+ * lib/catalog/product-display.ts isStageItem() (variant_group statt
+ * `ps_to != null`, siehe dortiger Kommentar und confirmation.ts
+ * customerItems()) - wie lib/inquiry/summary.ts displayItem().
+ */
+function inboxItems(items: MailInquiryItem[]): MailInquiryItem[] {
+  return items.map((item) => {
+    const display = displayItemFields(
+      { name: item.name, description: item.description, isStage: isStageItem(item), psTo: item.ps_to ?? null, nmTo: item.nm_to ?? null },
+      "de",
+    );
+    const description = display.originalName ? `Excel: ${display.originalName}` : display.description;
+    return { ...item, name: display.name, description };
+  });
+}
+
+/** "Handschalter"/"Automat"/"unbekannt", oder null wenn die Getriebefrage nie gestellt wurde (dann keine eigene Zeile). */
+function gearboxValue(gearbox: string | null): string | null {
+  if (!gearbox) return null;
+  return (admin.gearbox as Record<string, string>)[gearbox] ?? null;
 }
 
 /**
@@ -98,7 +130,14 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
   const seriesText = ctx.model?.series_ps
     ? ` · Serie ${ctx.model.series_ps} PS / ${ctx.model.series_nm ?? "?"} Nm`
     : "";
-  const vehicleLine = `${vehicle}${inquiry.year ? ` · Baujahr ${inquiry.year}` : ""}${seriesText}`;
+  // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+  // "Getriebe: Handschalter" analog "Serie ... PS / ... Nm" hart in die
+  // Fahrzeug-Zeile eingesetzt (kein eigener admin.mail.inbox.ticket-Eintrag
+  // nötig, der trägt nur GROSSGESCHRIEBENE Zeilen-Labels).
+  const gearboxText = gearboxValue(inquiry.gearbox);
+  const vehicleLine = `${vehicle}${inquiry.year ? ` · Baujahr ${inquiry.year}` : ""}${seriesText}${
+    gearboxText ? ` · Getriebe: ${gearboxText}` : ""
+  }`;
   const wish =
     inquiry.categories
       .map((c) => categoryLabel(c, LOCALE))
@@ -122,7 +161,7 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
       { label: t.timing, value: timing },
     ]),
     paragraph(t.package),
-    itemList(ctx.items, LOCALE),
+    itemList(inboxItems(ctx.items), LOCALE),
     estimateBox({ estimatedTotal: ctx.estimatedTotal, hasOnRequest, locale: LOCALE }),
     ...(ctx.checks.length > 0
       ? [paragraph(t.checks), checklist(ctx.checks.map((c) => c.text))]

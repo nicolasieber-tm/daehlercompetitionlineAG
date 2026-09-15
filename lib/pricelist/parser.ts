@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import * as XLSX from "xlsx";
 import { isCategoryRow, mapSourceCategory } from "@/lib/catalog/categories";
 import { variantGroupFor } from "@/lib/catalog/variant-groups";
+import { gearboxFor } from "@/lib/catalog/gearbox";
 import { slug } from "@/lib/pricelist/slug";
 import type {
   Brand,
@@ -40,9 +41,24 @@ const GROUP_LABEL_LIKE_PREFIXES = [/^DME Leistungssteigerungen/i, /^DDE Leistung
 // Kleine Helfer
 // ---------------------------------------------------------------------------
 
+// Rückmeldung aus dem ersten Klicktest (CLAUDE.md Abschnitt "AUFGABE",
+// Punkt 1): vereinzelte Zellen (54 Produkte im Bestand) enthalten U+00A0
+// (geschütztes Leerzeichen) statt eines normalen Leerzeichens, vermutlich
+// aus einem Copy/Paste aus Word/PDF in die Excel. Sichtbar identisch, aber
+// z.B. in Regex-Vergleichen (variantGroupFor, gearboxFor,
+// lib/catalog/product-display.ts) ein anderes Zeichen als " ". Wird hier
+// zentral für ALLE über trimOrNull gelesenen Zellen normalisiert (Namen,
+// Beschreibungen, Hinweise, Gruppenbezeichnungen, RC, Artikelnummer,
+// Preis-Präfix) - content_hash ändert sich dadurch für die betroffenen
+// Produkte (Match beim Re-Import läuft über article_no+name, nicht über
+// content_hash, siehe lib/pricelist/diff.ts, das ist unproblematisch).
+function normalizeNbsp(value: string): string {
+  return value.replace(/\u00A0/g, " ");
+}
+
 function trimOrNull(value: unknown): string | null {
   if (value === null || value === undefined) return null;
-  const s = String(value).trim();
+  const s = normalizeNbsp(String(value)).trim();
   return s.length > 0 ? s : null;
 }
 
@@ -996,6 +1012,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
         psTo: perf.psTo,
         nmTo: perf.nmTo,
         variantGroup: variantGroupFor(currentFlowCategory, name),
+        gearbox: gearboxFor(name),
         fits: fitsAll ? [] : marksNames,
         fitsAll,
         contentHash: "",
@@ -1096,6 +1113,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
             psTo: perf.psTo,
             nmTo: perf.nmTo,
             variantGroup: variantGroupFor(currentFlowCategory, name),
+            gearbox: gearboxFor(name),
             fits: fitsAll ? [] : mergedMarks,
             fitsAll,
             contentHash: "",
@@ -1152,6 +1170,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
         psTo: perf.psTo,
         nmTo: perf.nmTo,
         variantGroup: variantGroupFor(currentFlowCategory, name),
+        gearbox: gearboxFor(name),
         fits: fitsAll ? [] : marksNames,
         fitsAll,
         contentHash: "",
@@ -1226,6 +1245,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
         currentProduct.psTo = perf.psTo;
         currentProduct.nmTo = perf.nmTo;
         currentProduct.variantGroup = variantGroupFor(currentProduct.category, currentProduct.name);
+        currentProduct.gearbox = gearboxFor(currentProduct.name);
         currentProduct.contentHash = computeContentHash(currentProduct);
       } else {
         currentProduct.description = currentProduct.description

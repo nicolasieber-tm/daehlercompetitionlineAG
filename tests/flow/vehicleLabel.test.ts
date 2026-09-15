@@ -33,6 +33,7 @@ function model(overrides: Partial<CatalogModel> & { name: string }): CatalogMode
     seriesNm: null,
     seriesPsSuggested: [],
     sort: 0,
+    hasGearboxSpecificProducts: false,
     ...overrides,
   };
 }

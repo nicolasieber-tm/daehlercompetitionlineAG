@@ -10,6 +10,10 @@ const CHARACTER_VALUES = ["dezent", "sportlich", "maximum"] as const;
 const TIMING_VALUES = ["asap", "m1_2", "m3_6", "flexible"] as const;
 const CHANNEL_VALUES = ["phone", "email", "whatsapp"] as const;
 const LOCALE_VALUES = ["de", "en"] as const;
+// Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+// Antwort auf die Getriebefrage im Fahrzeug-Schritt. Muss wörtlich mit
+// InquiryGearbox in lib/supabase/rows.ts übereinstimmen.
+const GEARBOX_VALUES = ["manual", "automatic", "unknown"] as const;
 // Muss wörtlich mit FLOW_CATEGORIES in lib/supabase/rows.ts übereinstimmen.
 // Nicht von dort importiert (readonly FlowCategory[], keine literale Tupel-
 // Form): z.enum() braucht ein literales Tupel, um die einzelnen Werte als
@@ -64,6 +68,12 @@ export const InquiryPayloadObjectSchema = z.object({
     .transform((v) => (v && v.length > 0 ? v : null)),
   year: z.string().trim().min(1, "Bitte Baujahr angeben.").max(20),
   beenHere: z.boolean(),
+  // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+  // null, wenn die Getriebefrage nicht gestellt wurde (Modell ohne
+  // getriebespezifische Produkte, oder Kurzablauf ohne Modell) - dann ist
+  // sie auch kein Pflichtfeld (siehe FlowNav canNext in components/flow/
+  // Flow.tsx, das die Frage nur bei hasGearboxSpecificProducts erzwingt).
+  gearbox: z.enum(GEARBOX_VALUES).nullable(),
   categories: z.array(flowCategorySchema).max(FLOW_CATEGORY_VALUES.length),
   consulting: z.boolean(),
   selections: z.array(selectionSchema).max(200),

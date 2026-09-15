@@ -10,6 +10,7 @@ import { de } from "@/lib/i18n/de";
 import { en } from "@/lib/i18n/en";
 import { chfFrom } from "@/lib/i18n/format";
 import { categoryLabel, companyLine, itemLineText } from "@/lib/mail/render";
+import { displayItemFields, isStandaloneVmaxProduct } from "@/lib/catalog/product-display";
 import type { Character, FlowCategory, PriceStatus, Timing } from "@/lib/supabase/rows";
 
 export interface DraftItem {
@@ -111,17 +112,41 @@ function clarificationKey(categories: readonly FlowCategory[]): ClarificationKey
   return "clarificationGeneric";
 }
 
+/**
+ * Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+ * Positionszeilen wie «Motor: Stufe 1 (590 PS / 720 Nm, M6 & A8-Getriebe),
+ * ab CHF 4'180» statt des vollen, mehrdeutigen Excel-Rohnamens - über
+ * lib/catalog/product-display.ts displayItemFields(), die Titel/Nebenzeile/
+ * Detail einer Motor-Leistungsstufe (variant_group "leistung") zu einem
+ * Namen zusammenfaltet; alle anderen Positionen bleiben unverändert (nur
+ * NBSP-normalisiert). itemLineText() (lib/mail/render.ts) bleibt
+ * unverändert - sie bekommt hier bereits fertig aufbereitete name/
+ * description-Werte, dieselbe Vorlage draft.itemLine wie zuvor.
+ */
 function buildItemLine(item: DraftItem, locale: Locale): string {
-  // itemLineText() erwartet MailInquiryItem (snake_case, siehe
-  // lib/mail/types.ts) - hier nur umbenannt, keine eigene Formatierung:
-  // Positionszeilen im Antwortentwurf müssen exakt wie in den Mails
-  // aussehen (dieselbe Vorlage draft.itemLine), ein zweites, eigenes
-  // Format wäre eine Fehlerquelle bei künftigen Textänderungen.
+  // Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 1): ein
+  // eigenständiges V/max-Produkt "... ohne Leistungssteigerung" trägt zwar
+  // variant_group "leistung" (Exklusivität, siehe variant-groups.ts), ist
+  // aber keine Stufe - ohne die Ausnahme landete hier trotzdem der
+  // Stufen-Titel ("Leistungssteigerung mit V/max-Aufhebung") im
+  // Antwortentwurf statt des tatsächlichen Produktnamens.
+  const isStage =
+    item.category === "motor" && item.variantGroup === "leistung" && !isStandaloneVmaxProduct(item.name);
+  const display = displayItemFields(
+    {
+      name: item.name,
+      description: item.description,
+      isStage,
+      psTo: item.psTo,
+      nmTo: item.nmTo,
+    },
+    locale,
+  );
   return itemLineText(
     {
       category: item.category,
-      name: item.name,
-      description: item.description,
+      name: display.name,
+      description: display.description,
       price_total: item.priceTotal,
       price_status: item.priceStatus,
     },

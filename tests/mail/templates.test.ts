@@ -35,6 +35,7 @@ function baseInquiry(overrides: Partial<Inquiry> = {}): Inquiry {
     family_id: "22222222-2222-2222-2222-222222222222",
     first_name: "Nadia",
     follow_up_answers: { motor: "beides", auspuff: "kraeftig" },
+    gearbox: null,
     id: "11111111-1111-1111-1111-111111111111",
     last_name: "Muster",
     locale: "de",
@@ -338,6 +339,56 @@ describe("Mailvorlagen: gemeinsame Anforderungen", () => {
   });
 });
 
+// --- Korrektur 15.09.2026 (Prüfung Modul Produkte, Befund 2): eine
+// Leistungsstufe ohne ps_to (13 aktive, echte Produkte im Bestand, z.B. 5er
+// G60/G61 "(Basis 208 PS)  PS / Nm B48", noch unbepreiste Platzhalter) wurde
+// in confirmation/summary/inbox bisher über die veraltete `ps_to !=
+// null`-Herleitung NICHT als Stufe erkannt (isStage=false) und zeigte den
+// rohen, mehrdeutigen Excel-Namen inkl. "(Basis ...)"-Rest, während Kachel
+// und Antwortentwurf (die bereits variant_group nutzten) "Leistungssteigerung
+// (B48)" zeigten - drei inkonsistente Kundentexte derselben Anfrage. Nach
+// der Korrektur (isStageItem() in lib/catalog/product-display.ts, über
+// variant_group statt ps_to) zeigen alle drei denselben, bereinigten Titel.
+describe("Mailvorlagen: Leistungsstufe ohne ps_to (Prüfung Modul Produkte, Befund 2)", () => {
+  const stageWithoutPsTo: MailInquiryItem = {
+    category: "motor",
+    name: "(Basis 208 PS)  PS / Nm B48",
+    description: null,
+    price_total: null,
+    price_status: "on_request",
+    ps_to: null,
+    nm_to: null,
+    variant_group: "leistung",
+  };
+  const ctx = makeContext({ locale: "de", items: [stageWithoutPsTo], withModel: true });
+
+  it("confirmation: 'Leistungssteigerung (B48)' statt des rohen '(Basis 208 PS)  PS / Nm B48'-Excel-Namens", () => {
+    const result = buildConfirmation(ctx);
+    expect(result.text).toContain("Leistungssteigerung (B48)");
+    expect(result.text).not.toContain("(Basis 208 PS)");
+  });
+
+  it("summary: dieselbe Herleitung wie confirmation", () => {
+    const result = buildSummary(ctx);
+    expect(result.text).toContain("Leistungssteigerung (B48)");
+    expect(result.text).not.toContain("(Basis 208 PS)");
+  });
+
+  it("inbox: 'Leistungssteigerung (B48)' PLUS Original-Excel-Name als 'Excel: ...'-Notiz", () => {
+    const result = buildInbox(ctx);
+    expect(result.text).toContain("Leistungssteigerung (B48)");
+    expect(result.text).toContain("Excel: (Basis 208 PS)  PS / Nm B48");
+  });
+
+  it("Altdaten ohne variant_group (undefined): Fallback bleibt ps_to != null, wie vor der Korrektur", () => {
+    const legacyItem: MailInquiryItem = { ...stageWithoutPsTo, variant_group: undefined };
+    const ctxLegacy = makeContext({ locale: "de", items: [legacyItem], withModel: true });
+    const result = buildConfirmation(ctxLegacy);
+    // ps_to ist hier ebenfalls null -> Fallback erkennt keine Stufe, roher Name bleibt (unverändertes Altverhalten).
+    expect(result.text).toContain("(Basis 208 PS)");
+  });
+});
+
 // --- Prüfung Phase B, Punkt 1 (blocker): vehicleLabel() mit echten
 // Namenspaaren aus der Excel-Preisliste, siehe docs/excel-import.md. Eine
 // frühere Fassung liess bei vorhandenem Modell den Familiennamen weg und
@@ -538,9 +589,11 @@ describe("buildInbox: ZIEL-Zeile aus ps_to/nm_to (Prüfung Phase B, Punkt 2)", (
     const motorItem: MailInquiryItem = {
       category: "motor",
       name: "Stufe 1: (Basis 480 PS) 620PS / 740Nm",
-      // description enthält bewusst einen irreführenden Text (z.B. eine
-      // technische Randbemerkung aus der Excel) - die ZIEL-Zeile darf ihn
-      // nicht verwenden.
+      // Realistische Randbemerkung wie bei den 8 echten Stufen mit
+      // description (siehe lib/catalog/product-display.ts stageDisplay()-
+      // Kommentar, Prüfung Modul Parser Befund 2) - die ZIEL-Zeile (aus
+      // ps_to/nm_to) darf sie trotzdem nicht verwenden, die Positionszeile
+      // (GESCHÄTZTES PAKET) dagegen schon (siehe unten).
       description: "nicht die Leistungsangabe",
       price_total: 4180,
       price_status: "priced",
@@ -569,9 +622,19 @@ describe("buildInbox: ZIEL-Zeile aus ps_to/nm_to (Prüfung Phase B, Punkt 2)", (
     const result = buildInbox(ctx);
     const zielLine = result.text.split("\n").find((l) => l.startsWith("ZIEL:"));
     expect(zielLine).toBe("ZIEL: ca. 620 PS / 740 Nm, Beides, Auspuff: Kräftig");
-    // description ("nicht die Leistungsangabe") landet weiterhin korrekt in
-    // den Positionen (GESCHÄTZTES PAKET), nur nicht mehr in der ZIEL-Zeile.
-    expect(result.text).toContain("nicht die Leistungsangabe");
+    // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+    // die Positionszeile (GESCHÄTZTES PAKET) zeigt seit
+    // lib/mail/templates/inbox.ts inboxItems() den kurzen, unterscheidbaren
+    // Titel statt des vollen Excel-Namens, PLUS den Original-Excel-Namen als
+    // Notiz ("dÄHLer kennt seine Bezeichnungen"). Korrektur 15.09.2026
+    // (Prüfung Modul Parser, Befund 2): die description wird für
+    // Leistungsstufen NICHT mehr verworfen - 8 aktive Stufen tragen die
+    // V/max-Angabe ausschliesslich dort, ohne sie fehlte der Unterschied
+    // zwischen sonst identisch benannten Stufen. Sie erscheint deshalb hier
+    // als zusätzliche Detailangabe in der Klammer.
+    expect(result.text).toContain(
+      "• Motor: Stufe 1 (620 PS / 740 Nm, nicht die Leistungsangabe) (Excel: Stufe 1: (Basis 480 PS) 620PS / 740Nm)",
+    );
   });
 
   it("ohne ps_to (Feld nicht gesetzt): keine Leistungsangabe, Folgefrage-Antworten bleiben trotzdem sichtbar", () => {
@@ -610,5 +673,62 @@ describe("buildInbox: ZIEL-Zeile aus ps_to/nm_to (Prüfung Phase B, Punkt 2)", (
     expect(zielLine).toBe("ZIEL: Auspuff: Kräftig");
     expect(zielLine).not.toContain("irrelevanter Text");
     expect(zielLine).not.toContain("PS");
+  });
+});
+
+// Rückmeldungen aus dem ersten Klicktest (Kundenflow M2 G87), siehe
+// CLAUDE.md Abschnitt "AUFGABE", Punkte 1 und 3.
+describe("Klicktest-Rückmeldung: Getriebe-Zeile und Positionsdarstellung", () => {
+  const stufe1: MailInquiryItem = {
+    category: "motor",
+    name: "Stufe 1: (Basis 480 PS) 620PS / 740Nm (M6 & A8-Getriebe)",
+    description: null,
+    price_total: 4180,
+    price_status: "priced",
+    ps_to: 620,
+    nm_to: 740,
+  };
+
+  function m2Ctx(overrides: Partial<MailInquiryContext> = {}): MailInquiryContext {
+    const family = baseFamily();
+    const model = baseModel({ family_id: family.id });
+    return {
+      inquiry: baseInquiry({ family_id: family.id, model_id: model.id, gearbox: "manual" }),
+      family,
+      model,
+      items: [stufe1],
+      estimatedTotal: 4180,
+      checks: [],
+      draft,
+      locale: "de",
+      appUrl: "https://anfrage.daehler.com",
+      shareUrl: "https://anfrage.daehler.com/p/share-token-1234567890ab",
+      adminUrl: "https://anfrage.daehler.com/admin/anfragen/11111111-1111-1111-1111-111111111111",
+      ...overrides,
+    };
+  }
+
+  it("buildInbox zeigt 'Getriebe: Handschalter' in der FAHRZEUG-Zeile", () => {
+    const result = buildInbox(m2Ctx());
+    const vehicleLine = result.text.split("\n").find((l) => l.startsWith("FAHRZEUG:"));
+    expect(vehicleLine).toContain("Getriebe: Handschalter");
+  });
+
+  it("ohne Getriebeangabe (gearbox null) keine Getriebe-Zeile", () => {
+    const result = buildInbox(m2Ctx({ inquiry: { ...m2Ctx().inquiry, gearbox: null } }));
+    const vehicleLine = result.text.split("\n").find((l) => l.startsWith("FAHRZEUG:"));
+    expect(vehicleLine).not.toContain("Getriebe");
+  });
+
+  it("buildConfirmation zeigt den gefalteten Positionsnamen (kein voller Excel-Rohname)", () => {
+    const result = buildConfirmation(m2Ctx());
+    expect(result.text).toContain("Motor: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe)");
+    expect(result.text).not.toContain("(Basis 480 PS)");
+  });
+
+  it("buildSummary zeigt denselben gefalteten Positionsnamen", () => {
+    const result = buildSummary(m2Ctx());
+    expect(result.text).toContain("Motor: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe)");
+    expect(result.text).not.toContain("(Basis 480 PS)");
   });
 });

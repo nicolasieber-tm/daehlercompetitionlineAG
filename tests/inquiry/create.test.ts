@@ -60,6 +60,15 @@ beforeAll(async () => {
   // geschützte Leerzeichen (U+00A0, z.B. zwischen "Basis" und "480"), ein
   // im Testcode getippter normaler Leerzeichen-String matcht das nicht
   // (siehe Bericht) - die numerischen/Enum-Felder sind eindeutig und robust.
+  // .eq("active", true) (Rückmeldung erster Klicktest, CLAUDE.md Abschnitt
+  // "AUFGABE": U+00A0 wird jetzt beim Import selbst normalisiert, siehe
+  // lib/pricelist/parser.ts) ist Pflicht: der einmalige Re-Import, der die
+  // NBSP-Zeichen aus den Namen entfernt, kann den alten (NBSP-behafteten)
+  // Datensatz nicht per content_hash/article_no+name/name+category
+  // wiedererkennen (der Name selbst hat sich ja geändert) und legt
+  // stattdessen eine neue Zeile an, die alte bleibt als inaktives Duplikat
+  // mit denselben ps_to/nm_to/price_total-Werten stehen - ohne den Filter
+  // liefert .single() dann "mehrere Zeilen" statt genau einer.
   const [{ data: motor, error: motorError }, { data: auspuff, error: auspuffError }, { data: fahrwerk, error: fahrwerkError }] =
     await Promise.all([
       admin
@@ -70,6 +79,7 @@ beforeAll(async () => {
         .eq("variant_group", "leistung")
         .eq("ps_to", 620)
         .eq("nm_to", 740)
+        .eq("active", true)
         .single(),
       admin
         .from("products")
@@ -78,6 +88,7 @@ beforeAll(async () => {
         .eq("category", "auspuff")
         .eq("variant_group", "anlage")
         .eq("price_total", 5260)
+        .eq("active", true)
         .single(),
       admin
         .from("products")
@@ -86,6 +97,7 @@ beforeAll(async () => {
         .eq("category", "fahrwerk")
         .eq("variant_group", "fahrwerk")
         .eq("price_total", 1630)
+        .eq("active", true)
         .single(),
     ]);
   if (motorError) throw motorError;
@@ -124,6 +136,7 @@ function basePayload(overrides: Partial<InquiryPayload> = {}): InquiryPayload {
     vehicleText: null,
     year: "2025",
     beenHere: false,
+    gearbox: "manual",
     categories: ["motor", "auspuff", "fahrwerk"],
     consulting: false,
     selections: [{ productId: motorProductId }, { productId: auspuffProductId }, { productId: fahrwerkProductId }],

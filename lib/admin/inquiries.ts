@@ -85,6 +85,50 @@ export interface InquiryListResult {
   pageCount: number;
 }
 
+// ---------------------------------------------------------------------------
+// URL-Parameter-Validierung (app/admin/page.tsx, Prüfbefund admin-page,
+// Punkt 2): reine Funktionen hier statt direkt in der Server Component,
+// damit sie ohne deren React-/Next.js-Importkette getestet werden können
+// (siehe tests/admin/page-params.test.ts). Ein ungültiger Parameter wird
+// ignoriert (Rückgabe undefined/Standardwert) statt einen Fehler zu werfen -
+// app/admin/page.tsx darf bei einer von Hand verstümmelten URL nie mit 500
+// abstürzen. Ob eine syntaktisch gültige "page" auch tatsächlich existiert
+// (page ≤ Seitenzahl), stellt sich erst bei der Datenbankabfrage heraus -
+// das fängt der PostgREST-416-Fallback in listInquiries() unten ab
+// (RANGE_NOT_SATISFIABLE_CODE), nicht diese Funktion.
+// ---------------------------------------------------------------------------
+
+const STATUS_PARAM_VALUES: InquiryStatus[] = ["neu", "in_bearbeitung", "beantwortet", "abgeschlossen"];
+
+export function parseStatusParam(value: string | undefined): InquiryStatus | "alle" {
+  if (value && (STATUS_PARAM_VALUES as string[]).includes(value)) return value as InquiryStatus;
+  return "alle";
+}
+
+export function parsePageParam(value: string | undefined): number {
+  const n = value ? Number.parseInt(value, 10) : 1;
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+// "YYYY-MM-DD", wie <input type="date"> es liefert (FilterBar.tsx).
+const DATE_PARAM_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Nur syntaktisch gültige UND tatsächlich existierende Kalendertage (2026-02-30 z.B. nicht) kommen durch. */
+export function parseDateParam(value: string | undefined): string | undefined {
+  if (!value || !DATE_PARAM_RE.test(value)) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  const asDate = new Date(Date.UTC(year, month - 1, day));
+  const roundTrips =
+    asDate.getUTCFullYear() === year && asDate.getUTCMonth() === month - 1 && asDate.getUTCDate() === day;
+  return roundTrips ? value : undefined;
+}
+
+const UUID_PARAM_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function parseFamilyIdParam(value: string | undefined): string | undefined {
+  return value && UUID_PARAM_RE.test(value) ? value : undefined;
+}
+
 /**
  * Entfernt Zeichen, die die PostgREST-`or()`-Filterliste ("spalte.ilike.%
  * wert%,spalte2.ilike.%wert%") sprengen würden (Komma trennt die
@@ -142,15 +186,18 @@ function zurichDayBoundsUtc(dateStr: string): { startUtc: string; endUtc: string
 }
 
 /**
- * Anfragen für die Übersicht: gefiltert, durchsucht, sortiert (neu zuerst),
- * paginiert (50 pro Seite, siehe INQUIRY_PAGE_SIZE). family/model werden
- * für vehicleLabel() vollständig geladen (siehe lib/mail/render.ts), nicht
- * nur die Anzeigefelder - vehicleLabel() erwartet die vollen Row-Typen.
+ * PostgREST-Fehlercode für "Requested range not satisfiable" (siehe
+ * https://postgrest.org/en/stable/references/errors.html): tritt auf, wenn
+ * .range(from, to) mit einem `from` jenseits der tatsächlichen Zeilenzahl
+ * aufgerufen wird - z.B. ?page=99 bei nur zwei vorhandenen Anfragen. Kommt
+ * als HTTP 416 zurück (siehe Prüfbefund admin-page, Punkt 2: "PostgREST 416
+ * bei page ausserhalb -> Seite 1"), sonst würde listInquiries() hier einen
+ * Fehler werfen und die Seite mit einem 500 abstürzen, nur weil jemand eine
+ * zu hohe Seitenzahl in die URL geschrieben hat.
  */
-export async function listInquiries(filters: InquiryListFilters, db?: Db): Promise<InquiryListResult> {
-  const client = await resolveClient(db);
-  const page = Math.max(1, Math.floor(filters.page ?? 1));
-  const pageSize = INQUIRY_PAGE_SIZE;
+const RANGE_NOT_SATISFIABLE_CODE = "PGRST103";
+
+function buildInquiriesQuery(client: Db, filters: InquiryListFilters, page: number, pageSize: number) {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -186,7 +233,28 @@ export async function listInquiries(filters: InquiryListFilters, db?: Db): Promi
     );
   }
 
-  const { data, error, count } = await query;
+  return query;
+}
+
+/**
+ * Anfragen für die Übersicht: gefiltert, durchsucht, sortiert (neu zuerst),
+ * paginiert (50 pro Seite, siehe INQUIRY_PAGE_SIZE). family/model werden
+ * für vehicleLabel() vollständig geladen (siehe lib/mail/render.ts), nicht
+ * nur die Anzeigefelder - vehicleLabel() erwartet die vollen Row-Typen.
+ */
+export async function listInquiries(filters: InquiryListFilters, db?: Db): Promise<InquiryListResult> {
+  const client = await resolveClient(db);
+  const pageSize = INQUIRY_PAGE_SIZE;
+  let page = Math.max(1, Math.floor(filters.page ?? 1));
+
+  let { data, error, count } = await buildInquiriesQuery(client, filters, page, pageSize);
+  if (error && error.code === RANGE_NOT_SATISFIABLE_CODE && page !== 1) {
+    // Angeforderte Seite liegt jenseits der vorhandenen Zeilen (z.B. Filter
+    // seitdem verschärft, oder eine von Hand eingegebene URL): auf Seite 1
+    // zurückfallen statt der Nutzerin eine kaputte Seite zu zeigen.
+    page = 1;
+    ({ data, error, count } = await buildInquiriesQuery(client, filters, page, pageSize));
+  }
   if (error) {
     throw new Error(`listInquiries fehlgeschlagen: ${error.message}`);
   }

@@ -15,7 +15,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
-import { FLOW_CATEGORIES, type Brand, type FlowCategory, type Fuel, type PriceStatus } from "@/lib/supabase/rows";
+import { FLOW_CATEGORIES, type Brand, type FlowCategory, type Fuel, type Gearbox, type PriceStatus } from "@/lib/supabase/rows";
 
 type Db = SupabaseClient<Database>;
 
@@ -36,6 +36,13 @@ export interface CatalogModel {
   seriesNm: number | null;
   seriesPsSuggested: number[];
   sort: number;
+  /** true, wenn mindestens ein aktives Produkt, das dieses Modell fittet
+   * (oder fits_all), getriebespezifisch ist (products.gearbox != null,
+   * siehe lib/catalog/gearbox.ts). Steuert die Getriebefrage im
+   * Fahrzeug-Schritt (components/flow/steps/CarStep.tsx), analog
+   * seriesPsSuggested für die Serienleistungs-Chips. Rückmeldung erster
+   * Klicktest, CLAUDE.md Abschnitt "AUFGABE", Punkt 3. */
+  hasGearboxSpecificProducts: boolean;
 }
 
 export interface CatalogFamily {
@@ -69,6 +76,8 @@ export interface CatalogProduct {
   psTo: number | null;
   nmTo: number | null;
   variantGroup: string | null;
+  /** Aus dem Namen abgeleitet (lib/catalog/gearbox.ts), null = getriebeneutral. */
+  gearbox: Gearbox | null;
   sort: number;
 }
 
@@ -172,7 +181,15 @@ interface FamilyRow {
   }[];
 }
 
-function mapFamily(row: FamilyRow): CatalogFamily {
+/** Ergebnis von loadGearboxSpecificModelIds() (siehe dort). */
+interface GearboxCoverage {
+  /** family_id, für die mindestens ein fits_all-Produkt getriebespezifisch ist (gilt dann für ALLE Modelle der Familie). */
+  familyIdsWithFitsAll: Set<string>;
+  /** model_id, das über product_fitment direkt ein getriebespezifisches Produkt fittet (fits_all false). */
+  modelIds: Set<string>;
+}
+
+function mapFamily(row: FamilyRow, gearboxCoverage: GearboxCoverage): CatalogFamily {
   const models = [...row.models]
     .filter((m) => m.active)
     .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "de-CH"))
@@ -185,6 +202,8 @@ function mapFamily(row: FamilyRow): CatalogFamily {
       seriesNm: m.series_nm,
       seriesPsSuggested: m.series_ps_suggested,
       sort: m.sort,
+      hasGearboxSpecificProducts:
+        gearboxCoverage.familyIdsWithFitsAll.has(row.id) || gearboxCoverage.modelIds.has(m.id),
     }));
   return {
     id: row.id,
@@ -210,6 +229,46 @@ function sortFamilies(families: CatalogFamily[]): CatalogFamily[] {
   });
 }
 
+/**
+ * Ermittelt, für welche Familien (fits_all) bzw. Modelle (product_fitment)
+ * mindestens ein aktives, getriebespezifisches Produkt (gearbox != null)
+ * existiert - Grundlage für CatalogModel.hasGearboxSpecificProducts (siehe
+ * dort). Zwei Abfragen statt einer grossen: die products-Abfrage ist klein
+ * (nur gearbox-gesetzte Zeilen, siehe DB-Auswertung: 43 Stück im Bestand),
+ * product_fitment wird nur für deren fits_all=false-Teilmenge geladen.
+ */
+async function loadGearboxSpecificModelIds(familyIds: string[], client: Db): Promise<GearboxCoverage> {
+  const empty: GearboxCoverage = { familyIdsWithFitsAll: new Set(), modelIds: new Set() };
+  if (familyIds.length === 0) return empty;
+
+  const { data: products, error } = await client
+    .from("products")
+    .select("id, family_id, fits_all")
+    .in("family_id", familyIds)
+    .eq("active", true)
+    .not("gearbox", "is", null);
+  if (error) throw new Error(`Getriebe-Abdeckung laden fehlgeschlagen: ${error.message}`);
+
+  const familyIdsWithFitsAll = new Set<string>();
+  const specificProductIds: string[] = [];
+  for (const p of products ?? []) {
+    if (p.fits_all) familyIdsWithFitsAll.add(p.family_id);
+    else specificProductIds.push(p.id);
+  }
+
+  const modelIds = new Set<string>();
+  if (specificProductIds.length > 0) {
+    const { data: fitment, error: fitmentError } = await client
+      .from("product_fitment")
+      .select("model_id")
+      .in("product_id", specificProductIds);
+    if (fitmentError) throw new Error(`Getriebe-Abdeckung (Fitment) laden fehlgeschlagen: ${fitmentError.message}`);
+    for (const f of fitment ?? []) modelIds.add(f.model_id);
+  }
+
+  return { familyIdsWithFitsAll, modelIds };
+}
+
 /** Aktive Familien mit aktiven Modellen, sortiert BMW/MINI/Toyota/Wiesmann, dann sort, dann name. */
 export async function getFamilies(db?: Db): Promise<CatalogFamily[]> {
   const client = await resolveClient(db);
@@ -219,7 +278,9 @@ export async function getFamilies(db?: Db): Promise<CatalogFamily[]> {
     .eq("active", true)
     .eq("models.active", true);
   if (error) throw new Error(`getFamilies fehlgeschlagen: ${error.message}`);
-  return sortFamilies((data ?? []).map((row) => mapFamily(row as unknown as FamilyRow)));
+  const rows = (data ?? []) as unknown as FamilyRow[];
+  const gearboxCoverage = await loadGearboxSpecificModelIds(rows.map((r) => r.id), client);
+  return sortFamilies(rows.map((row) => mapFamily(row, gearboxCoverage)));
 }
 
 export async function getFamilyBySlug(slug: string, db?: Db): Promise<CatalogFamily | null> {
@@ -232,7 +293,10 @@ export async function getFamilyBySlug(slug: string, db?: Db): Promise<CatalogFam
     .eq("models.active", true)
     .maybeSingle();
   if (error) throw new Error(`getFamilyBySlug fehlgeschlagen: ${error.message}`);
-  return data ? mapFamily(data as unknown as FamilyRow) : null;
+  if (!data) return null;
+  const row = data as unknown as FamilyRow;
+  const gearboxCoverage = await loadGearboxSpecificModelIds([row.id], client);
+  return mapFamily(row, gearboxCoverage);
 }
 
 // ---------------------------------------------------------------------------
@@ -257,6 +321,7 @@ interface ProductRow {
   ps_to: number | null;
   nm_to: number | null;
   variant_group: string | null;
+  gearbox: string | null;
   sort: number;
 }
 
@@ -279,6 +344,7 @@ function mapProduct(p: ProductRow): CatalogProduct {
     psTo: p.ps_to,
     nmTo: p.nm_to,
     variantGroup: p.variant_group,
+    gearbox: p.gearbox as Gearbox | null,
     sort: p.sort,
   };
 }
@@ -286,7 +352,7 @@ function mapProduct(p: ProductRow): CatalogProduct {
 const PRODUCT_COLUMNS =
   "id, name, description, category, source_category, group_label, article_no, " +
   "price_parts, price_install, price_approval, price_total, price_status, price_note, " +
-  "ps_base, ps_to, nm_to, variant_group, sort";
+  "ps_base, ps_to, nm_to, variant_group, gearbox, sort";
 
 async function loadFittingProducts(familyId: string, modelId: string, client: Db): Promise<ProductRow[]> {
   const [fitsAllRes, fitmentRes] = await Promise.all([

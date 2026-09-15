@@ -159,6 +159,7 @@ export type Database = {
           family_id: string | null
           first_name: string | null
           follow_up_answers: Json
+          gearbox: string | null
           id: string
           last_name: string | null
           locale: string
@@ -195,6 +196,7 @@ export type Database = {
           family_id?: string | null
           first_name?: string | null
           follow_up_answers?: Json
+          gearbox?: string | null
           id?: string
           last_name?: string | null
           locale?: string
@@ -231,6 +233,7 @@ export type Database = {
           family_id?: string | null
           first_name?: string | null
           follow_up_answers?: Json
+          gearbox?: string | null
           id?: string
           last_name?: string | null
           locale?: string
@@ -561,6 +564,7 @@ export type Database = {
           description: string | null
           family_id: string
           fits_all: boolean
+          gearbox: string | null
           group_label: string | null
           id: string
           name: string
@@ -589,6 +593,7 @@ export type Database = {
           description?: string | null
           family_id: string
           fits_all?: boolean
+          gearbox?: string | null
           group_label?: string | null
           id?: string
           name: string
@@ -617,6 +622,7 @@ export type Database = {
           description?: string | null
           family_id?: string
           fits_all?: boolean
+          gearbox?: string | null
           group_label?: string | null
           id?: string
           name?: string
@@ -673,7 +679,7 @@ export type Database = {
     }
     Functions: {
       claim_follow_up: {
-        Args: { p_id: string }
+        Args: { p_id: string; p_max_attempts?: number }
         Returns: {
           attempts: number
           cancelled_at: string | null

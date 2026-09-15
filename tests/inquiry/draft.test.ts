@@ -76,7 +76,11 @@ const M2_BODY_DE = [
   "Danke für Ihre Anfrage für Ihren BMW M2 G87 (Jahrgang 2025). Sportlich und alltagstauglich, das ist genau unsere Linie.",
   [
     "Grundsätzlich können wir das so umsetzen:",
-    "• Motor: Stufe 1: (Basis 480 PS) 620PS / 740Nm (M6 & A8-Getriebe), ab CHF 4'180",
+    // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+    // Positionszeile jetzt über lib/catalog/product-display.ts
+    // displayItemFields() zusammengefaltet, statt des vollen, mehrdeutigen
+    // Excel-Rohnamens (siehe lib/draft/template.ts buildItemLine()).
+    "• Motor: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180",
     "• Auspuff: Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, ab CHF 5'260",
     "• Fahrwerk: Sportfedernsatz für M2 / VA -20mm/ HA -14mm, ab CHF 1'630",
   ].join("\n"),
@@ -92,7 +96,7 @@ const M2_BODY_EN = [
   "Thank you for your request for your BMW M2 G87 (model year 2025). Sporty and still practical for everyday use, that is exactly our line.",
   [
     "In principle, we can put this together:",
-    "• Engine: Stufe 1: (Basis 480 PS) 620PS / 740Nm (M6 & A8-Getriebe), from CHF 4'180",
+    "• Engine: Stage 1 (620 PS / 740 Nm, M6 & A8-Getriebe), from CHF 4'180",
     "• Exhaust: Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, from CHF 5'260",
     "• Suspension: Sportfedernsatz für M2 / VA -20mm/ HA -14mm, from CHF 1'630",
   ].join("\n"),
@@ -250,6 +254,60 @@ const RADSATZ: DraftItem = {
   nmTo: null,
   variantGroup: null,
 };
+
+// Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+// die beiden M2 G87 Stufe-1-Positionen (Basis 480 PS), die im Motor-Schritt
+// vorher identisch aussahen, müssen sich jetzt auch im Antwortentwurf klar
+// unterscheiden lassen.
+const STUFE_1_VMAX: DraftItem = {
+  category: "motor",
+  name: "Stufe 1: (Basis 480 PS) 640PS / 770Nm (M6 & A8-Getriebe)  inkl. Anhebung der V/max Begrenzung",
+  description: null,
+  priceTotal: 4980,
+  priceStatus: "priced",
+  psTo: 640,
+  nmTo: 770,
+  variantGroup: "leistung",
+};
+
+describe("buildDraft: die beiden M2 G87 Stufe-1-Positionen (Basis 480 PS) sind unterscheidbar", () => {
+  it("ohne und mit V/max-Aufhebung ergeben unterschiedliche Positionszeilen", () => {
+    const ctxWithout = { ...m2Ctx(), items: [STUFE_1] };
+    const ctxWith = { ...m2Ctx(), items: [STUFE_1_VMAX] };
+    const { body: bodyWithout } = buildDraft(ctxWithout, "de");
+    const { body: bodyWith } = buildDraft(ctxWith, "de");
+    expect(bodyWithout).toContain("• Motor: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180");
+    expect(bodyWith).toContain("• Motor: Stufe 1 mit V/max-Aufhebung (640 PS / 770 Nm, M6 & A8-Getriebe), ab CHF 4'980");
+  });
+});
+
+// Prüfung Modul Parser, Befund 1: "... ohne Leistungssteigerung" liegt
+// bewusst in variant_group "leistung" (Exklusivität, siehe
+// lib/catalog/variant-groups.ts), ist aber KEINE Stufe. Vor der Korrektur
+// wählte buildItemLine() hier fälschlich isStage über variantGroup allein
+// (ohne psTo-Bezug) und zeigte "Leistungssteigerung mit V/max-Aufhebung"
+// statt des tatsächlichen Produktnamens.
+const VMAX_OHNE_LEISTUNGSSTEIGERUNG: DraftItem = {
+  category: "motor",
+  name: "Aufhebung der serienmässigen V/max Begrenzung ohne Leistungssteigerung",
+  description: null,
+  priceTotal: 2230,
+  priceStatus: "priced",
+  psTo: null,
+  nmTo: null,
+  variantGroup: "leistung",
+};
+
+describe("buildDraft: eigenständiges V/max-Produkt 'ohne Leistungssteigerung' (Befund 1)", () => {
+  it("erscheint mit dem tatsächlichen Produktnamen, nicht als 'Leistungssteigerung mit V/max-Aufhebung'", () => {
+    const ctx = { ...m2Ctx(), items: [VMAX_OHNE_LEISTUNGSSTEIGERUNG], estimatedTotal: 2230 };
+    const { body } = buildDraft(ctx, "de");
+    expect(body).toContain(
+      "• Motor: Aufhebung der serienmässigen V/max Begrenzung ohne Leistungssteigerung, ab CHF 2'230",
+    );
+    expect(body).not.toContain("Leistungssteigerung mit V/max-Aufhebung");
+  });
+});
 
 describe("buildDraft: Positionszeile mit mehrzeiliger Beschreibung (Befund #2 der Anfrage-Prüfung)", () => {
   it("Radsatz-Beschreibung ohne Zeilenumbruch in der Positionszeile, kein Doppelpunkt vor der Klammer", () => {

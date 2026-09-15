@@ -44,6 +44,43 @@ function assertKnownPlaceholders(subject: string, body: string): void {
 }
 
 // ---------------------------------------------------------------------------
+// Bereichs-/Pflichtfeldprüfung (Prüfbefund admin-followups, Punkt 4): weder
+// die follow_up_rules-Tabelle (supabase/migrations/20260911000000_init.sql,
+// nur "not null", keine CHECK-Constraints) noch das bisherige UI verhinderten
+// z.B. 0 oder 4000 Tage, eine leere maxCount oder leeren Betreff/Text - eine
+// solche Regel hätte lib/followups/schedule.ts (Terminberechnung) und
+// lib/followups/run.ts (max_count-Vergleich) mit unsinnigen/fehlenden Werten
+// erreicht. Wird in createRule()/updateRule() VOR dem Speichern geprüft,
+// wie assertKnownPlaceholders() oben - Fehler kommt über dieselbe
+// Toast-Anzeige in FollowUpRuleForm.tsx (result.error) an die Admin-UI.
+// ---------------------------------------------------------------------------
+
+export class FollowUpRuleValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FollowUpRuleValidationError";
+  }
+}
+
+function assertValidRuleInput(input: FollowUpRuleInput): void {
+  if (!Number.isInteger(input.daysAfterReply) || input.daysAfterReply < 1 || input.daysAfterReply > 365) {
+    throw new FollowUpRuleValidationError("Frist muss eine ganze Zahl zwischen 1 und 365 Tagen sein.");
+  }
+  if (!Number.isInteger(input.maxCount) || input.maxCount < 1 || input.maxCount > 10) {
+    throw new FollowUpRuleValidationError("Maximale Anzahl muss eine ganze Zahl zwischen 1 und 10 sein.");
+  }
+  if (!input.name.trim()) {
+    throw new FollowUpRuleValidationError("Name darf nicht leer sein.");
+  }
+  if (!input.subject.trim()) {
+    throw new FollowUpRuleValidationError("Betreff darf nicht leer sein.");
+  }
+  if (!input.body.trim()) {
+    throw new FollowUpRuleValidationError("Text darf nicht leer sein.");
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Regeln
 // ---------------------------------------------------------------------------
 
@@ -89,6 +126,7 @@ export interface FollowUpRuleInput {
 }
 
 export async function createRule(input: FollowUpRuleInput, db?: Db): Promise<string> {
+  assertValidRuleInput(input);
   assertKnownPlaceholders(input.subject, input.body);
   const client = await resolveClient(db);
   const { data, error } = await client
@@ -109,6 +147,7 @@ export async function createRule(input: FollowUpRuleInput, db?: Db): Promise<str
 }
 
 export async function updateRule(id: string, input: FollowUpRuleInput, db?: Db): Promise<void> {
+  assertValidRuleInput(input);
   assertKnownPlaceholders(input.subject, input.body);
   const client = await resolveClient(db);
   const { error } = await client

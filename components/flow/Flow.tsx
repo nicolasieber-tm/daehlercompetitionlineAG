@@ -79,7 +79,13 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
         // null und der Motor-Schritt würde jede Stufe-Option ausblenden
         // (motorProductVisible), der Kunde könnte nie eine Stufe wählen.
         if (selectedModel && selectedModel.seriesPs == null && selectedModel.seriesPsSuggested.length > 1) {
-          return state.seriesPsChoice !== null;
+          if (state.seriesPsChoice === null) return false;
+        }
+        // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE",
+        // Punkt 3): Getriebefrage Pflicht vor "Weiter", wie die
+        // Serienleistungs-Chips oben (siehe CarStep.tsx showGearboxChoice).
+        if (selectedModel?.hasGearboxSpecificProducts && state.gearboxChoice === null) {
+          return false;
         }
         return true;
       }
@@ -103,6 +109,7 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
       vehicleText: null,
       year: state.year,
       beenHere: state.beenHere,
+      gearbox: state.gearboxChoice,
       categories: state.categories,
       consulting: state.consulting,
       selections: allSelectedProducts(state).map((p) => ({ productId: p.id })),

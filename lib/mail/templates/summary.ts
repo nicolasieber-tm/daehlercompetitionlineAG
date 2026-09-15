@@ -6,7 +6,8 @@
 // siehe docs/vorschau.html: der Button ist bereits im Kundenflow vor dem
 // Absenden sichtbar).
 import { getDictionary, tf } from "@/lib/i18n/dictionaries";
-import type { MailInquiryContext } from "../types";
+import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
+import type { MailInquiryContext, MailInquiryItem } from "../types";
 import {
   buttonLink,
   categoryLabel,
@@ -18,6 +19,22 @@ import {
   renderMail,
   vehicleLabel,
 } from "../render";
+
+/**
+ * Siehe lib/mail/templates/confirmation.ts customerItems() (dieselbe
+ * Herleitung, Rückmeldung erster Klicktest; isStage über
+ * lib/catalog/product-display.ts isStageItem() seit Korrektur 15.09.2026,
+ * Prüfung Modul Produkte, Befund 2).
+ */
+function customerItems(items: MailInquiryItem[], locale: MailInquiryContext["locale"]): MailInquiryItem[] {
+  return items.map((item) => {
+    const display = displayItemFields(
+      { name: item.name, description: item.description, isStage: isStageItem(item), psTo: item.ps_to ?? null, nmTo: item.nm_to ?? null },
+      locale,
+    );
+    return { ...item, name: display.name, description: display.description };
+  });
+}
 
 export function buildSummary(ctx: MailInquiryContext): { subject: string; html: string; text: string } {
   const dict = getDictionary(ctx.locale);
@@ -42,7 +59,7 @@ export function buildSummary(ctx: MailInquiryContext): { subject: string; html: 
       { label: dict.mail.confirmation.timingLabel, value: timing ?? "" },
       { label: dict.mail.confirmation.channelLabel, value: channel ?? "" },
     ]),
-    itemList(ctx.items, ctx.locale),
+    itemList(customerItems(ctx.items, ctx.locale), ctx.locale),
     estimateBox({ estimatedTotal: ctx.estimatedTotal, hasOnRequest, locale: ctx.locale }),
     buttonLink(dict.mail.shared.viewPackageButton, ctx.shareUrl),
     paragraph(dict.mail.summary.closing),

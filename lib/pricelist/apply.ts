@@ -196,6 +196,7 @@ function buildProductRow(familyId: string, p: ParsedFamily["products"][number]):
     ps_to: p.psTo,
     nm_to: p.nmTo,
     variant_group: p.variantGroup,
+    gearbox: p.gearbox,
     fits_all: p.fitsAll,
     sort: p.sort,
     source_row: p.sourceRow,

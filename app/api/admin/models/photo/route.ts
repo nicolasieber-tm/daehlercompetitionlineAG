@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getFamilyForPhoto, setFamilyPhotoUrl } from "@/lib/admin/models";
+import { detectImageExtension, getFamilyForPhoto, isUuid, setFamilyPhotoUrl } from "@/lib/admin/models";
 
 const BUCKET = "model-photos";
 const MAX_SIZE = 8 * 1024 * 1024; // 8 MB
@@ -19,6 +19,7 @@ const ALLOWED_TYPES: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
 };
+
 // Alle möglichen bisherigen Dateiendungen: vor einem Upload/Entfernen werden
 // sämtliche Kandidaten gelöscht, damit bei einem Wechsel des Dateityps
 // (z.B. vorher .png, jetzt .jpg) kein verwaistes altes Objekt im Bucket
@@ -55,6 +56,9 @@ export async function POST(request: Request) {
   if (typeof familyId !== "string" || !familyId || !(file instanceof File)) {
     return NextResponse.json({ ok: false, error: "familyId und file sind erforderlich." }, { status: 400 });
   }
+  if (!isUuid(familyId)) {
+    return NextResponse.json({ ok: false, error: "familyId ist keine gültige UUID." }, { status: 400 });
+  }
 
   const ext = ALLOWED_TYPES[file.type];
   if (!ext) {
@@ -62,6 +66,17 @@ export async function POST(request: Request) {
   }
   if (file.size > MAX_SIZE) {
     return NextResponse.json({ ok: false, error: "Datei ist grösser als 8 MB." }, { status: 400 });
+  }
+
+  // Inhalt einmal lesen: für die Magic-Bytes-Prüfung UND (bei Erfolg) für
+  // den Upload weiter unten - kein zweites file.arrayBuffer().
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const detectedExt = detectImageExtension(buffer);
+  if (!detectedExt || detectedExt !== ext) {
+    return NextResponse.json(
+      { ok: false, error: "Datei ist kein gültiges JPG-, PNG- oder WebP-Bild (Inhalt passt nicht zum angegebenen Typ)." },
+      { status: 400 },
+    );
   }
 
   const admin = createAdminClient();
@@ -76,7 +91,6 @@ export async function POST(request: Request) {
     await admin.storage.from(BUCKET).remove(pathsForSlug(family.slug));
 
     const path = `families/${family.slug}.${ext}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
     const { error: uploadError } = await admin.storage
       .from(BUCKET)
       .upload(path, buffer, { contentType: file.type, upsert: true });
@@ -97,7 +111,9 @@ export async function POST(request: Request) {
   }
 }
 
-const deleteSchema = z.object({ familyId: z.string().min(1) });
+const deleteSchema = z.object({
+  familyId: z.string().refine(isUuid, { message: "familyId ist keine gültige UUID." }),
+});
 
 export async function DELETE(request: Request) {
   const user = await requireSessionUser();
@@ -113,7 +129,10 @@ export async function DELETE(request: Request) {
   }
   const parsed = deleteSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "familyId ist erforderlich." }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: parsed.error.issues[0]?.message ?? "familyId ist erforderlich." },
+      { status: 400 },
+    );
   }
 
   const admin = createAdminClient();

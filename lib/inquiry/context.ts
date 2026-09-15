@@ -35,6 +35,14 @@ function appUrl(): string {
  * lib/mail/templates/inbox.ts goalLine() nutzt sie, wenn vorhanden, für die
  * ZIEL-Zeile ("ca. 620 PS / 740 Nm" statt der bis dahin gezeigten
  * products.description).
+ *
+ * variant_group (Korrektur 15.09.2026, Prüfung Modul Produkte, Befund 2):
+ * ebenso optional und ebenso `undefined` statt `null` bei einer älteren,
+ * vor dieser Korrektur gespeicherten Anfrage - lib/catalog/product-display.ts
+ * isStageItem() unterscheidet genau danach (fehlend -> Fallback auf
+ * `ps_to != null`; vorhanden, auch `null` -> massgeblich). `e.variant_group`
+ * kann in der DB `null` sein (products.variant_group ist nullable), das
+ * bleibt hier bewusst erhalten statt zu `undefined` zu werden.
  */
 function parseItems(raw: unknown): MailInquiryItem[] {
   if (!Array.isArray(raw)) return [];
@@ -43,7 +51,7 @@ function parseItems(raw: unknown): MailInquiryItem[] {
     if (!entry || typeof entry !== "object") continue;
     const e = entry as Record<string, unknown>;
     if (typeof e.category !== "string" || typeof e.name !== "string") continue;
-    items.push({
+    const item: MailInquiryItem = {
       category: e.category,
       name: e.name,
       description: typeof e.description === "string" ? e.description : null,
@@ -51,7 +59,11 @@ function parseItems(raw: unknown): MailInquiryItem[] {
       price_status: (typeof e.price_status === "string" ? e.price_status : "on_request") as MailInquiryItem["price_status"],
       ps_to: typeof e.ps_to === "number" ? e.ps_to : null,
       nm_to: typeof e.nm_to === "number" ? e.nm_to : null,
-    });
+    };
+    if ("variant_group" in e) {
+      item.variant_group = typeof e.variant_group === "string" ? e.variant_group : null;
+    }
+    items.push(item);
   }
   return items;
 }

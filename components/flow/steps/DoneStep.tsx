@@ -88,7 +88,7 @@ export function DoneStep({
           key: c,
           category: t.steps.wish.categories[c].title,
           name: t.steps.done.package.categoryAdviceLine,
-          price: "–",
+          price: t.priceStatus.on_request,
         },
       ];
     }
@@ -105,7 +105,12 @@ export function DoneStep({
     }));
   });
   if (state.consulting) {
-    summaryLines.push({ key: "consulting", category: t.steps.wish.completePackage.title, name: t.steps.done.package.adviceLine, price: "–" });
+    summaryLines.push({
+      key: "consulting",
+      category: t.steps.wish.completePackage.title,
+      name: t.steps.done.package.adviceLine,
+      price: t.priceStatus.on_request,
+    });
   }
 
   const beforeAfterRows = buildBeforeAfterRows(

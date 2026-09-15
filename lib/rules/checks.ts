@@ -10,7 +10,8 @@ import { de } from "@/lib/i18n/de";
 import { en } from "@/lib/i18n/en";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
-import type { Character, FlowCategory, PriceStatus, Timing } from "@/lib/supabase/rows";
+import { gearboxFor } from "@/lib/catalog/gearbox";
+import type { Character, FlowCategory, InquiryGearbox, PriceStatus, Timing } from "@/lib/supabase/rows";
 
 /**
  * Ein vom Kunden gewähltes Produkt, wie es die Prüfregeln brauchen. Bewusst
@@ -23,6 +24,10 @@ import type { Character, FlowCategory, PriceStatus, Timing } from "@/lib/supabas
 export interface CheckProduct {
   category: FlowCategory;
   name: string;
+  /** Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 2): einige V/max-
+   * Nennungen stehen nur in der description, nicht im Namen (siehe
+   * isVmaxMention() unten). */
+  description: string | null;
   variantGroup: string | null;
   priceStatus: PriceStatus;
   psTo: number | null;
@@ -50,6 +55,11 @@ export interface CheckInquiry {
   /** Freitext-Baujahr, z.B. "2025" oder der lokalisierte Sentinel-Wert für
    * "älter" (steps.car.yearOlder in de.ts/en.ts), siehe YEAR_OLDER_VALUES. */
   year: string | null;
+  /** Antwort auf die Getriebefrage (siehe components/flow/steps/CarStep.tsx),
+   * null wenn die Frage nicht gestellt wurde (Modell ohne getriebespezifische
+   * Produkte, oder Kurzablauf ohne Modell). Rückmeldung erster Klicktest,
+   * CLAUDE.md Abschnitt "AUFGABE", Punkt 3. */
+  gearbox: InquiryGearbox | null;
 }
 
 export interface CheckContext {
@@ -100,6 +110,42 @@ function chosenLeistung(ctx: CheckContext, pattern: RegExp): boolean {
 
 function chosenHochleistungskats(ctx: CheckContext): boolean {
   return ctx.products.some((p) => HOCHLEISTUNGSKAT_PATTERN.test(p.name));
+}
+
+// Rückmeldungen aus dem ersten Klicktest (Kundenflow M2 G87), siehe
+// CLAUDE.md Abschnitt "AUFGABE", Punkt 3.
+
+/** Dieselbe V/max-Erkennung wie der Titel-Zusatz in lib/catalog/product-display.ts. */
+const VMAX_MENTION_PATTERN = /V.?max/i;
+const VMAX_LIFT_PATTERN = /Aufheb|Anheb|inkl/i;
+
+function isVmaxMention(name: string): boolean {
+  return VMAX_MENTION_PATTERN.test(name) && VMAX_LIFT_PATTERN.test(name);
+}
+
+// Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 2): einige Stufen
+// tragen die V/max-Angabe nur in der description, nicht im Namen (z.B. weil
+// die Excel-Zelle über zwei Spalten umgebrochen ist, siehe
+// lib/catalog/product-display.ts stageDisplay()-Kommentar) - name und
+// description deshalb hier ebenfalls als ein Text zusammen geprüft, sonst
+// übersieht isVmaxMention() genau diese Fälle.
+function isVmaxMentionOf(p: Pick<CheckProduct, "name" | "description">): boolean {
+  return isVmaxMention(p.description ? `${p.name} ${p.description}` : p.name);
+}
+
+/** true, wenn mindestens eine gewählte Leistungsstufe die V/max-Aufhebung bereits im Namen (oder der description) trägt. */
+function chosenStageWithVmax(ctx: CheckContext): boolean {
+  return ctx.products.some((p) => p.category === "motor" && p.variantGroup === "leistung" && isVmaxMentionOf(p));
+}
+
+/** true, wenn zusätzlich ein EIGENSTÄNDIGES V/max-Produkt gewählt wurde (kein Leistungsstufen-Produkt selbst). */
+function chosenSeparateVmaxProduct(ctx: CheckContext): boolean {
+  return ctx.products.some((p) => p.category === "motor" && p.variantGroup !== "leistung" && isVmaxMentionOf(p));
+}
+
+/** true, wenn mindestens ein gewähltes Produkt getriebespezifisch ist (siehe lib/catalog/gearbox.ts). */
+function hasGearboxSpecificSelection(ctx: CheckContext): boolean {
+  return ctx.products.some((p) => gearboxFor(p.name) !== null);
 }
 
 /**
@@ -162,6 +208,25 @@ export const CHECK_RULES: Array<{ id: string; when: (ctx: CheckContext) => boole
   {
     id: "komplettpaket_gewuenscht",
     when: (ctx) => ctx.inquiry.consulting === true,
+  },
+  {
+    // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+    // ein getriebespezifisches Produkt wurde gewählt, aber die Getriebefrage
+    // ist unbeantwortet (null, Frage nie gestellt) oder ausdrücklich mit
+    // "Weiss ich nicht" beantwortet ("unknown") - dÄHLer muss das Getriebe
+    // vor der Bestätigung klären.
+    id: "getriebe_unbekannt",
+    when: (ctx) => (ctx.inquiry.gearbox === null || ctx.inquiry.gearbox === "unknown") && hasGearboxSpecificSelection(ctx),
+  },
+  {
+    // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+    // die gewählte Leistungsstufe enthält die V/max-Aufhebung bereits
+    // (Name z.B. "... inkl. Anhebung der V/max Begrenzung"), UND zusätzlich
+    // wurde das eigenständige V/max-Produkt ("Aufhebung der serienmässigen
+    // V/max Begrenzung") gewählt - doppelt, dÄHLer soll das vor der
+    // Bestätigung bereinigen.
+    id: "vmax_doppelt",
+    when: (ctx) => chosenStageWithVmax(ctx) && chosenSeparateVmaxProduct(ctx),
   },
 ];
 

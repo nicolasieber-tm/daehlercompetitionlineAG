@@ -44,7 +44,21 @@ export function Hero() {
           <div className="flex justify-between gap-4 border-b border-dashed border-line pb-1.5">
             <span>{t.brand.meta.phoneLabel}</span>
             <b className="font-medium text-text">
-              <a href={`tel:${t.brand.meta.phone.replace(/\s+/g, "")}`} className="text-text hover:text-red-bright">
+              {/*
+                Touch-Fläche ≥44px (Prüfbefund flow, Punkt 7): der Link selbst
+                ist nur ein paar Textzeichen hoch. Statt ihn optisch zu
+                vergrössern (würde die enge Meta-Box-Zeile verzerren), zieht
+                py-4 -my-4 die Klickfläche unsichtbar über den Zeilenrand
+                hinaus - kein Hintergrund/Rahmen am Link, daher ohne jede
+                optische Änderung.
+              */}
+              <a
+                href={`tel:${t.brand.meta.phone.replace(/\s+/g, "")}`}
+                // py-4 (16px) auf beiden Seiten reicht bei 13px Schrift und
+                // jeder üblichen Zeilenhöhe sicher über 44px Gesamthöhe,
+                // -my-4 hebt die zusätzliche Fläche im Fluss wieder auf.
+                className="inline-block -my-4 py-4 text-text hover:text-red-bright"
+              >
                 {t.brand.meta.phone}
               </a>
             </b>

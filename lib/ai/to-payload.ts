@@ -243,6 +243,11 @@ export async function toInquiryPayload(
     vehicleText: draft.vehicleText,
     year: draft.year ?? "",
     beenHere: draft.beenHere,
+    // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+    // der Schnellweg hat keinen Fahrzeug-Schritt mit Getriebe-Chips, die
+    // Extraction liefert dafür keinen Wert - null (Frage nicht gestellt),
+    // wie im Kurzablauf ohne Modell.
+    gearbox: null,
     categories: draft.categories,
     consulting: draft.consulting,
     selections: draft.selections,

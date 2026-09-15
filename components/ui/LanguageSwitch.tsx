@@ -22,7 +22,12 @@ export function LanguageSwitch({ className = "" }: { className?: string }) {
           aria-pressed={locale === code}
           onClick={() => setLocale(code)}
           className={[
-            "rounded-full px-3.5 py-1.5 font-display text-[13px] font-semibold uppercase tracking-[0.08em]",
+            // min-h-11/min-w-11 (44px): Touch-Fläche (Prüfbefund flow, Punkt
+            // 7) - "DE"/"EN" sind nur 2 Zeichen breit, px-3.5 allein käme
+            // ohne min-w-11 auf ~42px, knapp unter 44px. px/py bleiben wie
+            // zuvor, inline-flex+items-center zentriert den Text in der
+            // grösseren Fläche, ohne Farbe/Schrift/Radius zu ändern.
+            "inline-flex min-h-11 min-w-11 items-center justify-center rounded-full px-3.5 py-1.5 font-display text-[13px] font-semibold uppercase tracking-[0.08em]",
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-bright focus-visible:outline-offset-2",
             locale === code ? "bg-red text-white" : "bg-transparent text-muted",
           ].join(" ")}

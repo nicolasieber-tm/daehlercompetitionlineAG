@@ -60,7 +60,12 @@ export const en: Dictionary = {
       seriesUnknown: "We will let you know the standard output personally.",
       seriesPsChoice: "What is the standard output of your vehicle?",
       seriesPsRequired: "Please select your standard output so we can show the right options.",
-      photoHint: "Prices and photos on file",
+      gearboxQuestion: "Which gearbox does your vehicle have?",
+      gearboxManual: "Manual",
+      gearboxAutomatic: "Automatic",
+      gearboxUnknown: "I don't know",
+      gearboxRequired: "Please select your gearbox so we can show the right options.",
+      photoHint: "Prices on file",
       photoFallback: "Photo coming soon",
       carShotCaption: "{model} by dÄHLer",
       fuelGroups: {
@@ -106,6 +111,19 @@ export const en: Dictionary = {
       priceHintGeneric: "We will let you know the prices for this vehicle personally.",
       variantHint: "One variant, extras can be added freely.",
       multiHint: "Multiple selection possible.",
+      motorSections: {
+        leistungsstufen: "Power stages",
+        weitereOptionen: "More options",
+        kraftuebertragung: "Drivetrain",
+      },
+      sections: {
+        anlagen: "Systems",
+        endrohre: "Tailpipes",
+        weitereOptionen: "More options",
+        activeSound: "Active sound",
+        fahrwerk: "Suspension",
+        bremse: "Brakes",
+      },
       psCounter: {
         seriesUnit: "PS standard",
         targetUnitWithStage: "PS with {stage}",
@@ -357,6 +375,10 @@ export const en: Dictionary = {
     familie_ohne_preisliste: "Vehicle without a price list: add prices and availability manually.",
     produkt_auf_anfrage: "An item with status \"on request\" was selected: confirm the price manually.",
     komplettpaket_gewuenscht: "Complete package requested: put together a proposal based on the character.",
+    getriebe_unbekannt:
+      "A gearbox-specific item was selected but the gearbox (manual/automatic) is not known: clarify before confirming.",
+    vmax_doppelt:
+      "The selected power stage already includes the V-max removal, and the standalone V-max item was also selected: duplicate, please clean up.",
   },
 
   draft: {

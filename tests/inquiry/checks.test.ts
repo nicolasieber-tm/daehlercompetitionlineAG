@@ -14,6 +14,7 @@ function ctx(overrides: Partial<CheckContext> = {}): CheckContext {
       character: null,
       timing: null,
       year: null,
+      gearbox: null,
       ...overrides.inquiry,
     },
     family: overrides.family !== undefined ? overrides.family : { hasPricelist: true },
@@ -26,6 +27,7 @@ function product(overrides: Partial<CheckProduct> = {}): CheckProduct {
   return {
     category: "motor",
     name: "Sportluftfilter Satz",
+    description: null,
     variantGroup: null,
     priceStatus: "priced",
     psTo: null,
@@ -190,6 +192,99 @@ describe("komplettpaket_gewuenscht", () => {
   });
   it("feuert nicht ohne Komplettpaket", () => {
     expect(rule.when(ctx({ inquiry: { consulting: false } as CheckContext["inquiry"] }))).toBe(false);
+  });
+});
+
+// Rückmeldungen aus dem ersten Klicktest (Kundenflow M2 G87), siehe
+// CLAUDE.md Abschnitt "AUFGABE", Punkt 3.
+describe("getriebe_unbekannt", () => {
+  const rule = CHECK_RULES.find((r) => r.id === "getriebe_unbekannt")!;
+
+  it("feuert bei getriebespezifischer Auswahl ohne Getriebeangabe (gearbox null)", () => {
+    const c = ctx({
+      inquiry: { gearbox: null } as CheckContext["inquiry"],
+      products: [product({ name: "Schaltwegverkürzung für Handschalter" })],
+    });
+    expect(rule.when(c)).toBe(true);
+  });
+
+  it("feuert bei 'unknown' (Weiss ich nicht) ebenfalls", () => {
+    const c = ctx({
+      inquiry: { gearbox: "unknown" } as CheckContext["inquiry"],
+      products: [product({ name: "Getriebeoptimierung St.1 / 8 HP" })],
+    });
+    expect(rule.when(c)).toBe(true);
+  });
+
+  it("feuert nicht, wenn das Getriebe bekannt ist", () => {
+    const c = ctx({
+      inquiry: { gearbox: "manual" } as CheckContext["inquiry"],
+      products: [product({ name: "Schaltwegverkürzung für Handschalter" })],
+    });
+    expect(rule.when(c)).toBe(false);
+  });
+
+  it("feuert nicht ohne getriebespezifische Auswahl, auch ohne Getriebeangabe", () => {
+    const c = ctx({
+      inquiry: { gearbox: null } as CheckContext["inquiry"],
+      products: [product({ name: "Motorhaube Carbon" })],
+    });
+    expect(rule.when(c)).toBe(false);
+  });
+});
+
+describe("vmax_doppelt", () => {
+  const rule = CHECK_RULES.find((r) => r.id === "vmax_doppelt")!;
+
+  it("feuert bei Stufe mit V/max-Zusatz PLUS separatem V/max-Produkt", () => {
+    const c = ctx({
+      products: [
+        product({
+          name: "Stufe 1: (Basis 460 PS)  610PS / 750Nm (M6 & A8-Getriebe) inkl. Anhebung der V/max Begrenzung",
+          variantGroup: "leistung",
+        }),
+        product({ name: "Aufhebung der serienmässigen V/max Begrenzung", variantGroup: null }),
+      ],
+    });
+    expect(rule.when(c)).toBe(true);
+  });
+
+  it("feuert nicht bei nur der Stufe mit V/max-Zusatz (ohne separates Produkt)", () => {
+    const c = ctx({
+      products: [
+        product({
+          name: "Stufe 1: (Basis 460 PS)  610PS / 750Nm (M6 & A8-Getriebe) inkl. Anhebung der V/max Begrenzung",
+          variantGroup: "leistung",
+        }),
+      ],
+    });
+    expect(rule.when(c)).toBe(false);
+  });
+
+  it("feuert nicht bei einer Stufe ohne V/max-Zusatz plus dem separaten V/max-Produkt", () => {
+    const c = ctx({
+      products: [
+        product({ name: "Stufe 1: (Basis 460 PS)  590PS / 720Nm (M6 & A8-Getriebe)", variantGroup: "leistung" }),
+        product({ name: "Aufhebung der serienmässigen V/max Begrenzung", variantGroup: null }),
+      ],
+    });
+    expect(rule.when(c)).toBe(false);
+  });
+
+  // Prüfung Modul Parser, Befund 2: die V/max-Nennung steht bei einigen
+  // Stufen nur in der description (z.B. M2 F87 N55), nicht im Namen.
+  it("feuert auch, wenn die Stufe den V/max-Zusatz nur in der description trägt", () => {
+    const c = ctx({
+      products: [
+        product({
+          name: "Stufe 2: (Basis 370 PS) 425 PS / 610 Nm, N55",
+          description: "Inkl. Aufhebung der serienmässigen V/max Begrenzung",
+          variantGroup: "leistung",
+        }),
+        product({ name: "Aufhebung der serienmässigen V/max Begrenzung", variantGroup: null }),
+      ],
+    });
+    expect(rule.when(c)).toBe(true);
   });
 });
 

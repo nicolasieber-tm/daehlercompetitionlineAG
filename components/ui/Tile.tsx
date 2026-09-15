@@ -2,6 +2,10 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export type TileProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   title: ReactNode;
+  /** Preisnahe Nebenzeile in Mono, z.B. "620 PS / 740 Nm" bei einer
+   * Motor-Leistungsstufe (lib/catalog/product-display.ts productDisplay()).
+   * Rückmeldung erster Klicktest, CLAUDE.md Abschnitt "AUFGABE", Punkt 1. */
+  subtitle?: ReactNode;
   description?: ReactNode;
   /** Preiszeile, z.B. "ab CHF 4'180", "in Vorbereitung", "auf Anfrage". */
   price?: ReactNode;
@@ -22,6 +26,7 @@ export type TileProps = ButtonHTMLAttributes<HTMLButtonElement> & {
  */
 export function Tile({
   title,
+  subtitle,
   description,
   price,
   priceMuted = false,
@@ -98,6 +103,11 @@ export function Tile({
       <span className="break-words [overflow-wrap:anywhere] pr-4 font-display text-xl font-semibold uppercase leading-none tracking-[0.02em]">
         {title}
       </span>
+      {subtitle ? (
+        <span className="break-words [overflow-wrap:anywhere] font-mono text-[13px] tabular-nums text-text-soft">
+          {subtitle}
+        </span>
+      ) : null}
       {description ? (
         <span className="break-words [overflow-wrap:anywhere] text-[13px] leading-snug text-muted">
           {description}

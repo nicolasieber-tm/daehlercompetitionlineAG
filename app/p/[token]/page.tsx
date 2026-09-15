@@ -41,7 +41,7 @@ export default async function SharedInquiryPage({
           key: c,
           category: t.steps.wish.categories[c]?.title ?? c,
           name: t.steps.done.package.categoryAdviceLine,
-          price: "–",
+          price: t.priceStatus.on_request,
         },
       ];
     }
@@ -58,7 +58,12 @@ export default async function SharedInquiryPage({
     }));
   });
   if (inquiry.consulting) {
-    summaryLines.push({ key: "consulting", category: t.steps.wish.completePackage.title, name: t.steps.done.package.adviceLine, price: "–" });
+    summaryLines.push({
+      key: "consulting",
+      category: t.steps.wish.completePackage.title,
+      name: t.steps.done.package.adviceLine,
+      price: t.priceStatus.on_request,
+    });
   }
 
   const beforeAfterRows = buildBeforeAfterRows(

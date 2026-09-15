@@ -24,6 +24,51 @@ async function resolveClient(db?: Db): Promise<Db> {
 }
 
 // ---------------------------------------------------------------------------
+// Foto-Validierung (app/api/admin/models/photo/route.ts): als reine
+// Funktionen hier statt in der Route selbst, damit sie ohne HTTP-Server/DB
+// getestet werden können (siehe tests/admin/models.test.ts) - eine
+// Next.js-Route-Handler-Datei soll ausser den HTTP-Methoden (GET/POST/...)
+// keine weiteren Exporte tragen.
+// ---------------------------------------------------------------------------
+
+/** Einfache Formprüfung (RFC-4122-Layout), keine Versions-/Variant-Bit-Prüfung - reicht, um Tippfehler/manipulierte IDs aus URL/Body/Formdaten abzufangen. */
+export function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+/**
+ * Magic-Bytes-Prüfung zusätzlich zum vom Client mitgeschickten MIME-Typ
+ * (Prüfbefund admin-photo, Punkt 3): `file.type` ist unquestioniert der
+ * Content-Type des multipart-Teils und lässt sich beliebig gegen den
+ * tatsächlichen Dateiinhalt fälschen - relevant, weil die hochgeladene Datei
+ * anschliessend über eine öffentliche Storage-URL ausgeliefert wird. Prüft
+ * nur so viele Bytes, wie für die jeweilige Signatur nötig sind, ein kurzer
+ * Test-Fixture-Buffer reicht daher für jede der drei Signaturen.
+ *
+ * - JPEG: FF D8 FF
+ * - PNG:  89 50 4E 47 (der Rest der 8-Byte-PNG-Signatur, 0D 0A 1A 0A, wird
+ *   bewusst nicht zusätzlich verlangt - die ersten vier Bytes reichen, um
+ *   ein PNG von den anderen beiden Formaten zu unterscheiden)
+ * - WebP: "RIFF" (Byte 0-3) ... "WEBP" (Byte 8-11), RIFF-Container-Format
+ */
+export function detectImageExtension(buffer: Buffer): "jpg" | "png" | "webp" | null {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "jpg";
+  }
+  if (buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return "png";
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return "webp";
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Zählungen (Anzahl Modelle/Produkte je Baureihe), seitenweise geladen wie
 // lib/catalog/queries.ts loadAllActiveProducts(): PostgREST kappt jede
 // Antwort still bei max_rows (supabase/config.toml), bei ~2'500 aktiven

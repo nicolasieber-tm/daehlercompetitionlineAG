@@ -52,6 +52,17 @@ export function CarStep({
   const showSeriesPsChoice =
     !!selectedModel && selectedModel.seriesPs == null && selectedModel.seriesPsSuggested.length > 1;
 
+  // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+  // Getriebefrage nur bei Modellen mit mindestens einem getriebespezifischen
+  // Produkt, Pflicht vor "Weiter" (siehe components/flow/Flow.tsx canNext),
+  // analog den Serienleistungs-Chips oben.
+  const showGearboxChoice = !!selectedModel && selectedModel.hasGearboxSpecificProducts;
+  const gearboxOptions: { value: "manual" | "automatic" | "unknown"; label: string }[] = [
+    { value: "manual", label: t.steps.car.gearboxManual },
+    { value: "automatic", label: t.steps.car.gearboxAutomatic },
+    { value: "unknown", label: t.steps.car.gearboxUnknown },
+  ];
+
   return (
     <div>
       <StepLabel>{t.steps.car.label}</StepLabel>
@@ -124,6 +135,30 @@ export function CarStep({
           {state.seriesPsChoice === null ? (
             <p className="mt-2 text-[13px] text-muted" aria-live="polite">
               {t.steps.car.seriesPsRequired}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showGearboxChoice ? (
+        <div className="mt-6">
+          <StepLabel>{t.steps.car.gearboxQuestion}</StepLabel>
+          <div className="flex flex-wrap gap-2" role="group" aria-label={t.steps.car.gearboxQuestion}>
+            {gearboxOptions.map((option) => (
+              <Chip
+                key={option.value}
+                active={state.gearboxChoice === option.value}
+                onClick={() => dispatch({ type: "SET_GEARBOX", gearbox: option.value })}
+              >
+                {option.label}
+              </Chip>
+            ))}
+          </div>
+          {/* Pflicht vor "Weiter" (siehe Flow.tsx canNext), analog dem
+              Serienleistungs-Hinweis oben. */}
+          {state.gearboxChoice === null ? (
+            <p className="mt-2 text-[13px] text-muted" aria-live="polite">
+              {t.steps.car.gearboxRequired}
             </p>
           ) : null}
         </div>

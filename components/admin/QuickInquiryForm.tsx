@@ -61,6 +61,15 @@ interface CatalogProductsResponse {
   groups?: { category: FlowCategory; products: { id: string; name: string }[] }[];
 }
 
+/**
+ * zod-Feldpfad (aus `missing`, siehe lib/ai/to-payload.ts toInquiryPayload())
+ * -> deutsche Bezeichnung, statt des rohen Pfads in der UI (Prüfbefund
+ * admin-quick, Punkt 5). Wie fieldLabel() in PricelistDiffCard.tsx.
+ */
+function missingFieldLabel(path: string): string {
+  return tf2.missingFieldLabels[path] ?? tf2.missingFieldFallback;
+}
+
 function uniqueProducts(groups: CatalogProductsResponse["groups"]): ProductOption[] {
   const out: ProductOption[] = [];
   const seen = new Set<string>();
@@ -452,7 +461,7 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
                   <h4 className="text-xs font-semibold uppercase tracking-[0.08em] text-red-bright">{tf2.missingTitle}</h4>
                   <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-text">
                     {missing.map((m) => (
-                      <li key={m}>{m}</li>
+                      <li key={m}>{missingFieldLabel(m)}</li>
                     ))}
                   </ul>
                 </div>

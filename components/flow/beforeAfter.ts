@@ -7,6 +7,7 @@
 // lib/inquiry/share.ts SharedInquiryView) verwendet - daher sind die
 // "reichen" Felder (seriesPs/seriesNm, psTo/nmTo je Position) optional.
 import type { Dictionary } from "@/lib/i18n/dictionaries";
+import { normalizeNbsp } from "@/lib/catalog/product-display";
 import type { FlowCategory } from "@/lib/supabase/rows";
 
 export interface BeforeAfterItemInput {
@@ -37,8 +38,16 @@ function itemsOf(input: BeforeAfterInput, category: FlowCategory): BeforeAfterIt
   return input.items.filter((i) => i.category === category);
 }
 
+// NBSP-normalisiert statt der vollen productDisplay()-Titel-Herleitung: hier
+// gibt es keinen Locale-Parameter (app/p/[token]/page.tsx, ausserhalb der
+// mir zugewiesenen Dateien, ruft buildBeforeAfterRows() ohne Locale-Bezug
+// auf), und für Nicht-Leistungsprodukte liefert productDisplay() ohnehin nur
+// den NBSP-normalisierten Namen zurück (siehe lib/catalog/product-display.ts
+// plainDisplay()) - normalizeNbsp() allein deckt das hier ab, ohne einen
+// Locale-Parameter einzuführen, der einen ausserhalb dieser Aufgabe
+// liegenden Aufrufer bräche.
 function joinNames(items: BeforeAfterItemInput[], adviceValue: string): string {
-  return items.length > 0 ? items.map((i) => i.name).join(", ") : adviceValue;
+  return items.length > 0 ? items.map((i) => normalizeNbsp(i.name)).join(", ") : adviceValue;
 }
 
 /** Baut die Vorher/Nachher-Zeilen aus dem gewählten Paket, siehe docs/vorschau.html beforeAfter(). */
@@ -57,10 +66,10 @@ export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary): Be
         : b.seriesValue;
     let after: string;
     if (stage) {
-      const extraNames = extras.map((i) => i.name).join(", ");
+      const extraNames = extras.map((i) => normalizeNbsp(i.name)).join(", ");
       after = `${stage.psTo} PS · ${stage.nmTo ?? "?"} Nm${extraNames ? " · " + extraNames : ""}`;
     } else if (motorItems.length > 0) {
-      after = motorItems.map((i) => i.name).join(", ");
+      after = motorItems.map((i) => normalizeNbsp(i.name)).join(", ");
     } else {
       after = advice;
     }

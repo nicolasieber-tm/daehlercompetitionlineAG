@@ -7,7 +7,7 @@
 // state.selections ohnehin bereits vollständig - hier zur Vollständigkeit
 // als Regressionstest mitgeprüft.
 import { describe, expect, it } from "vitest";
-import { flowReducer, initialFlowState } from "@/components/flow/state";
+import { flowReducer, gearboxSelectionVisible, initialFlowState } from "@/components/flow/state";
 import type { FlowState } from "@/components/flow/state";
 import type { CatalogProduct } from "@/lib/catalog/queries";
 
@@ -28,6 +28,7 @@ function product(overrides: Partial<CatalogProduct> & { id: string; category: Ca
     psTo: null,
     nmTo: null,
     variantGroup: null,
+    gearbox: null,
     sort: 0,
     ...overrides,
   };
@@ -94,5 +95,56 @@ describe("flowReducer SELECT_MODEL/SELECT_FAMILY: selections werden beim Wechsel
     const next = flowReducer(state, { type: "SELECT_FAMILY", familyId: "other-family", hasPricelist: true });
 
     expect(next.selections).toEqual({});
+  });
+});
+
+// Rückmeldung erster Klicktest (Kundenflow M2 G87), siehe CLAUDE.md
+// Abschnitt "AUFGABE", Punkt 3.
+describe("flowReducer SET_GEARBOX", () => {
+  it("entfernt ein gewähltes getriebespezifisches Produkt, das zur neuen Wahl nicht passt", () => {
+    const schaltweg = product({ id: "schaltweg", category: "motor", gearbox: "manual" });
+    const state = withSelections({ motor: [schaltweg] });
+
+    const next = flowReducer(state, { type: "SET_GEARBOX", gearbox: "automatic" });
+
+    expect(next.gearboxChoice).toBe("automatic");
+    expect(next.selections.motor).toEqual([]);
+  });
+
+  it("behält ein gewähltes Produkt, das zur neuen Wahl passt", () => {
+    const getriebeoptimierung = product({ id: "getriebeoptimierung", category: "motor", gearbox: "automatic" });
+    const state = withSelections({ motor: [getriebeoptimierung] });
+
+    const next = flowReducer(state, { type: "SET_GEARBOX", gearbox: "automatic" });
+
+    expect(next.selections.motor).toEqual([getriebeoptimierung]);
+  });
+
+  it("behält getriebeneutrale Produkte (gearbox null) über alle Kategorien hinweg", () => {
+    const neutral = product({ id: "neutral", category: "fahrwerk", gearbox: null });
+    const state = withSelections({ fahrwerk: [neutral] });
+
+    const next = flowReducer(state, { type: "SET_GEARBOX", gearbox: "manual" });
+
+    expect(next.selections.fahrwerk).toEqual([neutral]);
+  });
+});
+
+describe("gearboxSelectionVisible", () => {
+  it("getriebeneutrales Produkt ist immer sichtbar", () => {
+    expect(gearboxSelectionVisible(product({ id: "p", category: "motor", gearbox: null }), "manual")).toBe(true);
+    expect(gearboxSelectionVisible(product({ id: "p", category: "motor", gearbox: null }), null)).toBe(true);
+  });
+
+  it("ohne Antwort oder 'unknown' bleiben alle Produkte sichtbar", () => {
+    const manualProduct = product({ id: "p", category: "motor", gearbox: "manual" });
+    expect(gearboxSelectionVisible(manualProduct, null)).toBe(true);
+    expect(gearboxSelectionVisible(manualProduct, "unknown")).toBe(true);
+  });
+
+  it("mit Antwort wird das jeweils andere Getriebe ausgeblendet", () => {
+    const manualProduct = product({ id: "p", category: "motor", gearbox: "manual" });
+    expect(gearboxSelectionVisible(manualProduct, "manual")).toBe(true);
+    expect(gearboxSelectionVisible(manualProduct, "automatic")).toBe(false);
   });
 });

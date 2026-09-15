@@ -36,6 +36,18 @@ const RULES: Partial<Record<FlowCategory, VariantRule[]>> = {
       // dieser Name über das allgemeine Muster weiterhin erfasst.
       exclude: /^Einbau\b|i\.V\.\s*mit\s+Leistungssteigerung/i,
     },
+    // Rückmeldung aus dem ersten Klicktest (Kundenflow M2 G87), siehe
+    // CLAUDE.md Abschnitt "AUFGABE", Punkt 4. Reihenfolge wichtig (erster
+    // Treffer gewinnt, siehe variantGroupFor() unten): steht NACH
+    // "leistung", damit ein Leistungsstufen-Name mit "Sportluftfilter"/
+    // "Air Intake" im Namen (kommt in der Praxis nicht vor, die
+    // Aufgabenstellung verlangt die Absicherung trotzdem ausdrücklich: "nur
+    // wenn nicht leistung") nicht versehentlich in die ansaugung-Gruppe
+    // statt in leistung fällt. "Air Intake" (Carbon Air Intake),
+    // "Sportluftfilter" (Satz), "Ansaugsystem": alternative
+    // Ansaugungs-Upgrades, exklusiv zueinander (z.B. M2 G87 "Sportluftfilter
+    // Satz" vs. "Carbon Air Intake").
+    { pattern: /Air Intake|Sportluftfilter|Ansaugsystem/i, group: "ansaugung" },
   ],
   auspuff: [
     // Reihenfolge wichtig: "anlage" zuerst, sonst matcht z. B. "Edelstahl
@@ -51,6 +63,75 @@ const RULES: Partial<Record<FlowCategory, VariantRule[]>> = {
     },
   ],
   raeder: [{ pattern: /Radsatz/i, group: "radsatz" }],
+  exterieur: [
+    {
+      // "(^|dÄHLer )Frontgrill(?!.*unten)": "Frontgrill Carbon" und
+      // "Frontgrill CS Carbon" sind exklusiv zueinander (dieselbe Öffnung,
+      // unterschiedliche Ausführung); "Frontgrill Carbon gross / unten"
+      // bleibt über die Ausnahme kombinierbar (ein zusätzliches, unteres
+      // Element, kein Ersatz für den oberen Grill). "^M Niere"/"Niere"
+      // (ohne Anker) erfasst zusätzlich die BMW-Nieren-Varianten ("dÄHLer
+      // Niere M Doppelsteg schwarz glanz" vs. "dÄHLer Niere schwarz glanz",
+      // 3er G20/G21): dieselbe Öffnung, unterschiedliche Ausführung,
+      // ebenfalls exklusiv.
+      //
+      // Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 4): der reine
+      // Anfangs-Anker "^Frontgrill" griff bei 1er F40 nicht - "dÄHLer
+      // Frontgrill Diamont schwarz glanz" und "dÄHLer Frontgrill doppelsteg
+      // schwarz glanz" (gleiche Modelle, je CHF 430) fingen ohne Gruppe an
+      // und blieben gemeinsam wählbar, exakt das vom Kunden gemeldete
+      // Problem (zwei Grills gleichzeitig). Anker um die "dÄHLer "-Marke
+      // erweitert ("^" ODER "dÄHLer " direkt davor), das Negativ-Lookahead
+      // auf "unten" bleibt unverändert wirksam.
+      pattern: /(^|dÄHLer )Frontgrill(?!.*unten)|^M Niere|Niere/i,
+      group: "frontgrill",
+    },
+    // "Heckdif+usor" (Regex-Vorgabe der Aufgabenstellung) deckt nur die
+    // KORREKTE Schreibweise "Heckdiffusor" (doppeltes f) ab. Die tatsächliche
+    // Excel-Schreibweise in allen 42 Preislisten ist "Heckdifussor" (EIN f,
+    // doppeltes s statt "Heckdiffusor") - siehe z.B. M2 G87 "Heckdifussor
+    // Carbon"/"Heckdifussor Race Carbon" (docs/excel-import.md nicht
+    // gesondert dokumentiert, per Stichprobe geprüft). "Heckdif+us+or"
+    // (f einmal oder mehrfach, s einmal oder mehrfach) trifft beide
+    // Schreibweisen ("Heckdiffusor" und "Heckdifussor"), ohne die
+    // dokumentierte Absicht (Heckdiffusor-Varianten exklusiv) zu verfehlen.
+    { pattern: /Heckdif+us+or/i, group: "heckdiffusor" },
+    {
+      pattern: /Frontspoiler|Frontlippe/i,
+      group: "frontspoiler",
+      // Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 5): M2 F87 hatte
+      // alle vier Frontspoiler-Produkte in EINER Exklusivgruppe, obwohl
+      // "Frontspoilerlippe i.V. mit Frontspoiler mittig" laut eigenem Namen
+      // die Kombination mit genau "Frontspoiler mittig" voraussetzt (kein
+      // Ersatz dafür) und "Frontspoiler Flaps seitlich" eine Ergänzung ist,
+      // kein Ersatz für eine Lippe/einen Spoiler. Namen mit "i.V. mit"/"in
+      // Verbindung mit"/"in Verb. mit" (ausdrücklich in Kombination mit
+      // einem anderen Produkt gedacht, gleiche Begründung wie die
+      // motor-Ausnahme "i.V. mit Leistungssteigerung" oben) oder "Flaps"
+      // (eine Ergänzung, keine Alternative) bleiben deshalb ausserhalb
+      // dieser Gruppe kombinierbar.
+      exclude: /i\.V\.\s*mit|in Verb(?:indung|\.)\s*mit|Flaps/i,
+    },
+    { pattern: /Heckspoiler|Heckflügel/i, group: "heckspoiler" },
+    { pattern: /Motorhaube/i, group: "motorhaube" },
+  ],
+  interieur: [
+    {
+      pattern: /Lenkrad/i,
+      group: "lenkrad",
+      // Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 3): /Lenkrad/i
+      // allein matcht auch "Abgasklappensteuerung bedienbar über
+      // Lenkradtaste (oder Fernbedienung)" (18 aktive Produkte, ca. 20
+      // Familien) und "Farblich abgestimmte Steppnähte und
+      // Lenkrad-Griffbereich in Alcantara" (M5 F10) - beides keine
+      // Lenkrad-ALTERNATIVEN zum Sportlenkrad, sondern ein Bedienweg für
+      // eine andere Funktion bzw. eine Ausstattungsdetail-Kombination.
+      // Wählte der Kunde das Sportlenkrad, wurde die Abgasklappensteuerung
+      // fälschlich abgewählt und umgekehrt. Diese beiden Namen bleiben über
+      // die Ausnahme ausserhalb der Gruppe.
+      exclude: /Lenkradtaste|Griffbereich/i,
+    },
+  ],
 };
 
 /** Ermittelt die variant_group für ein Produkt (Optionen derselben Gruppe schliessen sich im Flow aus). */

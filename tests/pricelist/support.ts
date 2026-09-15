@@ -68,6 +68,7 @@ export function makeParsedProduct(
     psTo: null,
     nmTo: null,
     variantGroup: null,
+    gearbox: null,
     fits: [],
     fitsAll: false,
     contentHash: "",
@@ -113,6 +114,7 @@ export function makeDbProduct(overrides: Partial<Product> & { name: string; cate
     source_category: "Fahrwerk",
     source_row: dbRowCounter,
     variant_group: null,
+    gearbox: null,
     ...overrides,
   };
 }

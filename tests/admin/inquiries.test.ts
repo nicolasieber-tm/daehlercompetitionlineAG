@@ -213,6 +213,24 @@ describe("listInquiries", () => {
     expect(result.pageCount).toBeGreaterThanOrEqual(1);
     expect(result.rows.length).toBeLessThanOrEqual(50);
   });
+
+  it("fällt bei einer Seitenzahl jenseits der vorhandenen Zeilen (PostgREST-Fehler PGRST103/HTTP 416) auf Seite 1 zurück, statt zu werfen (Prüfbefund admin-page, Punkt 2)", async () => {
+    // Auf den Suchfilter eingeschränkt, damit die Gesamtzahl garantiert klein
+    // genug ist (4 Testzeilen), dass .range() für page=99 wirklich ausserhalb
+    // liegt - unabhängig davon, wie viele andere Anfragen sonst in der
+    // lokalen DB stehen.
+    const result = await listInquiries({ search: `TEST-ADM-${RUN_ID}`, page: 99 }, admin);
+    expect(result.page).toBe(1);
+    expect(result.rows.length).toBeGreaterThan(0);
+    expect(result.rows.map((r) => r.number)).toEqual(
+      expect.arrayContaining([
+        `TEST-ADM-${RUN_ID}-A`,
+        `TEST-ADM-${RUN_ID}-B`,
+        `TEST-ADM-${RUN_ID}-C`,
+        `TEST-ADM-${RUN_ID}-D`,
+      ]),
+    );
+  });
 });
 
 describe("getNewInquiriesCount", () => {

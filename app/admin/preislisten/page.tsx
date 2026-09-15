@@ -8,7 +8,7 @@ import { getImportHistory, getPendingImports } from "@/lib/admin/pricelists";
 import { admin } from "@/lib/i18n/admin";
 import { Toolbar } from "@/components/admin/Toolbar";
 import { PricelistUploadForm } from "@/components/admin/PricelistUploadForm";
-import { PricelistDiffCard } from "@/components/admin/PricelistDiffCard";
+import { PendingImportsBoard } from "@/components/admin/PendingImportsBoard";
 import { ImportHistoryTable } from "@/components/admin/ImportHistoryTable";
 
 export const metadata: Metadata = { title: `${admin.pricelists.title} – Admin` };
@@ -28,13 +28,7 @@ export default async function AdminPricelistsPage() {
         <h2 className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-muted">
           {admin.pricelists.pending.title}
         </h2>
-        {pending.length === 0 ? (
-          <p className="text-sm text-muted">{admin.pricelists.pending.empty}</p>
-        ) : (
-          pending.map((p) => (
-            <PricelistDiffCard key={p.id} importId={p.id} filenames={p.filenames} createdAt={p.createdAt} diff={p.diff} />
-          ))
-        )}
+        <PendingImportsBoard pending={pending} />
       </section>
 
       <ImportHistoryTable rows={history} />

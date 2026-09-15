@@ -185,7 +185,14 @@ function FamilyPanel({ family }: { family: FamilyDiff }) {
   );
 }
 
-function ApplyResultPanel({ result, onClose }: { result: ApplyResult; onClose: () => void }) {
+// Exportiert, damit PendingImportsBoard (siehe dort) das Ergebnis einer
+// Übernahme auch dann noch anzeigen kann, wenn die zugehörige
+// PricelistDiffCard bereits aus der Seite verschwunden ist (Prüfbefund
+// admin-pricelists/politur Punkt 1: applyPendingImportAction() löst über
+// revalidatePath/revalidateTag denselben Re-Render aus, der den Import aus
+// `pending` entfernt und damit auch diese Karte unmountet - das Ergebnis
+// darf deshalb nicht in dieser Karte selbst geparkt werden).
+export function ApplyResultPanel({ result, onClose }: { result: ApplyResult; onClose: () => void }) {
   return (
     <div className="mt-4 border border-line-alt bg-bg px-4 py-3">
       <h4 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">{t.pending.applyResultTitle}</h4>
@@ -214,17 +221,21 @@ export function PricelistDiffCard({
   filenames,
   createdAt,
   diff,
+  onApplied,
 }: {
   importId: string;
   filenames: string[];
   createdAt: string;
   diff: ImportDiff;
+  // Wird nach einer erfolgreichen Übernahme mit dem ApplyResult aufgerufen,
+  // damit der Aufrufer (PendingImportsBoard) das Ergebnis ausserhalb dieser
+  // Karte weiterhält - siehe Kommentar bei ApplyResultPanel oben.
+  onApplied: (result: ApplyResult) => void;
 }) {
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
   const [confirmKind, setConfirmKind] = useState<"apply" | "discard" | null>(null);
-  const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
 
   function handleApply() {
     setConfirmKind(null);
@@ -234,8 +245,8 @@ export function PricelistDiffCard({
         showToast(result.error, "error");
         return;
       }
-      setApplyResult(result.result);
       showToast(t.pending.applyResultTitle, result.result.errors.length > 0 ? "error" : "success");
+      onApplied(result.result);
     });
   }
 
@@ -260,16 +271,14 @@ export function PricelistDiffCard({
           <p className="text-sm font-semibold text-text">{tf(t.pending.files, { files: filenames.join(", ") })}</p>
           <p className="text-xs text-dim">{tf(t.pending.uploadedAt, { date: formatDate(new Date(createdAt), "de") })}</p>
         </div>
-        {!applyResult && (
-          <div className="flex gap-2">
-            <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={() => setConfirmKind("discard")}>
-              {t.pending.discard}
-            </Button>
-            <Button type="button" size="sm" disabled={pending} onClick={() => setConfirmKind("apply")}>
-              {t.pending.apply}
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={() => setConfirmKind("discard")}>
+            {t.pending.discard}
+          </Button>
+          <Button type="button" size="sm" disabled={pending} onClick={() => setConfirmKind("apply")}>
+            {t.pending.apply}
+          </Button>
+        </div>
       </div>
 
       <div className="p-5">
@@ -294,8 +303,6 @@ export function PricelistDiffCard({
             <FamilyPanel key={f.slug} family={f} />
           ))}
         </div>
-
-        {applyResult && <ApplyResultPanel result={applyResult} onClose={() => router.refresh()} />}
       </div>
 
       <ConfirmDialog

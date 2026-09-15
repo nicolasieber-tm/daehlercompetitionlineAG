@@ -102,6 +102,31 @@ export function AdminShell({
             </button>
           </div>
           <div id="admin-mobile-nav" className={`${menuOpen ? "flex" : "hidden"} flex-col md2:flex`}>
+            {/*
+              Prüfbefund (Kunde): aktiver Menüpunkt hatte roten Hintergrund UND
+              rote Schrift (Tailwinds .text-white griff nicht). Ursache: das
+              globale `a { color: var(--color-red-bright); }` in
+              app/globals.css liegt (Tailwind v4, `@import "tailwindcss"`)
+              AUSSERHALB jedes @layer-Blocks - nach den CSS-Cascade-Layer-
+              Regeln schlägt eine ungelayerte Regel IMMER eine gelayerte, egal
+              wie hoch deren Spezifität ist (Tailwinds Utilities liegen alle
+              in @layer utilities). .text-white/.text-muted auf einem <a>
+              hatten dadurch nie eine Chance. app/globals.css gehört nicht zu
+              den für diese Aufgabe zugewiesenen Dateien (nicht anfassen) -
+              der Fix hier setzt die Linkfarbe daher über eine eigene,
+              ebenfalls ungelayerte <style>-Regel mit einem Klassen-Selektor
+              (.admin-nav-link, Spezifität 0-1-0), die die Typ-Selektor-Regel
+              `a` (Spezifität 0-0-1) auch ungelayert zuverlässig schlägt -
+              ganz ohne !important und ohne app/globals.css zu ändern.
+              Kontrast (WCAG, gerechnet): Weiss #fff auf Rot #e21014 = 4.86:1,
+              gedämpft #9aa3a5 auf Panel #1c2122 = 6.32:1, Text #f1f2f2 auf
+              Panel-Alt (Hover) #22282a = 13.33:1 - alle ≥ 4.5:1.
+            */}
+            <style>{`
+              .admin-nav-link { color: var(--color-muted); }
+              .admin-nav-link:hover { color: var(--color-text); }
+              .admin-nav-link[aria-current="page"] { color: var(--color-white); }
+            `}</style>
             <nav aria-label={admin.nav.inquiries} className="flex flex-1 flex-col gap-0.5 px-3 pb-4">
               {nav.map((item) => {
                 const active = isActive(pathname, item);
@@ -111,14 +136,23 @@ export function AdminShell({
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={[
-                      "flex items-center justify-between rounded-[2px] px-3 py-2.5",
+                      "admin-nav-link flex items-center justify-between rounded-[2px] px-3 py-2.5",
                       "font-display text-sm font-semibold uppercase tracking-[0.05em] transition-colors duration-150",
-                      active ? "bg-red text-white" : "text-muted hover:bg-panel-alt hover:text-text",
+                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-bright focus-visible:outline-offset-2",
+                      active ? "bg-red" : "hover:bg-panel-alt",
                     ].join(" ")}
                   >
                     <span>{item.label}</span>
                     {!!item.badge && (
-                      <span className="ml-2 inline-flex min-w-[1.5em] items-center justify-center rounded-full bg-white px-1.5 py-0.5 text-[11px] font-bold text-red">
+                      <span
+                        className={[
+                          "ml-2 inline-flex min-w-[1.5em] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold",
+                          // Aktiv: weiss auf dunkel (statt weiss auf weiss/rot
+                          // auf rot, siehe Kommentar oben) - dunkler Kreis
+                          // hebt sich vom roten Zeilenhintergrund ab.
+                          active ? "bg-bg text-white" : "bg-white text-red",
+                        ].join(" ")}
+                      >
                         {item.badge}
                       </span>
                     )}

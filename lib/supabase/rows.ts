@@ -103,6 +103,12 @@ export type Channel = "phone" | "email" | "whatsapp";
 /** models.fuel */
 export type Fuel = "benzin" | "diesel" | "elektro";
 
+/** products.gearbox: aus dem Produktnamen abgeleitet (lib/catalog/gearbox.ts), null = getriebeneutral. */
+export type Gearbox = "manual" | "automatic";
+
+/** inquiries.gearbox: Antwort auf die Getriebefrage, "unknown" ist ein eigener Wert (siehe Migration). */
+export type InquiryGearbox = "manual" | "automatic" | "unknown";
+
 /** model_families.brand */
 export type Brand = "BMW" | "MINI" | "Toyota" | "Wiesmann";
 

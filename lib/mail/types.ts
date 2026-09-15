@@ -14,17 +14,28 @@ export interface MailInquiryItem {
   /**
    * Nur für Motor-Leistungsprodukte gefüllt (products.ps_to/nm_to,
    * variant_group "leistung"), analog zu DraftItem.psTo/nmTo in
-   * lib/draft/template.ts. Optional (statt `number | null`): inquiries.
-   * selections speichert diese beiden Felder bislang nicht (siehe
-   * lib/inquiry/create.ts selectionsJson, ausserhalb der mir für diese
-   * Aufgabe zugewiesenen Dateien), lib/inquiry/context.ts parseItems()
-   * liefert die Felder deshalb aktuell gar nicht mit - Aufrufer, die sie
-   * (noch) nicht kennen, lassen sie einfach weg, statt `null` vortäuschen
-   * zu müssen. lib/mail/templates/inbox.ts nutzt sie für die ZIEL-Zeile,
-   * wenn vorhanden, siehe dortiger Kommentar und Bericht.
+   * lib/draft/template.ts. Optional (statt `number | null`): eine vor der
+   * Korrektur 15.09.2026 (Prüfung Modul Produkte, Befund 4) gespeicherte
+   * inquiries.selections-Zeile trägt diese Felder noch nicht -
+   * lib/inquiry/context.ts parseItems() lässt sie dann einfach weg (kein
+   * `null` vortäuschen). lib/mail/templates/inbox.ts nutzt sie für die
+   * ZIEL-Zeile, wenn vorhanden, siehe dortiger Kommentar.
    */
   ps_to?: number | null;
   nm_to?: number | null;
+  /**
+   * products.variant_group ("leistung" bei Motor-Leistungsstufen, sonst
+   * meist `null`). Korrektur 15.09.2026 (Prüfung Modul Produkte, Befund 2):
+   * Ersatz für die bisherige `ps_to != null`-Herleitung von "ist eine
+   * Leistungsstufe" in den Mailvorlagen - 13 aktive Stufen haben `ps_to ===
+   * null` (noch unbepreiste Platzhalter) und wurden darüber fälschlich
+   * nicht als Stufe erkannt, siehe lib/catalog/product-display.ts
+   * isStageItem(). Ebenso optional wie ps_to/nm_to: `undefined` bei einer
+   * älteren, vor dieser Korrektur gespeicherten inquiries.selections-Zeile
+   * (siehe isStageItem()-Kommentar dort für die Fallback-Regel) - anders
+   * als `null` (Produkt hat wirklich kein variant_group).
+   */
+  variant_group?: string | null;
 }
 
 /** Ein Prüfhinweis (lib/rules/checks.ts). */

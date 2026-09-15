@@ -12,7 +12,8 @@
 // ADD_UPSELL_CATEGORY/REMOVE_UPSELL_CATEGORY unten: "Doch nicht" steht immer
 // auf einem ANDEREN Kategorie-Schritt als dem vorgeschlagenen).
 import type { CatalogProduct, CategoryNote, ProductGroup } from "@/lib/catalog/queries";
-import type { Brand, Channel, Character, FlowCategory, Timing } from "@/lib/supabase/rows";
+import { gearboxProductVisible } from "@/lib/catalog/gearbox";
+import type { Brand, Channel, Character, FlowCategory, InquiryGearbox, Timing } from "@/lib/supabase/rows";
 
 export type StepId = "car" | "wish" | `cat:${FlowCategory}` | "character" | "contact" | "done";
 
@@ -42,6 +43,12 @@ export interface FlowState {
   familyHasPricelist: boolean;
   modelId: string | null;
   seriesPsChoice: number | null;
+  /** Antwort auf die Getriebefrage (nur gefragt, wenn das Modell mindestens
+   * ein getriebespezifisches Produkt hat, siehe CatalogModel.
+   * hasGearboxSpecificProducts); null solange unbeantwortet bzw. wenn die
+   * Frage für dieses Modell gar nicht gestellt wird. Rückmeldung erster
+   * Klicktest, CLAUDE.md Abschnitt "AUFGABE", Punkt 3. */
+  gearboxChoice: InquiryGearbox | null;
   year: string;
   beenHere: boolean;
 
@@ -88,6 +95,7 @@ export function initialFlowState(): FlowState {
     familyHasPricelist: true,
     modelId: null,
     seriesPsChoice: null,
+    gearboxChoice: null,
     year: YEAR_OPTIONS_BASE[0],
     beenHere: false,
 
@@ -175,6 +183,16 @@ export function motorProductVisible(product: CatalogProduct, seriesPs: number | 
   return seriesPs !== null && product.psBase.includes(seriesPs);
 }
 
+/**
+ * Getriebe-Filter: getriebeneutrale Produkte (gearbox null) sind immer
+ * sichtbar; ohne Antwort oder bei "unknown" ("Weiss ich nicht") bleiben
+ * ALLE Produkte sichtbar; sonst nur die zur Wahl passenden. Rückmeldung
+ * erster Klicktest, CLAUDE.md Abschnitt "AUFGABE", Punkt 3.
+ */
+export function gearboxSelectionVisible(product: CatalogProduct, gearboxChoice: InquiryGearbox | null): boolean {
+  return gearboxProductVisible(product.gearbox, gearboxChoice);
+}
+
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
@@ -184,6 +202,7 @@ export type FlowAction =
   | { type: "SELECT_FAMILY"; familyId: string; hasPricelist: boolean }
   | { type: "SELECT_MODEL"; modelId: string }
   | { type: "SET_SERIES_PS"; ps: number }
+  | { type: "SET_GEARBOX"; gearbox: InquiryGearbox }
   | { type: "SET_YEAR"; year: string }
   | { type: "SET_BEEN_HERE"; beenHere: boolean }
   | { type: "PRODUCTS_LOADING" }
@@ -223,6 +242,7 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
         familyHasPricelist: action.hasPricelist,
         modelId: null,
         seriesPsChoice: null,
+        gearboxChoice: null,
         productsStatus: "idle",
         productsError: null,
         productGroups: [],
@@ -237,6 +257,7 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
         ...state,
         modelId: action.modelId,
         seriesPsChoice: null,
+        gearboxChoice: null,
         productsStatus: "idle",
         productsError: null,
         productGroups: [],
@@ -264,6 +285,22 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
         ]),
       ) as FlowState["selections"];
       return { ...state, seriesPsChoice: action.ps, selections };
+    }
+
+    case "SET_GEARBOX": {
+      // Analog SET_SERIES_PS oben: bereits gewählte getriebespezifische
+      // Produkte, die zum neu gewählten Getriebe nicht mehr passen, müssen
+      // aus state.selections verschwinden (Kraftübertragung-Schritt würde
+      // sie sonst weiterhin anzeigen, obwohl der Kategorie-Schritt sie nach
+      // der neuen Wahl ausblendet). Rückmeldung erster Klicktest, CLAUDE.md
+      // Abschnitt "AUFGABE", Punkt 3.
+      const selections = Object.fromEntries(
+        Object.entries(state.selections).map(([category, products]) => [
+          category,
+          (products ?? []).filter((p) => gearboxSelectionVisible(p, action.gearbox)),
+        ]),
+      ) as FlowState["selections"];
+      return { ...state, gearboxChoice: action.gearbox, selections };
     }
 
     case "SET_YEAR":

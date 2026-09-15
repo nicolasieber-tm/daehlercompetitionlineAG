@@ -12,6 +12,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   createRule,
   deleteOrDeactivateRule,
+  FollowUpRuleValidationError,
   updateRule,
   UnknownPlaceholderError,
   type FollowUpRuleInput,
@@ -23,6 +24,62 @@ function hasSupabaseEnv(): boolean {
 
 const admin = createAdminClient();
 const RUN_ID = Date.now();
+
+// Bereichsprüfung (Prüfbefund admin-followups, Punkt 4): days_after_reply
+// 1..365, max_count 1..10, Betreff/Text nicht leer. assertValidRuleInput()
+// wirft VOR jedem DB-Zugriff (siehe lib/admin/followups.ts), die Tests hier
+// brauchen deshalb keine echte Verbindung - createAdminClient() oben baut
+// nur ein Client-Objekt, ohne Netzwerkzugriff.
+describe("Follow-up-Regel-Bereichsprüfung (createRule/updateRule)", () => {
+  const base: FollowUpRuleInput = {
+    name: "Bereichsprüfung-Test",
+    daysAfterReply: 14,
+    subject: "Betreff {{nummer}}",
+    body: "Text {{vorname}}",
+    maxCount: 1,
+    active: true,
+    sort: 0,
+  };
+
+  it.each([
+    ["0 Tage (unterhalb 1)", { daysAfterReply: 0 }],
+    ["366 Tage (oberhalb 365)", { daysAfterReply: 366 }],
+    ["negative Tage", { daysAfterReply: -1 }],
+    ["nicht ganzzahlige Tage", { daysAfterReply: 14.5 }],
+  ])("lehnt days_after_reply ausserhalb 1..365 ab (%s)", async (_label, patch) => {
+    const input: FollowUpRuleInput = { ...base, ...patch };
+    await expect(createRule(input, admin)).rejects.toBeInstanceOf(FollowUpRuleValidationError);
+    await expect(updateRule("irrelevant-id", input, admin)).rejects.toBeInstanceOf(FollowUpRuleValidationError);
+  });
+
+  it.each([
+    ["0 (unterhalb 1)", { maxCount: 0 }],
+    ["11 (oberhalb 10)", { maxCount: 11 }],
+    ["negativ", { maxCount: -1 }],
+    ["nicht ganzzahlig", { maxCount: 2.5 }],
+  ])("lehnt max_count ausserhalb 1..10 ab (%s)", async (_label, patch) => {
+    const input: FollowUpRuleInput = { ...base, ...patch };
+    await expect(createRule(input, admin)).rejects.toBeInstanceOf(FollowUpRuleValidationError);
+  });
+
+  it("lehnt leeren Betreff ab", async () => {
+    const input: FollowUpRuleInput = { ...base, subject: "   " };
+    await expect(createRule(input, admin)).rejects.toBeInstanceOf(FollowUpRuleValidationError);
+  });
+
+  it("lehnt leeren Text ab", async () => {
+    const input: FollowUpRuleInput = { ...base, body: "" };
+    await expect(createRule(input, admin)).rejects.toBeInstanceOf(FollowUpRuleValidationError);
+  });
+
+  it("prüft den Bereich VOR den Platzhaltern (Fehlermeldung nennt den Bereich, nicht Platzhalter)", async () => {
+    // maxCount ungültig UND ein unbekannter Platzhalter zugleich: die
+    // Bereichsprüfung muss zuerst greifen (siehe assertValidRuleInput() vor
+    // assertKnownPlaceholders() in createRule()/updateRule()).
+    const input: FollowUpRuleInput = { ...base, maxCount: 99, body: "Hallo {{unbekannt}}" };
+    await expect(createRule(input, admin)).rejects.toThrow(/1 und 10/);
+  });
+});
 
 describe.skipIf(!hasSupabaseEnv())("Follow-up-Regeln, Validierung und Löschen", () => {
   const createdIds: string[] = [];
@@ -80,5 +137,36 @@ describe.skipIf(!hasSupabaseEnv())("Follow-up-Regeln, Validierung und Löschen",
 
     const { data: afterDelete } = await admin.from("follow_up_rules").select("id").eq("id", id);
     expect(afterDelete ?? []).toHaveLength(0);
+  });
+
+  it("legt eine Regel an den Grenzwerten an (days_after_reply=1/365, max_count=1/10) - Bereichsprüfung lehnt sie nicht ab", async () => {
+    const lowerBound: FollowUpRuleInput = {
+      ...validInput,
+      name: `Test-Regel Grenzwert unten ${RUN_ID}`,
+      daysAfterReply: 1,
+      maxCount: 1,
+    };
+    const upperBound: FollowUpRuleInput = {
+      ...validInput,
+      name: `Test-Regel Grenzwert oben ${RUN_ID}`,
+      daysAfterReply: 365,
+      maxCount: 10,
+    };
+
+    const lowerId = await createRule(lowerBound, admin);
+    createdIds.push(lowerId);
+    const upperId = await createRule(upperBound, admin);
+    createdIds.push(upperId);
+
+    const { data } = await admin
+      .from("follow_up_rules")
+      .select("id, days_after_reply, max_count")
+      .in("id", [lowerId, upperId]);
+    expect(data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: lowerId, days_after_reply: 1, max_count: 1 }),
+        expect.objectContaining({ id: upperId, days_after_reply: 365, max_count: 10 }),
+      ]),
+    );
   });
 });

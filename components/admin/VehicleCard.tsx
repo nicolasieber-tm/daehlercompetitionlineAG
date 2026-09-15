@@ -27,6 +27,15 @@ export function VehicleCard({ ctx }: { ctx: MailInquiryContext }) {
           </>
         )}
 
+        {/* Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE",
+            Punkt 3): nur sichtbar, wenn die Getriebefrage gestellt wurde. */}
+        {inquiry.gearbox && (
+          <>
+            <dt className="text-muted">{admin.detail.vehicle.gearbox}</dt>
+            <dd className="text-text">{(admin.gearbox as Record<string, string>)[inquiry.gearbox] ?? inquiry.gearbox}</dd>
+          </>
+        )}
+
         {family && !family.has_pricelist && (
           <>
             <dt className="text-muted" />

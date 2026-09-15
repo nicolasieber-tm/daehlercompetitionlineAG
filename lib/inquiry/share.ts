@@ -5,6 +5,8 @@
 import { nanoid } from "nanoid";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
+import { displayItemFields } from "@/lib/catalog/product-display";
+import { isLocale } from "@/lib/i18n/dictionaries";
 
 const SHARE_TOKEN_LENGTH = 22;
 
@@ -104,14 +106,31 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
   // Code an (Blocker-Befund, siehe lib/mail/render.ts Kommentar-Historie).
   const vehicleLabel = vehicleDisplayLabel({ family, model, vehicleText: inquiry.vehicle_text });
 
+  // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+  // dieselbe Positionsdarstellung wie im Antwortentwurf/den Mails ("Stufe 1
+  // (590 PS / 720 Nm, M6 & A8-Getriebe)" statt des vollen, mehrdeutigen
+  // Excel-Namens) - auch auf der öffentlichen Teilen-Seite (app/p/[token]/
+  // page.tsx, ausserhalb der mir zugewiesenen Dateien, liest nur name/
+  // description von hier, keine eigene Anpassung dort nötig). isStage über
+  // ps_to (nur bei Motor-Leistungsstufen in selections.ps_to gespeichert,
+  // siehe lib/inquiry/create.ts), locale aus inquiries.locale.
+  const locale = isLocale(inquiry.locale) ? inquiry.locale : "de";
   const selections = Array.isArray(inquiry.selections) ? inquiry.selections : [];
-  const items = (selections as unknown as Array<Record<string, unknown>>).map((s) => ({
-    category: String(s.category ?? ""),
-    name: String(s.name ?? ""),
-    description: (s.description as string | null) ?? null,
-    priceTotal: (s.price_total as number | null) ?? null,
-    priceStatus: String(s.price_status ?? "on_request"),
-  }));
+  const items = (selections as unknown as Array<Record<string, unknown>>).map((s) => {
+    const psTo = typeof s.ps_to === "number" ? s.ps_to : null;
+    const nmTo = typeof s.nm_to === "number" ? s.nm_to : null;
+    const display = displayItemFields(
+      { name: String(s.name ?? ""), description: (s.description as string | null) ?? null, isStage: psTo != null, psTo, nmTo },
+      locale,
+    );
+    return {
+      category: String(s.category ?? ""),
+      name: display.name,
+      description: display.description,
+      priceTotal: (s.price_total as number | null) ?? null,
+      priceStatus: String(s.price_status ?? "on_request"),
+    };
+  });
 
   return {
     number: inquiry.number,

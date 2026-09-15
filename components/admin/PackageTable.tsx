@@ -1,6 +1,7 @@
 import { admin } from "@/lib/i18n/admin";
 import { chf, chfFrom } from "@/lib/i18n/format";
 import { categoryLabel } from "@/lib/mail/render";
+import { displayItemFields } from "@/lib/catalog/product-display";
 import type { MailInquiryContext } from "@/lib/mail/types";
 import { Card } from "./Card";
 import { Table, TableBody, TableHead, Th, Td } from "./Table";
@@ -8,6 +9,21 @@ import { Table, TableBody, TableHead, Th, Td } from "./Table";
 /** Strukturierte Paket-Tabelle (Preise), zusätzlich zum Monospace-Ticket (components/admin/SummaryBlock.tsx). */
 export function PackageTable({ ctx }: { ctx: MailInquiryContext }) {
   const { items, estimatedTotal, inquiry } = ctx;
+
+  // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+  // dieselbe Positionsdarstellung wie im Antwortentwurf/den Mails ("Stufe 1
+  // (620 PS / 740 Nm, M6 & A8-Getriebe)" statt des vollen Excel-Namens),
+  // PLUS den Original-Excel-Namen als eigene, kleine zweite Zeile - "dÄHLer
+  // kennt seine Bezeichnungen". isStage über ps_to (nur bei
+  // Motor-Leistungsstufen gefüllt, siehe lib/mail/types.ts
+  // MailInquiryItem-Kommentar), wie lib/inquiry/summary.ts displayItem().
+  const displayItems = items.map((item) => ({
+    item,
+    display: displayItemFields(
+      { name: item.name, description: item.description, isStage: item.ps_to != null, psTo: item.ps_to ?? null, nmTo: item.nm_to ?? null },
+      "de",
+    ),
+  }));
 
   return (
     <Card title={admin.detail.package.title}>
@@ -21,12 +37,15 @@ export function PackageTable({ ctx }: { ctx: MailInquiryContext }) {
             <Th className="text-right">{admin.detail.package.price}</Th>
           </TableHead>
           <TableBody>
-            {items.map((item, i) => (
+            {displayItems.map(({ item, display }, i) => (
               <tr key={i}>
                 <Td className="whitespace-nowrap text-muted">{categoryLabel(item.category, "de")}</Td>
                 <Td>
-                  <div className="text-text">{item.name}</div>
-                  {item.description && <div className="text-xs text-muted">{item.description}</div>}
+                  <div className="text-text">{display.name}</div>
+                  {display.description && <div className="text-xs text-muted">{display.description}</div>}
+                  {display.originalName && (
+                    <div className="text-xs text-dim">Excel: {display.originalName}</div>
+                  )}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs">
                   {item.price_status === "priced" && item.price_total != null

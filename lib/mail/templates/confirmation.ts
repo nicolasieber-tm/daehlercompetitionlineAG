@@ -4,7 +4,8 @@
 // Richtpreis mit Unverbindlichkeitshinweis, Termin, Kontaktkanal), Link auf
 // shareUrl, "nächste Schritte".
 import { getDictionary, tf } from "@/lib/i18n/dictionaries";
-import type { MailInquiryContext } from "../types";
+import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
+import type { MailInquiryContext, MailInquiryItem } from "../types";
 import {
   buttonLink,
   categoryLabel,
@@ -16,6 +17,32 @@ import {
   renderMail,
   vehicleLabel,
 } from "../render";
+
+/**
+ * Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+ * dieselbe Positionsdarstellung wie im Antwortentwurf ("Stufe 1 (590 PS /
+ * 720 Nm, M6 & A8-Getriebe)" statt des vollen, mehrdeutigen Excel-Namens).
+ * itemList()/render.ts selbst bleiben unverändert.
+ *
+ * Korrektur 15.09.2026 (Prüfung Modul Produkte, Befund 2): isStage über
+ * lib/catalog/product-display.ts isStageItem() (variant_group ===
+ * "leistung", Fallback ps_to != null für ältere, gespeicherte Anfragen ohne
+ * variant_group) statt über `ps_to != null` allein - 13 aktive Stufen ohne
+ * ps_to (noch unbepreiste Platzhalter) wurden sonst fälschlich mit dem
+ * rohen "(Basis ...) PS / Nm"-Excel-Namen statt "Stufe N"/
+ * "Leistungssteigerung" angezeigt, anders als Kachel und Antwortentwurf
+ * (die schon variant_group nutzten, siehe lib/draft/template.ts). Siehe
+ * auch lib/inquiry/summary.ts displayItem() (gleiche Herleitung).
+ */
+function customerItems(items: MailInquiryItem[], locale: MailInquiryContext["locale"]): MailInquiryItem[] {
+  return items.map((item) => {
+    const display = displayItemFields(
+      { name: item.name, description: item.description, isStage: isStageItem(item), psTo: item.ps_to ?? null, nmTo: item.nm_to ?? null },
+      locale,
+    );
+    return { ...item, name: display.name, description: display.description };
+  });
+}
 
 export function buildConfirmation(ctx: MailInquiryContext): { subject: string; html: string; text: string } {
   const dict = getDictionary(ctx.locale);
@@ -40,7 +67,7 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
       { label: dict.mail.confirmation.timingLabel, value: timing ?? "" },
       { label: dict.mail.confirmation.channelLabel, value: channel ?? "" },
     ]),
-    itemList(ctx.items, ctx.locale),
+    itemList(customerItems(ctx.items, ctx.locale), ctx.locale),
     estimateBox({ estimatedTotal: ctx.estimatedTotal, hasOnRequest, locale: ctx.locale }),
     buttonLink(dict.mail.shared.viewPackageButton, ctx.shareUrl),
     definitionList([
