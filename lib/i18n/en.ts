@@ -381,8 +381,10 @@ export const en: Dictionary = {
       "A gearbox-specific item was selected but the gearbox (manual/automatic) is not known: clarify before confirming.",
     vmax_doppelt:
       "The selected power stage already includes the V-max removal, and the standalone V-max item was also selected: duplicate, please clean up.",
-    modell_mehrdeutig:
-      "Model series covers several models (e.g. X1/X2, X3/X4, X5/X6), clarify the model with the customer.",
+    // {alternatives}: the family's concrete alternatives ("X1 / X2"),
+    // filled in by runChecks() via tf() (lib/rules/checks.ts,
+    // vehicleAmbiguousAlternatives()) instead of generic examples.
+    modell_mehrdeutig: "Model series covers {alternatives}, clarify the model with the customer.",
   },
 
   draft: {

@@ -8,10 +8,10 @@
 // i18n-Modul vollständig angelegt, hier nichts zu ergänzen).
 import { de } from "@/lib/i18n/de";
 import { en } from "@/lib/i18n/en";
-import { getDictionary } from "@/lib/i18n/dictionaries";
+import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { gearboxFor } from "@/lib/catalog/gearbox";
-import { vehicleLineIsAmbiguous } from "@/lib/catalog/vehicle-label";
+import { vehicleAmbiguousAlternatives, vehicleLineIsAmbiguous } from "@/lib/catalog/vehicle-label";
 import type { Character, FlowCategory, InquiryGearbox, PriceStatus, Timing } from "@/lib/supabase/rows";
 
 /**
@@ -162,9 +162,15 @@ function hasGearboxSpecificSelection(ctx: CheckContext): boolean {
  * Die Regeln aus CLAUDE.md ("Motor und Auspuff gewählt", "Stufe 2 ohne
  * Hochleistungskats", ...) plus die drei aus docs/architektur.md
  * (familie_ohne_preisliste, produkt_auf_anfrage, komplettpaket_gewuenscht).
- * Reihenfolge = Ausgabereihenfolge.
+ * Reihenfolge = Ausgabereihenfolge. `vars` (optional): liefert die
+ * Platzhalter-Werte für tf() (siehe runChecks()), nur "modell_mehrdeutig"
+ * braucht das bisher ({alternatives}, Ergänzung 15.09.2026).
  */
-export const CHECK_RULES: Array<{ id: string; when: (ctx: CheckContext) => boolean }> = [
+export const CHECK_RULES: Array<{
+  id: string;
+  when: (ctx: CheckContext) => boolean;
+  vars?: (ctx: CheckContext) => Record<string, string>;
+}> = [
   {
     id: "motor_auspuff_compat",
     when: (ctx) => hasCategory(ctx, "motor") && hasCategory(ctx, "auspuff"),
@@ -244,8 +250,16 @@ export const CHECK_RULES: Array<{ id: string; when: (ctx: CheckContext) => boole
     // die Alternative einer Baureihe nicht auflösen, wenn die Motorisierung
     // mit keiner ein Wort teilt - dann wählt sie stillschweigend die erste
     // Alternative, ohne Grundlage, welches der Modelle der Kunde hat.
+    // Ausnahme 8er/M8 (vehicleLineIsAmbiguous()): eine Alternative, die
+    // selbst ein M-Modell bezeichnet, zählt nicht mit, wenn die
+    // Motorisierung selbst kein M-Modell ist - "8er" + "40i" feuert darum
+    // nicht. {alternatives} (vars unten) nennt die konkreten Alternativen
+    // ("X1 / X2") statt eines generischen Beispiels.
     id: "modell_mehrdeutig",
     when: (ctx) => ctx.family !== null && ctx.model !== null && vehicleLineIsAmbiguous(ctx.family, ctx.model),
+    vars: (ctx) => ({
+      alternatives: ctx.family && ctx.model ? vehicleAmbiguousAlternatives(ctx.family, ctx.model).join(" / ") : "",
+    }),
   },
 ];
 
@@ -256,8 +270,8 @@ export function runChecks(ctx: CheckContext, locale: Locale): CheckResult[] {
   const results: CheckResult[] = [];
   for (const rule of CHECK_RULES) {
     if (!rule.when(ctx)) continue;
-    const text = checks[rule.id];
-    if (!text) {
+    const template = checks[rule.id];
+    if (!template) {
       // Sollte durch die vollständigen Dictionaries nie eintreten; ein
       // fehlender Text darf trotzdem nicht die ganze Anfrage zum Absturz
       // bringen (siehe lib/inquiry/create.ts: die Anfrage muss immer
@@ -265,6 +279,9 @@ export function runChecks(ctx: CheckContext, locale: Locale): CheckResult[] {
       console.error(`runChecks: kein Text für Prüfhinweis "${rule.id}" (locale ${locale}).`);
       continue;
     }
+    // {alternatives} & Co. (siehe CHECK_RULES.vars): dieselbe Platzhalter-
+    // Ersetzung wie draft/template.ts (tf(), lib/i18n/dictionaries.ts).
+    const text = rule.vars ? tf(template, rule.vars(ctx)) : template;
     results.push({ id: rule.id, text });
   }
   return results;

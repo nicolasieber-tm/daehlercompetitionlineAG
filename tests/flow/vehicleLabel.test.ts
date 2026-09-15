@@ -10,6 +10,7 @@
 // kennt kein vehicleText).
 import { describe, expect, it } from "vitest";
 import {
+  vehicleAmbiguousAlternatives,
   vehicleDisplayLabel,
   vehicleFamilyLine,
   vehicleInternalLine,
@@ -287,6 +288,125 @@ describe("vehicleLineIsAmbiguous", () => {
 
   it("false: keine Alternativen in der Linie (nichts, was mehrdeutig sein könnte)", () => {
     expect(vehicleLineIsAmbiguous(f("BMW", "M2 G87", ["G87"]), m("M2"))).toBe(false);
+  });
+
+  it("true: X3/X4 (Komma statt Slash) ohne unterscheidendes Wort in der Motorisierung", () => {
+    expect(vehicleLineIsAmbiguous(f("BMW", "X3 G01, X4 G02", ["G01", "G02"]), m("20i"))).toBe(true);
+  });
+
+  it("true: 4er Coupé/Cabrio/Grand Coupé ohne unterscheidendes Wort in der Motorisierung", () => {
+    const VIERER = f("BMW", "4er Coupé G22, Cabrio G23, Grand Coupé G26", ["G22", "G23", "G26"]);
+    expect(vehicleLineIsAmbiguous(VIERER, m("20i"))).toBe(true);
+    expect(vehicleLineIsAmbiguous(VIERER, m("M40d"))).toBe(true);
+  });
+
+  // Ausnahme 8er/M8 (Ergänzung 15.09.2026, Feinschliff-Prüfung): eine
+  // Alternative, die selbst ein M-Modell bezeichnet ("M8"), zählt nicht mit,
+  // wenn die Motorisierung selbst kein M-Modell ist ("40i") - "8er" bleibt
+  // dann als einzige, eindeutige Alternative übrig, siehe
+  // docs/architektur.md Abschnitt "Fahrzeugbezeichnung".
+  describe("Ausnahme 8er/M8", () => {
+    const ACHTER_M8 = f("BMW", "8er G14, G15, G16 / M8 F91, F92, F93", ["G14", "G15", "G16", "F91", "F92", "F93"]);
+
+    it("false: '8er' + '40i' - 'M8' scheidet aus, '8er' bleibt als einzige Alternative", () => {
+      expect(vehicleLineIsAmbiguous(ACHTER_M8, m("40i"))).toBe(false);
+    });
+
+    it("false: '8er' + '50i'/'40d' (dieselbe Ausnahme, andere Nicht-M-Motorisierungen)", () => {
+      expect(vehicleLineIsAmbiguous(ACHTER_M8, m("50i"))).toBe(false);
+      expect(vehicleLineIsAmbiguous(ACHTER_M8, m("40d"))).toBe(false);
+    });
+
+    it("false: 'M8' selbst - sharedWordScore trifft 'M8' ohnehin eindeutig, Ausnahme ändert nichts", () => {
+      expect(vehicleLineIsAmbiguous(ACHTER_M8, m("M8"))).toBe(false);
+    });
+
+    it("false: M5/M6, Motorisierung 'M5' - Motorisierung ist selbst ein M-Modell, Ausnahme gilt nicht, aber 'M5' trifft eindeutig", () => {
+      const M5_M6 = f("BMW", "M5 F10, M6 F06, F12, F13", ["F10", "F06", "F12", "F13"]);
+      expect(vehicleLineIsAmbiguous(M5_M6, m("M5"))).toBe(false);
+      expect(vehicleLineIsAmbiguous(M5_M6, m("M6"))).toBe(false);
+    });
+  });
+});
+
+describe("vehicleAmbiguousAlternatives", () => {
+  it("leer, wenn nicht mehrdeutig", () => {
+    expect(vehicleAmbiguousAlternatives(f("BMW", "M2 G87", ["G87"]), m("M2"))).toEqual([]);
+    expect(
+      vehicleAmbiguousAlternatives(f("BMW", "8er G14, G15, G16 / M8 F91, F92, F93", ["G14", "G15", "G16", "F91", "F92", "F93"]), m("40i")),
+    ).toEqual([]);
+  });
+
+  it("die Alternativ-Namen der Familie, wenn mehrdeutig", () => {
+    expect(vehicleAmbiguousAlternatives(f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]), m("20d"))).toEqual([
+      "X1",
+      "X2",
+    ]);
+    expect(
+      vehicleAmbiguousAlternatives(
+        f("BMW", "4er Coupé G22, Cabrio G23, Grand Coupé G26", ["G22", "G23", "G26"]),
+        m("20i"),
+      ),
+    ).toEqual(["4er Coupé", "Cabrio", "Grand Coupé"]);
+  });
+});
+
+// --- Mehrdeutige Baureihen: ALLE Alternativen + ALLE Codes (Ergänzung -----
+// 15.09.2026, Feinschliff-Prüfung, siehe docs/architektur.md Abschnitt
+// "Fahrzeugbezeichnung"). Befund D.5: "BMW X1 20i (U11)" erschien
+// fälschlich auch für X2-Fahrer - die Formel zeigt jetzt beide Alternativen
+// statt stillschweigend die erste zu wählen.
+describe("vehicleDisplayLabel: mehrdeutige Baureihen zeigen alle Alternativen + alle Codes", () => {
+  it("BMW X1 / X2 20i (U11, U10)", () => {
+    expect(vehicleDisplayLabel(f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]), m("20i"), null)).toBe(
+      "BMW X1 / X2 20i (U11, U10)",
+    );
+  });
+
+  it("BMW X3 / X4 20i (G01, G02)", () => {
+    expect(vehicleDisplayLabel(f("BMW", "X3 G01, X4 G02", ["G01", "G02"]), m("20i"), null)).toBe(
+      "BMW X3 / X4 20i (G01, G02)",
+    );
+  });
+
+  it("BMW X5 / X6 40i (G05, G06)", () => {
+    expect(vehicleDisplayLabel(f("BMW", "X5 G05, X6 G06", ["G05", "G06"]), m("40i"), null)).toBe(
+      "BMW X5 / X6 40i (G05, G06)",
+    );
+  });
+
+  it('BMW 4er Coupé / Cabrio / Grand Coupé 20i (G22, G23, G26): Schreibweise der Alternativen aus dem Familiennamen übernommen ("Grand Coupé" wie in der Excel, nicht "Gran Coupé")', () => {
+    expect(
+      vehicleDisplayLabel(
+        f("BMW", "4er Coupé G22, Cabrio G23, Grand Coupé G26", ["G22", "G23", "G26"]),
+        m("20i"),
+        null,
+      ),
+    ).toBe("BMW 4er Coupé / Cabrio / Grand Coupé 20i (G22, G23, G26)");
+  });
+
+  // Ausnahme 8er/M8: bleibt nach dem Ausschluss der M-Modell-Alternative
+  // nur eine Alternative übrig, ist die Formel eindeutig - keine
+  // "alle Alternativen"-Anzeige, nur die eigenen Codes von "8er".
+  it("nicht mehrdeutig bleibt: BMW 8er 40i (G14, G15, G16), kein Prüfhinweis nötig", () => {
+    const ACHTER_M8 = f("BMW", "8er G14, G15, G16 / M8 F91, F92, F93", ["G14", "G15", "G16", "F91", "F92", "F93"]);
+    expect(vehicleDisplayLabel(ACHTER_M8, m("40i"), null)).toBe("BMW 8er 40i (G14, G15, G16)");
+    expect(vehicleLineIsAmbiguous(ACHTER_M8, m("40i"))).toBe(false);
+  });
+
+  it("nicht mehrdeutig bleibt: BMW M8 (F91, F92, F93)", () => {
+    const ACHTER_M8 = f("BMW", "8er G14, G15, G16 / M8 F91, F92, F93", ["G14", "G15", "G16", "F91", "F92", "F93"]);
+    expect(vehicleDisplayLabel(ACHTER_M8, m("M8"), null)).toBe("BMW M8 (F91, F92, F93)");
+  });
+
+  it("nicht mehrdeutig bleibt: BMW M2 (G87)", () => {
+    expect(vehicleDisplayLabel(f("BMW", "M2 G87", ["G87"]), m("M2"), null)).toBe("BMW M2 (G87)");
+  });
+
+  it("nicht mehrdeutig bleibt: BMW X3 M (F97)", () => {
+    expect(vehicleDisplayLabel(f("BMW", "X3M F97, X4M F98", ["F97", "F98"]), m("X3 M"), null)).toBe(
+      "BMW X3 M (F97)",
+    );
   });
 });
 

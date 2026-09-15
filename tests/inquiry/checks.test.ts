@@ -327,6 +327,104 @@ describe("modell_mehrdeutig", () => {
     const c = ctx({ family: family({ brand: "BMW", name: "X1 U11 / X2 U10", codes: ["U11", "U10"] }), model: null });
     expect(rule.when(c)).toBe(false);
   });
+
+  // Ausnahme 8er/M8 (Ergänzung 15.09.2026, Feinschliff-Prüfung): "M8"
+  // scheidet als Alternative aus, wenn die Motorisierung selbst kein
+  // M-Modell ist - "8er" bleibt dann als einzige, eindeutige Alternative.
+  it("feuert nicht bei der Ausnahme 8er/M8: '40i' ist kein M-Modell, 'M8' scheidet aus, '8er' bleibt eindeutig", () => {
+    const c = ctx({
+      family: family({
+        brand: "BMW",
+        name: "8er G14, G15, G16 / M8 F91, F92, F93",
+        codes: ["G14", "G15", "G16", "F91", "F92", "F93"],
+      }),
+      model: { id: "m1", name: "40i" },
+    });
+    expect(rule.when(c)).toBe(false);
+  });
+
+  it("feuert nicht bei der Ausnahme 8er/M8, auch für 'M8' selbst (sharedWordScore trifft 'M8' ohnehin eindeutig)", () => {
+    const c = ctx({
+      family: family({
+        brand: "BMW",
+        name: "8er G14, G15, G16 / M8 F91, F92, F93",
+        codes: ["G14", "G15", "G16", "F91", "F92", "F93"],
+      }),
+      model: { id: "m1", name: "M8" },
+    });
+    expect(rule.when(c)).toBe(false);
+  });
+
+  it("feuert bei 4er Coupé/Cabrio/Grand Coupé: keine der drei Alternativen teilt ein Wort mit '20i'", () => {
+    const c = ctx({
+      family: family({
+        brand: "BMW",
+        name: "4er Coupé G22, Cabrio G23, Grand Coupé G26",
+        codes: ["G22", "G23", "G26"],
+      }),
+      model: { id: "m1", name: "20i" },
+    });
+    expect(rule.when(c)).toBe(true);
+  });
+
+  it("feuert bei X3/X4 und bei X5/X6 (dasselbe Muster wie X1/X2)", () => {
+    const x3x4 = ctx({
+      family: family({ brand: "BMW", name: "X3 G01, X4 G02", codes: ["G01", "G02"] }),
+      model: { id: "m1", name: "20i" },
+    });
+    expect(rule.when(x3x4)).toBe(true);
+
+    const x5x6 = ctx({
+      family: family({ brand: "BMW", name: "X5 G05, X6 G06", codes: ["G05", "G06"] }),
+      model: { id: "m1", name: "40i" },
+    });
+    expect(rule.when(x5x6)).toBe(true);
+  });
+
+  // Text nennt die konkreten Alternativen ({alternatives}, per tf() aus
+  // vehicleAmbiguousAlternatives() gefüllt), nicht mehr generische Beispiele.
+  it("runChecks (de): Text enthält 'X1 / X2', nicht die alte generische Aufzählung", () => {
+    const c = ctx({
+      family: family({ brand: "BMW", name: "X1 U11 / X2 U10", codes: ["U11", "U10"] }),
+      model: { id: "m1", name: "20d" },
+    });
+    const hit = runChecks(c, "de").find((r) => r.id === "modell_mehrdeutig");
+    expect(hit?.text).toBe("Baureihe umfasst X1 / X2, Modell beim Kunden klären.");
+  });
+
+  it("runChecks (en): Text enthält 'X1 / X2'", () => {
+    const c = ctx({
+      family: family({ brand: "BMW", name: "X1 U11 / X2 U10", codes: ["U11", "U10"] }),
+      model: { id: "m1", name: "20d" },
+    });
+    const hit = runChecks(c, "en").find((r) => r.id === "modell_mehrdeutig");
+    expect(hit?.text).toBe("Model series covers X1 / X2, clarify the model with the customer.");
+  });
+
+  it("runChecks: Text für 4er Coupé/Cabrio/Grand Coupé nennt alle drei Alternativen", () => {
+    const c = ctx({
+      family: family({
+        brand: "BMW",
+        name: "4er Coupé G22, Cabrio G23, Grand Coupé G26",
+        codes: ["G22", "G23", "G26"],
+      }),
+      model: { id: "m1", name: "20i" },
+    });
+    const hit = runChecks(c, "de").find((r) => r.id === "modell_mehrdeutig");
+    expect(hit?.text).toBe("Baureihe umfasst 4er Coupé / Cabrio / Grand Coupé, Modell beim Kunden klären.");
+  });
+
+  it("runChecks: kein Treffer bei der Ausnahme 8er/M8 (8er + 40i)", () => {
+    const c = ctx({
+      family: family({
+        brand: "BMW",
+        name: "8er G14, G15, G16 / M8 F91, F92, F93",
+        codes: ["G14", "G15", "G16", "F91", "F92", "F93"],
+      }),
+      model: { id: "m1", name: "40i" },
+    });
+    expect(runChecks(c, "de").find((r) => r.id === "modell_mehrdeutig")).toBeUndefined();
+  });
 });
 
 describe("runChecks", () => {

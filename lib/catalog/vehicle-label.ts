@@ -14,7 +14,17 @@
 //      Linie Alternativen ("/" oder ","), wird die Alternative gewählt, die
 //      die meisten Wörter mit der Motorisierung teilt (ohne Leerzeichen,
 //      ohne Gross/Klein verglichen: "X3M" = "X3 M") - bei Gleichstand (auch
-//      0) die erste Alternative.
+//      0) die erste Alternative. Ausnahme (Ergänzung 15.09.2026,
+//      Feinschliff-Prüfung, 8er/M8): eine Alternative, die selbst ein
+//      M-Modell bezeichnet ("M8"), zählt nicht mit, wenn die Motorisierung
+//      selbst kein M-Modell ist ("40i") - siehe isMModelName()/
+//      applicableSegments() unten. Teilt danach KEINE der verbleibenden
+//      Alternativen ein Wort mit der Motorisierung (z.B. "X1"/"X2" +
+//      "20d"), kann die Formel die Alternative nicht auflösen - die Linie
+//      zeigt dann ALLE verbleibenden Alternativen, durch " / " verbunden,
+//      mit ALLEN ihren Codes ("BMW X1 / X2 20i (U11, U10)"), siehe
+//      vehicleLineIsAmbiguous()/vehicleAmbiguousAlternatives() unten und
+//      lib/rules/checks.ts (Prüfhinweis "modell_mehrdeutig").
 //   2. Motorisierung: Wörter, die schon (exakt, als eigenes Wort) in der
 //      gewählten Linie stehen, werden weggelassen, der Rest angehängt. Sind
 //      Linie und Motorisierung nach Entfernen der Leerzeichen identisch
@@ -202,6 +212,32 @@ function resolveCodes(segments: FamilySegment[], chosenIndex: number, explicitLi
   return all;
 }
 
+/**
+ * Codes für die Klammer, wenn die Baureihe mehrdeutig ist (siehe
+ * vehicleLineIsAmbiguous()/vehicleAmbiguousAlternatives()): ALLE Codes ALLER
+ * gezeigten Alternativen, Fundreihenfolge, ohne Duplikate - anders als
+ * resolveCodes() gibt es hier keine "gewählte" Alternative, die bevorzugt
+ * würde (z.B. "X1 / X2 20i (U11, U10)": beide Codes, nicht nur der von X1).
+ * Kein Code im Text gefunden (nur `codes[]` als separates DB-Feld) -> die
+ * explizite Liste unverändert, wie im Ein-Segment-Fall von resolveCodes().
+ */
+function resolveAmbiguousCodes(segments: FamilySegment[], explicitList: string[] | null): string[] {
+  const totalFound = segments.reduce((n, s) => n + s.codes.length, 0);
+  if (totalFound === 0) return explicitList ?? [];
+
+  const seen = new Set<string>();
+  const all: string[] = [];
+  for (const segment of segments) {
+    for (const code of segment.codes) {
+      const key = code.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      all.push(code);
+    }
+  }
+  return all;
+}
+
 function normalizeCompact(value: string): string {
   return value.replace(/\s+/g, "").toLowerCase();
 }
@@ -227,39 +263,115 @@ function sharedWordScore(segmentName: string, motorisierung: string): number {
   return score;
 }
 
-/** Wählt den Index des Segments mit dem höchsten sharedWordScore; bei Gleichstand (auch 0) das erste. */
+/**
+ * Erkennt, ob eine Alternative (Segmentname) oder eine Motorisierung ein
+ * ECHTES M-Modell bezeichnet: "M" + genau EINE Ziffer, danach entweder das
+ * Wortende, ein Leerzeichen oder ein "/" (M3/Comp. trennt ohne Leerzeichen,
+ * siehe motorisierungWords()) - "M8", "M5", "M3", "M2", "M3 CS",
+ * "M2 Competition", "M3/Comp.". Ergänzung 15.09.2026 (Feinschliff-Prüfung,
+ * Ausnahme 8er/M8): bewusst NICHT einfach "beginnt mit M + Ziffer", sonst
+ * erfasste das auch M-Performance-Motorisierungen von NICHT-M-Modellen wie
+ * "M35i", "M40i", "M40d", "M50", "M50i", "M50d", "M60i", "M135i", "M235i",
+ * "M550d", "M760i" (zwei oder mehr Ziffern, oder eine Ziffer direkt gefolgt
+ * von weiteren Zeichen statt Wortende/Trenner) - die sind keine M-Modelle,
+ * siehe X3 G45 M50 in labels.csv (Feinschliff-Prüfung, Datenstichprobe).
+ */
+const M_MODEL_RE = /^M\d(?:$|[\s/])/;
+
+function isMModelName(name: string): boolean {
+  return M_MODEL_RE.test(name.trim());
+}
+
+/**
+ * Segmente, die für eine gegebene Motorisierung überhaupt infrage kommen
+ * (Ausnahme 8er/M8, Ergänzung 15.09.2026, siehe docs/architektur.md
+ * Abschnitt "Fahrzeugbezeichnung"): eine Alternative, die selbst ein
+ * M-Modell bezeichnet (z.B. "M8" in der Familie "8er / M8"), scheidet aus,
+ * wenn die Motorisierung KEIN M-Modell ist (z.B. "40i") - "M8" kommt für
+ * "40i" nie infrage, ganz gleich, ob "40i" zufällig mehr Wörter mit "8er"
+ * oder mit "M8" teilen würde. Ist die Motorisierung selbst ein M-Modell
+ * (z.B. "M8"), gilt die Ausnahme nicht - dann bleiben alle Segmente im
+ * Rennen (chooseSegmentIndex() wählt darunter wie gehabt per
+ * sharedWordScore). Bleibt nach dem Ausschluss nichts übrig (z.B. eine
+ * reine M-Modell-Familie ohne Nicht-M-Alternative - in den aktiven Daten
+ * nicht der Fall, aber nicht vorausgesetzt), gilt der Ausschluss nicht:
+ * dann bleiben alle Segmente wie zuvor, statt eine leere Liste zu liefern.
+ */
+function applicableSegments(segments: FamilySegment[], motorisierung: string | null): FamilySegment[] {
+  if (segments.length <= 1 || !motorisierung || isMModelName(motorisierung)) return segments;
+  const filtered = segments.filter((segment) => !isMModelName(segment.name));
+  return filtered.length > 0 ? filtered : segments;
+}
+
+/** Wählt den Index des Segments mit dem höchsten sharedWordScore unter den für die Motorisierung anwendbaren Segmenten (applicableSegments(), Ausnahme 8er/M8); bei Gleichstand (auch 0) das erste anwendbare. */
 function chooseSegmentIndex(segments: FamilySegment[], motorisierung: string | null): number {
   if (segments.length <= 1 || !motorisierung) return 0;
 
-  let bestIndex = 0;
-  let bestScore = sharedWordScore(segments[0].name, motorisierung);
-  for (let i = 1; i < segments.length; i++) {
-    const score = sharedWordScore(segments[i].name, motorisierung);
+  const candidates = applicableSegments(segments, motorisierung);
+  let bestIndex = segments.indexOf(candidates[0]);
+  let bestScore = sharedWordScore(candidates[0].name, motorisierung);
+  for (let i = 1; i < candidates.length; i++) {
+    const score = sharedWordScore(candidates[i].name, motorisierung);
     if (score > bestScore) {
       bestScore = score;
-      bestIndex = i;
+      bestIndex = segments.indexOf(candidates[i]);
     }
   }
   return bestIndex;
 }
 
 /**
+ * Kern von vehicleLineIsAmbiguous() (siehe dort), auf bereits zerlegten
+ * Segmenten statt einem rohen Familiennamen - so kann vehicleDisplayLabel()
+ * dieselbe analyzeFamily()-Zerlegung wiederverwenden, statt sie doppelt
+ * durchzuführen.
+ */
+function isAmbiguousSegments(segments: FamilySegment[], motorisierung: string): boolean {
+  if (segments.length <= 1) return false;
+  const candidates = applicableSegments(segments, motorisierung);
+  // Ausnahme 8er/M8: bleibt nach dem Ausschluss nur eine Alternative übrig
+  // (z.B. "8er" für die Motorisierung "40i", "M8" ausgeschlossen), ist die
+  // Formel eindeutig - keine Mehrdeutigkeit mehr zu bewerten.
+  if (candidates.length <= 1) return false;
+  return candidates.every((segment) => sharedWordScore(segment.name, motorisierung) === 0);
+}
+
+/**
  * true, wenn die Formel die Alternative NICHT auflösen kann: die Linie
- * besteht aus mehreren Segmenten (z.B. eine Baureihe, die sowohl X1 als
- * auch X2 umfasst), und die Motorisierung teilt mit KEINEM davon auch nur
- * ein Wort (z.B. eine reine Motorbezeichnung wie "20d", die es für beide
- * Modelle gibt). chooseSegmentIndex() wählt in diesem Fall stillschweigend
- * das erste Segment (Regel 1, "bei Gleichstand auch 0 die erste
+ * besteht aus mehreren (nach der Ausnahme 8er/M8 verbleibenden) Segmenten
+ * (z.B. eine Baureihe, die sowohl X1 als auch X2 umfasst), und die
+ * Motorisierung teilt mit KEINEM davon auch nur ein Wort (z.B. eine reine
+ * Motorbezeichnung wie "20d", die es für beide Modelle gibt).
+ * chooseSegmentIndex() wählt in diesem Fall stillschweigend das erste
+ * anwendbare Segment (Regel 1, "bei Gleichstand auch 0 die erste
  * Alternative") - technisch korrekt, aber ohne Grundlage, WELCHES der
  * beiden Modelle der Kunde tatsächlich hat. Ergänzung 15.09.2026
  * (Feinschliff-Prüfung, Ambiguität X1/X2, X3/X4, X5/X6): lib/rules/
  * checks.ts nutzt dies für den Prüfhinweis "modell_mehrdeutig", siehe
- * docs/architektur.md Abschnitt "Fahrzeugbezeichnung".
+ * docs/architektur.md Abschnitt "Fahrzeugbezeichnung". Ergänzung 15.09.2026
+ * (Ausnahme 8er/M8): eine Alternative, die selbst ein M-Modell bezeichnet,
+ * zählt nicht mit, wenn die Motorisierung selbst kein M-Modell ist (siehe
+ * applicableSegments()/isMModelName()) - "8er" + "40i" ist darum eindeutig,
+ * "M8" scheidet als Alternative für "40i" von vornherein aus.
  */
 export function vehicleLineIsAmbiguous(family: VehicleLabelFamily, model: VehicleLabelModel): boolean {
   const { segments } = analyzeFamily(family.name, family.codes);
-  if (segments.length <= 1) return false;
-  return segments.every((segment) => sharedWordScore(segment.name, model.name) === 0);
+  return isAmbiguousSegments(segments, model.name);
+}
+
+/**
+ * Die (nach der Ausnahme 8er/M8 verbleibenden) Alternativ-Namen der
+ * Familie, wenn vehicleLineIsAmbiguous(family, model) zutrifft, sonst ein
+ * leeres Array. Für lib/rules/checks.ts (Prüfhinweis "modell_mehrdeutig",
+ * Platzhalter {alternatives}, z.B. "X1 / X2") und für vehicleDisplayLabel()
+ * selbst (dieselbe Liste bildet dort die gezeigte Linie) - eine einzige
+ * Quelle für "welche Alternativen zeigen wir", statt sie an beiden Stellen
+ * getrennt herzuleiten.
+ */
+export function vehicleAmbiguousAlternatives(family: VehicleLabelFamily, model: VehicleLabelModel): string[] {
+  const { segments } = analyzeFamily(family.name, family.codes);
+  if (!isAmbiguousSegments(segments, model.name)) return [];
+  return applicableSegments(segments, model.name).map((segment) => segment.name);
 }
 
 // --- Motorisierung anhängen (Regel 2) ---------------------------------------
@@ -393,6 +505,23 @@ export function vehicleDisplayLabel(
 
   // Regel 1-3: mit Modell.
   const { segments, explicitList } = analyzeFamily(family.name, family.codes);
+
+  // Ausnahme Mehrdeutigkeit (Ergänzung 15.09.2026, Feinschliff-Prüfung,
+  // siehe vehicleLineIsAmbiguous()/vehicleAmbiguousAlternatives() und
+  // docs/architektur.md Abschnitt "Fahrzeugbezeichnung"): kann die Formel
+  // die Alternative nicht auflösen (z.B. "20i" bei "X1 / X2"), zeigt die
+  // Bezeichnung ALLE (nach der Ausnahme 8er/M8 verbleibenden) Alternativen,
+  // durch " / " verbunden, statt stillschweigend die erste zu wählen -
+  // "BMW X1 / X2 20i (U11, U10)" statt fälschlich "BMW X1 20i (U11)".
+  if (isAmbiguousSegments(segments, model.name)) {
+    const candidates = applicableSegments(segments, model.name);
+    const jointLine = candidates.map((segment) => segment.name).join(" / ");
+    const withMotorisierung = appendMotorisierung(jointLine, model.name);
+    const withBrand = prependBrand(withMotorisierung, family.brand);
+    const codes = resolveAmbiguousCodes(candidates, explicitList);
+    return appendCodes(withBrand, codes);
+  }
+
   const chosenIndex = chooseSegmentIndex(segments, model.name);
   const codes = resolveCodes(segments, chosenIndex, explicitList);
   const chosenLine = segments[chosenIndex]?.name ?? "";

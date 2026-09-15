@@ -416,8 +416,10 @@ export const de = {
     // X5/X6): die Formel (lib/catalog/vehicle-label.ts) kann die Alternative
     // einer Baureihe nicht auflösen, wenn die Motorisierung mit keiner ein
     // Wort teilt - vehicleLineIsAmbiguous() erkennt genau das.
-    modell_mehrdeutig:
-      "Baureihe umfasst mehrere Modelle (z. B. X1/X2, X3/X4, X5/X6), Modell beim Kunden klären.",
+    // {alternatives}: die konkreten Alternativen der Familie ("X1 / X2"),
+    // von runChecks() via tf() eingesetzt (lib/rules/checks.ts,
+    // vehicleAmbiguousAlternatives()) - statt generischer Beispiele.
+    modell_mehrdeutig: "Baureihe umfasst {alternatives}, Modell beim Kunden klären.",
   },
 
   draft: {
