@@ -7,7 +7,7 @@
 // app/api/admin/quick/create/route.ts).
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { admin } from "@/lib/i18n/admin";
+import { admin, formatMissingFields, missingFieldLabel } from "@/lib/i18n/admin";
 import { tf } from "@/lib/i18n/dictionaries";
 import type { CatalogFamily } from "@/lib/catalog/queries";
 import { FLOW_CATEGORIES, type Channel, type Character, type FlowCategory, type Timing } from "@/lib/supabase/rows";
@@ -59,15 +59,6 @@ interface CatalogProductsResponse {
   ok: boolean;
   error?: string;
   groups?: { category: FlowCategory; products: { id: string; name: string }[] }[];
-}
-
-/**
- * zod-Feldpfad (aus `missing`, siehe lib/ai/to-payload.ts toInquiryPayload())
- * -> deutsche Bezeichnung, statt des rohen Pfads in der UI (Prüfbefund
- * admin-quick, Punkt 5). Wie fieldLabel() in PricelistDiffCard.tsx.
- */
-function missingFieldLabel(path: string): string {
-  return tf2.missingFieldLabels[path] ?? tf2.missingFieldFallback;
 }
 
 function uniqueProducts(groups: CatalogProductsResponse["groups"]): ProductOption[] {
@@ -222,7 +213,13 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
         const data = (await res.json()) as { ok: boolean; error?: string; missing?: string[]; id?: string };
         if (!data.ok) {
           setMissing(data.missing ?? []);
-          showToast(tf(tf2.createError, { error: data.error ?? "Unbekannter Fehler." }), "error");
+          // Prüfung Phase D, Punkt 5 (Nachzug): dieselbe deutsche
+          // Feldnamen-Übersetzung wie die Liste unten (missingFieldLabel()),
+          // statt des rohen, komma-getrennten Fehlertexts vom Server
+          // ("familyId, year, firstName ..."), wenn `missing` gefüllt ist.
+          const errorText =
+            data.missing && data.missing.length > 0 ? formatMissingFields(data.missing) : (data.error ?? "Unbekannter Fehler.");
+          showToast(tf(tf2.createError, { error: errorText }), "error");
           return;
         }
         showToast("Anfrage angelegt.", "success");

@@ -32,7 +32,18 @@ export interface ProductDisplay {
 }
 
 const STAGE_NUMBER_PATTERN = /Stufe\s*(\d+)/i;
-const VMAX_MENTION_PATTERN = /V.?max/i;
+// Nachzug Prüfung Phase D, Punkt 3: EINE Quelle für das V/max-Muster statt
+// zwei leicht unterschiedlicher Varianten. Die bisherige Titel-Erkennung
+// (`/V.?max/i`, `.` als Wildcard) erkannte "V-max" zwar schon zufällig mit,
+// aber die Detail-Bereinigung weiter unten (VMAX_LIFT_THEN_MENTION_PATTERN/
+// VMAX_MENTION_THEN_LIFT_PATTERN) verwendete eine ENGERE Zeichenklasse ohne
+// Bindestrich (`V[\s./]?max\.?`) - "V-max." (z.B. M3/M4 G80 "Stufe 1: (Basis
+// 480 PS) 650PS / 750Nm ( M6 & A8-Getriebe ) inkl. V-max. Aufhebung") wurde
+// dort NICHT erkannt und blieb als Rest-Text ("inkl. V-max. Aufhebung") in
+// der Detailzeile sichtbar, obwohl der Titel-Zusatz bereits korrekt gesetzt
+// war. Deckt "V-max", "Vmax", "V/max", "V/max.", "V max" einheitlich ab.
+const VMAX_CORE_PATTERN = /V[/-]?\s?max\.?/i;
+const VMAX_MENTION_PATTERN = VMAX_CORE_PATTERN;
 const VMAX_LIFT_PATTERN = /Aufheb|Anheb|inkl/i;
 
 // Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 1): "Aufhebung der
@@ -75,21 +86,39 @@ const BASIS_PATTERN = /\(Basis[^)]*\)/gi;
 // die Basis-Klammer VOR "Stufe N:" (z.B. "(Basis 360 PS) Stufe 1: 422PS /
 // 600 Nm B58 ..."), in anderen (M2 G87) dahinter ("Stufe 1: (Basis 460
 // PS) ...") - die Reihenfolge ist nicht einheitlich.
-const STAGE_PREFIX_PATTERN = /Stufe\s*\d+\s*:?/gi;
+// Nachzug Prüfung Phase D, Punkt 3: "Leistungssteigerung " direkt vor
+// "Stufe N" wird zusammen mit dem Stufen-Präfix entfernt (reale Namen 1er M
+// E82: "Leistungssteigerung Stufe 1 (380PS/520Nm) mit Vmax-Aufhebung") -
+// sonst blieb das Wort als Rest in der Detailzeile stehen, obwohl es
+// bereits im Titel ("Stufe 1") steckt. Der fallende Fall ganz ohne
+// Stufennummer (Titel fällt auf STRINGS.increase "Leistungssteigerung"
+// zurück) wird separat in stageDisplay() behandelt (dort ist die
+// Stufennummer bereits bekannt, hier nicht).
+const STAGE_PREFIX_PATTERN = /(Leistungssteigerung\s+)?Stufe\s*\d+\s*:?/gi;
 // Der V/max-Zusatz kommt in den Preislisten in zwei Wortstellungen vor
 // (Lift-Wort vor oder nach der V/max-Nennung, mit wechselnden Abkürzungen:
 // "Aufhebung"/"Anhebung"/"Aufh."/"Anheb.", "Begrenzung"/"Begr.", "V/max"/
-// "V/max."/"Vmax") - z.B. "inkl. Anhebung der V/max Begrenzung" (M2 G87),
-// "inkl. Aufh. der V/max Begr." (M5 F10 N63Tü), "inkl. V/max. Aufhebung"
-// (3er/1er B58), "inkl. anhebung V/max." (1er/2er B48). Wird bereits als
-// Zusatz im Titel abgebildet (title-Suffix unten), soll deshalb nicht
-// nochmals als Detail-Text auftauchen. Zwei Muster für die beiden
-// Wortstellungen, da eine einzelne, beide Reihenfolgen abdeckende Regex
-// kaum noch lesbar wäre.
-const VMAX_LIFT_THEN_MENTION_PATTERN =
-  /\b(inkl\.?\s+)?(Aufhebung|Anhebung|Aufh\.|Anheb\.)\s+(der\s+)?(serienmässigen\s+)?V[\s./]?max\.?\s*(Begrenzung|Begr\.)?/gi;
-const VMAX_MENTION_THEN_LIFT_PATTERN =
-  /\b(inkl\.?\s+)?V[\s./]?max\.?\s*(Aufhebung|Anhebung|Aufh\.|Anheb\.)/gi;
+// "V/max."/"Vmax"/"V-max.") - z.B. "inkl. Anhebung der V/max Begrenzung"
+// (M2 G87), "inkl. Aufh. der V/max Begr." (M5 F10 N63Tü), "inkl. V/max.
+// Aufhebung" (3er/1er B58), "inkl. anhebung V/max." (1er/2er B48), "inkl.
+// V-max. Aufhebung" (M3/M4 G80), "mit Vmax-Aufhebung" (1er M E82, Bindestrich
+// statt Leerzeichen vor dem Lift-Wort). Wird bereits als Zusatz im Titel
+// abgebildet (title-Suffix unten), soll deshalb nicht nochmals als
+// Detail-Text auftauchen. Zwei Muster für die beiden Wortstellungen, da eine
+// einzelne, beide Reihenfolgen abdeckende Regex kaum noch lesbar wäre; beide
+// nutzen denselben VMAX_CORE_PATTERN wie die Titel-Erkennung oben (Punkt 3:
+// "gleich behandeln"), statt einer eigenen, abweichenden Zeichenklasse.
+const VMAX_LIFT_THEN_MENTION_PATTERN = new RegExp(
+  String.raw`\b(inkl\.?\s+)?(Aufhebung|Anhebung|Aufh\.|Anheb\.)\s+(der\s+)?(serienmässigen\s+)?${VMAX_CORE_PATTERN.source}\s*(Begrenzung|Begr\.)?`,
+  "gi",
+);
+const VMAX_MENTION_THEN_LIFT_PATTERN = new RegExp(
+  // "mit" zusätzlich zu "inkl." als Lead-in ("mit Vmax-Aufhebung", 1er M
+  // E82), "[\s-]*" statt "\s*" vor dem Lift-Wort deckt den Bindestrich-
+  // Anschluss in "Vmax-Aufhebung" mit ab (ohne Leerzeichen).
+  String.raw`\b((?:inkl\.?|mit)\s+)?${VMAX_CORE_PATTERN.source}[\s-]*(Aufhebung|Anhebung|Aufh\.|Anheb\.)`,
+  "gi",
+);
 
 const STRINGS: Record<Locale, { stage: (n: string) => string; increase: string; vmaxSuffix: string }> = {
   de: {
@@ -170,6 +199,17 @@ function stageDisplay(
           : "";
 
   let rest = combined;
+  // Nachzug Prüfung Phase D, Punkt 3: ohne erkennbare Stufennummer fällt der
+  // Titel auf strings.increase ("Leistungssteigerung") zurück (siehe oben) -
+  // das Wort selbst muss dann auch aus der Detailzeile verschwinden, sonst
+  // wiederholt sich der Titel dort (z.B. "Leistungssteigerung mit
+  // Vmax-Aufhebung" ohne eigene Stufe/PS-Nm-Angabe). MIT Stufennummer
+  // übernimmt STAGE_PREFIX_PATTERN direkt unten das kombinierte
+  // "Leistungssteigerung Stufe N"-Präfix, hier also bewusst nur im
+  // Fallback-Fall.
+  if (!stageMatch) {
+    rest = rest.replace(/\bLeistungssteigerung\b/gi, " ");
+  }
   rest = rest.replace(STAGE_PREFIX_PATTERN, " ");
   rest = rest.replace(BASIS_PATTERN, " ");
   rest = rest.replace(PS_NM_PATTERN, " ");

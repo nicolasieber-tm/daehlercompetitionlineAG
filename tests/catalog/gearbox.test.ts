@@ -56,6 +56,38 @@ describe("gearboxFor", () => {
   it("dÄHLer Alupedale Automatik -> automatic (Gegenstück, war bereits korrekt)", () => {
     expect(gearboxFor("dÄHLer Alupedale Automatik")).toBe("automatic");
   });
+
+  // Nachzug Prüfung Phase D, Punkt 7: reale Namen aus der DB. Der M4 GTS
+  // (F82) war ausschliesslich mit M-DKG-Doppelkupplungsgetriebe erhältlich,
+  // nie mit Handschaltung - eine von ihm übernommene Getriebeprogrammierung
+  // ist damit eindeutig DKG-/Automat-spezifisch.
+  it("Getriebeprogramm aus M4 GTS -> automatic (M2/M2 Competition/M2 CS F87, M4 GTS = reines DKG-Modell)", () => {
+    expect(gearboxFor("Getriebeprogramm aus M4 GTS")).toBe("automatic");
+  });
+
+  it("Getriebe- DSC Programmierung vom M4 GTS -> automatic (M3 F80/M4 F82, F83)", () => {
+    expect(gearboxFor("Getriebe- DSC Programmierung vom M4 GTS")).toBe("automatic");
+  });
+
+  // "GTS" allein bleibt getriebeneutral - nur "Getriebe...GTS" ist
+  // spezifisch. Sonst würden getriebeunabhängige GTS-Zubehörteile
+  // fälschlich als automat-exklusiv gelten (reale Namen aus der DB).
+  it("GTS-Zubehör ohne 'Getriebe' im Namen bleibt getriebeneutral (kein Bezug zur Getriebeprogrammierung)", () => {
+    expect(gearboxFor("Heckflügel GTS in GFK")).toBeNull();
+    expect(gearboxFor("Heckflügel GTS in Wagenfarbe")).toBeNull();
+    expect(gearboxFor("M3 GTS Heckflügel für F32")).toBeNull();
+  });
+
+  // Nachzug Prüfung Phase D, Punkt 7: "Differentialsperre mit kürzerer
+  // Uebersetzung" (reale Namen, 1er F20/F21 und 2er F22/F23) bleibt
+  // bewusst UNVERÄNDERT getriebeneutral - eine kürzere Achsübersetzung am
+  // Differential ist eine mechanische Ratio-Änderung, die unabhängig vom
+  // Getriebetyp (Hand- oder Automatikgetriebe) funktioniert; anders als
+  // beim M4 GTS gibt es hier kein eindeutiges Signal für eine der beiden
+  // Varianten.
+  it("Differentialsperre mit kürzerer Uebersetzung -> null (getriebeneutral, kein eindeutiges Signal)", () => {
+    expect(gearboxFor("Differentialsperre mit kürzerer Uebersetzung")).toBeNull();
+  });
 });
 
 describe("gearboxProductVisible", () => {

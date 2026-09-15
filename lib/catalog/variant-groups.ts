@@ -48,6 +48,17 @@ const RULES: Partial<Record<FlowCategory, VariantRule[]>> = {
     // Ansaugungs-Upgrades, exklusiv zueinander (z.B. M2 G87 "Sportluftfilter
     // Satz" vs. "Carbon Air Intake").
     { pattern: /Air Intake|Sportluftfilter|Ansaugsystem/i, group: "ansaugung" },
+    // Nachzug Prüfung Phase D, Punkt 2: "Getriebeoptimierung St.1 / 8 HP",
+    // "St.2 / 8 HP", "St.3 / 8 HP" (source_category Kraftübertragung, siehe
+    // docs/excel-import.md Kategorie-Mapping: Kraftübertragung -> Flow-
+    // Kategorie motor) sind drei alternative Programmierstufen desselben
+    // Automatgetriebes, exklusiv zueinander - ohne Gruppe waren alle drei
+    // gleichzeitig wählbar, obwohl nur eine gleichzeitig installiert sein
+    // kann. Kein Konflikt mit "leistung"/"ansaugung" oben (keiner der drei
+    // Namen enthält "Stufe"/"(Basis"/"Leistungssteigerung"/"Air Intake"/
+    // "Sportluftfilter"/"Ansaugsystem"), Position danach trotzdem konsistent
+    // mit der übrigen Liste (spezifischere/spätere Ergänzungen ans Ende).
+    { pattern: /Getriebeoptimierung/i, group: "getriebeoptimierung" },
   ],
   auspuff: [
     // Reihenfolge wichtig: "anlage" zuerst, sonst matcht z. B. "Edelstahl
@@ -55,6 +66,16 @@ const RULES: Partial<Record<FlowCategory, VariantRule[]>> = {
     // Name enthält das Wort "Endrohre", ist aber eine Anlage ohne Endrohre).
     { pattern: /Komplettanlage|Endschalld|Nachschalld|Auspuffanlage/i, group: "anlage" },
     { pattern: /Endrohre/i, group: "endrohre" },
+    // Nachzug Prüfung Phase D, Punkt 2: "Edelstahl Mittelschalldämpfer"/
+    // "... HP" vs. "Edelstahl H-Pipe Ersatz Mittelschalldämpfer"/"Edelstahl
+    // X-Rohr Ersatz Mittelschalldämpfer" sind alternative Mittelschall-
+    // dämpfer-Ausführungen (Serienersatz vs. freier durchlassendes H-Pipe-/
+    // X-Rohr-Ersatzrohr), exklusiv zueinander - keiner davon ist eine
+    // "Komplettanlage" (bleibt über die anlage-Regel oben, die zuerst
+    // geprüft wird, unverändert eigenständig gruppiert). Muster deckt auch
+    // "X-Pipe" ab (in den 42 Preislisten kommt nur "X-Rohr" vor, die
+    // Aufgabenstellung verlangt "X-Pipe" trotzdem ausdrücklich mit).
+    { pattern: /Mittelschalld|H-Pipe|X-Rohr|X-Pipe/i, group: "mittelschalldaempfer" },
   ],
   fahrwerk: [
     {

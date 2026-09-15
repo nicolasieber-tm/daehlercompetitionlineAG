@@ -5,8 +5,6 @@
 import { nanoid } from "nanoid";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
-import { displayItemFields } from "@/lib/catalog/product-display";
-import { isLocale } from "@/lib/i18n/dictionaries";
 
 const SHARE_TOKEN_LENGTH = 22;
 
@@ -45,8 +43,19 @@ export interface SharedInquiryView {
   consulting: boolean;
   items: Array<{
     category: string;
+    // Nachzug Prüfung Phase D, Punkt 1: name/description sind hier bewusst
+    // der ROHE Excel-Name/die Beschreibung (nicht mehr über
+    // displayItemFields() vorgefaltet) - variantGroup/psTo/nmTo werden
+    // zusätzlich mitgegeben, damit app/p/[token]/page.tsx dieselbe
+    // Darstellung wie die Kachel/die Mails selbst über
+    // productDisplay()/displayItemFields() ableiten kann (mit Locale), statt
+    // einer eigenen, an dieser Stelle nicht wiederverwendbaren Kopie. Siehe
+    // dort für die tatsächliche Verwendung.
     name: string;
     description: string | null;
+    variantGroup: string | null;
+    psTo: number | null;
+    nmTo: number | null;
     priceTotal: number | null;
     priceStatus: string;
   }>;
@@ -106,29 +115,27 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
   // Code an (Blocker-Befund, siehe lib/mail/render.ts Kommentar-Historie).
   const vehicleLabel = vehicleDisplayLabel({ family, model, vehicleText: inquiry.vehicle_text });
 
-  // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
-  // dieselbe Positionsdarstellung wie im Antwortentwurf/den Mails ("Stufe 1
-  // (590 PS / 720 Nm, M6 & A8-Getriebe)" statt des vollen, mehrdeutigen
-  // Excel-Namens) - auch auf der öffentlichen Teilen-Seite (app/p/[token]/
-  // page.tsx, ausserhalb der mir zugewiesenen Dateien, liest nur name/
-  // description von hier, keine eigene Anpassung dort nötig). isStage über
-  // ps_to (nur bei Motor-Leistungsstufen in selections.ps_to gespeichert,
-  // siehe lib/inquiry/create.ts), locale aus inquiries.locale.
-  const locale = isLocale(inquiry.locale) ? inquiry.locale : "de";
-  const selections = Array.isArray(inquiry.selections) ? inquiry.selections : [];
-  const items = (selections as unknown as Array<Record<string, unknown>>).map((s) => {
-    const psTo = typeof s.ps_to === "number" ? s.ps_to : null;
-    const nmTo = typeof s.nm_to === "number" ? s.nm_to : null;
-    const display = displayItemFields(
-      { name: String(s.name ?? ""), description: (s.description as string | null) ?? null, isStage: psTo != null, psTo, nmTo },
-      locale,
-    );
+  // Nachzug Prüfung Phase D, Punkt 1: name/description/variantGroup/psTo/
+  // nmTo werden ROH aus inquiries.selections durchgereicht (variant_group
+  // wird seit lib/inquiry/create.ts, Korrektur 15.09.2026 Befund 2, mit
+  // persistiert) - app/p/[token]/page.tsx leitet daraus selbst dieselbe
+  // Positionsdarstellung wie im Antwortentwurf/den Mails ab ("Stufe 1 (590
+  // PS / 720 Nm, M6 & A8-Getriebe)" statt des vollen, mehrdeutigen
+  // Excel-Namens, über displayItemFields()/productDisplay() mit Locale),
+  // sowohl für die Summary als auch für Vorher/Nachher (components/flow/
+  // beforeAfter.ts, das dafür ebenfalls variantGroup/psTo/nmTo braucht,
+  // nicht nur den fertig gefalteten Namen).
+  const items = (Array.isArray(inquiry.selections) ? inquiry.selections : []).map((s) => {
+    const row = s as unknown as Record<string, unknown>;
     return {
-      category: String(s.category ?? ""),
-      name: display.name,
-      description: display.description,
-      priceTotal: (s.price_total as number | null) ?? null,
-      priceStatus: String(s.price_status ?? "on_request"),
+      category: String(row.category ?? ""),
+      name: String(row.name ?? ""),
+      description: (row.description as string | null) ?? null,
+      variantGroup: (row.variant_group as string | null) ?? null,
+      psTo: typeof row.ps_to === "number" ? row.ps_to : null,
+      nmTo: typeof row.nm_to === "number" ? row.nm_to : null,
+      priceTotal: (row.price_total as number | null) ?? null,
+      priceStatus: String(row.price_status ?? "on_request"),
     };
   });
 

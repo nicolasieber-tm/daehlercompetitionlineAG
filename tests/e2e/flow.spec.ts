@@ -99,6 +99,10 @@ test.describe("Kundenflow Desktop, BMW M2 G87 mit Preisen", () => {
     // benachbarten "Stufe 1 mit V/max-Aufhebung"-Kachel (640 PS) ab.
     await expect(page.getByRole("heading", { name: "Wie viel darf es sein?" })).toBeVisible();
     await expect(page.getByText("Leistungsstufen", { exact: true })).toBeVisible();
+    // Nachzug Prüfung Phase D, Punkt 4: M2 G87 hat unter "Leistungsstufen"
+    // nur eine Gruppe ("DME Leistungssteigerungen:") - die Gruppenzeile darf
+    // die Abschnittsüberschrift nicht mehr doppelt zeigen.
+    await expect(page.getByText("DME Leistungssteigerungen:", { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: /^Stufe 1.*620/ }).click();
     await expect(page.locator("text=620").first()).toBeVisible();
 
@@ -140,6 +144,12 @@ test.describe("Kundenflow Desktop, BMW M2 G87 mit Preisen", () => {
     await expect(page.getByText(/Nr\. \d{4}-\d{4}/)).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/ab CHF/).first()).toBeVisible();
 
+    // Nachzug Prüfung Phase D, Punkt 1: der Abschluss-Screen (Vorher/Nachher
+    // und "Ihr Paket"-Summary) zeigt für die Leistungsstufe denselben kurzen
+    // Titel wie die Kachel im Motor-Schritt ("Stufe 1", siehe oben), nicht
+    // mehr den rohen Excel-Namen mit der Basis-Angabe ("(Basis 480 PS)").
+    await expect(page.getByText("(Basis", { exact: false })).toHaveCount(0);
+
     // Teilen-Link: kopieren und die read-only Seite öffnen.
     await page.getByRole("button", { name: /Ihr Paket als Link/ }).click();
     const code = page.locator("code");
@@ -151,6 +161,9 @@ test.describe("Kundenflow Desktop, BMW M2 G87 mit Preisen", () => {
     await sharePage.goto(shareUrl!);
     await expect(sharePage.getByRole("heading", { name: /Ihr Paket/ })).toBeVisible();
     await expect(sharePage.getByRole("link", { name: "Eigene Anfrage starten" })).toBeVisible();
+    // Dieselbe Prüfung wie oben: die Teilen-Seite zeigt keinen rohen
+    // Excel-Namen mit der Basis-Angabe.
+    await expect(sharePage.getByText("(Basis", { exact: false })).toHaveCount(0);
     await sharePage.close();
   });
 });

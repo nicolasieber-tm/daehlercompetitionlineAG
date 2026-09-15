@@ -191,6 +191,104 @@ describe("productDisplay: variant_group leistung", () => {
     expect(d.subtitle).toBe("590 PS / 720 Nm");
     expect(d.detail).toBe("M6 & A8-Getriebe");
   });
+
+  // Nachzug Prüfung Phase D, Punkt 3: "V-max" (Bindestrich statt Leerzeichen/
+  // Schrägstrich) wurde von der Detail-Bereinigung bisher nicht erkannt
+  // (nur von der Titel-Erkennung, zufällig, über den Wildcard-Punkt in der
+  // alten Regex) und blieb deshalb als Rest-Text in der Detailzeile stehen.
+  // Reale Namen aus der DB, M3 / M4 G80, G81, G82, G83.
+  it("'V-max.' (Bindestrich, M3/M4 G80) wird wie 'V/max'/'Vmax' erkannt und aus der Detailzeile entfernt", () => {
+    const d = productDisplay(
+      {
+        name: "Stufe 1: (Basis 480 PS) 650PS / 750Nm ( M6 & A8-Getriebe ) inkl. V-max. Aufhebung",
+        variant_group: "leistung",
+        ps_to: 650,
+        nm_to: 750,
+      },
+      "de",
+    );
+    expect(d.title).toBe("Stufe 1 mit V/max-Aufhebung");
+    expect(d.subtitle).toBe("650 PS / 750 Nm");
+    // Vorher blieb hier "M6 & A8-Getriebe ) inkl. V-max. Aufhebung" (oder
+    // Ähnliches) stehen; die V/max-Phrase ist bereits im Titel abgebildet.
+    expect(d.detail).toBe("M6 & A8-Getriebe");
+    expect(d.detail).not.toContain("V-max");
+  });
+
+  it("'V-max.' mit zusätzlichem Freitext ('Competition'/'Competition Lci'/'CS') bleibt als unterscheidendes Detail erhalten, ohne die V/max-Phrase", () => {
+    const competition = productDisplay(
+      {
+        name: "Stufe 1: (Basis 510 PS) 650PS / 770Nm Competition  inkl. V-max. Aufhebung",
+        variant_group: "leistung",
+        ps_to: 650,
+        nm_to: 770,
+      },
+      "de",
+    );
+    const competitionLci = productDisplay(
+      {
+        name: "Stufe 1: (Basis 530 PS) 660PS / 780Nm Competition Lci  inkl. V-max. Aufhebung",
+        variant_group: "leistung",
+        ps_to: 660,
+        nm_to: 780,
+      },
+      "de",
+    );
+    const cs = productDisplay(
+      {
+        name: "Stufe 1: (Basis 550 PS) 660PS / 810Nm CS  inkl. V-max. Aufhebung",
+        variant_group: "leistung",
+        ps_to: 660,
+        nm_to: 810,
+      },
+      "de",
+    );
+    expect(competition.title).toBe("Stufe 1 mit V/max-Aufhebung");
+    expect(competition.detail).toBe("Competition");
+    expect(competitionLci.detail).toBe("Competition Lci");
+    expect(cs.detail).toBe("CS");
+  });
+
+  // Reale Namen 1er M E82 (siehe docs/excel-import.md, Beispiel für
+  // ps_to/nm_to aus dem Namen): "mit Vmax-Aufhebung" hängt das Lift-Wort per
+  // Bindestrich statt Leerzeichen an "Vmax" an; das führende
+  // "Leistungssteigerung" vor "Stufe N" gehört ebenfalls zum Präfix (bereits
+  // im Titel "Stufe N" abgebildet), nicht in die Detailzeile.
+  it("'mit Vmax-Aufhebung' (Bindestrich vor dem Lift-Wort, 1er M E82): Detail leer, kein 'Leistungssteigerung'-Rest", () => {
+    const stage1 = productDisplay(
+      {
+        name: "Leistungssteigerung Stufe 1 (380PS/520Nm) mit Vmax-Aufhebung",
+        variant_group: "leistung",
+        ps_to: 380,
+        nm_to: 520,
+      },
+      "de",
+    );
+    const stage4 = productDisplay(
+      {
+        name: "Leistungssteigerung Stufe 4 (445PS/600Nm) mit Vmax-Aufhebung",
+        variant_group: "leistung",
+        ps_to: 445,
+        nm_to: 600,
+      },
+      "de",
+    );
+    expect(stage1.title).toBe("Stufe 1 mit V/max-Aufhebung");
+    expect(stage1.subtitle).toBe("380 PS / 520 Nm");
+    expect(stage1.detail).toBe("");
+    expect(stage4.title).toBe("Stufe 4 mit V/max-Aufhebung");
+    expect(stage4.detail).toBe("");
+  });
+
+  it("ohne erkennbare Stufennummer: 'Leistungssteigerung mit Vmax-Aufhebung' -> Titel 'Leistungssteigerung mit V/max-Aufhebung', Detail leer", () => {
+    const d = productDisplay(
+      { name: "Leistungssteigerung mit Vmax-Aufhebung", variant_group: "leistung", ps_to: null, nm_to: null },
+      "de",
+    );
+    expect(d.title).toBe("Leistungssteigerung mit V/max-Aufhebung");
+    expect(d.subtitle).toBe("");
+    expect(d.detail).toBe("");
+  });
 });
 
 describe("productDisplay: andere Produkte", () => {

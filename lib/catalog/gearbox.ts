@@ -31,7 +31,17 @@ const MANUAL_PATTERN = /Handschalt|Schaltgetr|manuell/i;
 // Bezeichnung, in der Excel uneinheitlich mit/ohne Leerzeichen), "DKG"/"DCT"
 // Doppelkupplungsgetriebe, "Steptronic" BMW-eigene Automat-Bezeichnung,
 // "Wandler" Drehmomentwandler-Automatgetriebe.
-const AUTOMATIC_PATTERN = /Automat|8\s*HP|8HP|DKG|DCT|Steptronic|Wandler/i;
+// Nachzug Prüfung Phase D, Punkt 7: "Getriebeprogramm aus M4 GTS" (M2/M2
+// Competition/M2 CS F87) und "Getriebe- DSC Programmierung vom M4 GTS" (M3
+// F80/M4 F82, F83) trafen bisher weder MANUAL_ noch AUTOMATIC_PATTERN und
+// blieben fälschlich getriebeneutral (gearboxFor -> null), obwohl beides
+// eine vom M4 GTS (F82, ausschliesslich mit M-DKG-Doppelkupplungsgetriebe
+// erhältlich, nie mit Handschaltung) übernommene Getriebeprogrammierung ist
+// - "automatic" ist hier eindeutig vertretbar. "Getriebe.*GTS" statt eines
+// bloss auf "GTS" prüfenden Musters, sonst träfe es auch getriebeunabhängige
+// GTS-Zubehörteile fälschlich (z.B. "Heckflügel GTS in GFK", "M3 GTS
+// Heckflügel für F32" - Spoiler, keine Getriebeprogrammierung).
+const AUTOMATIC_PATTERN = /Automat|8\s*HP|8HP|DKG|DCT|Steptronic|Wandler|Getriebe.*GTS/i;
 // "M6 & A8" (z.B. "M6 & A8-Getriebe" bei den M2 G87 Leistungsstufen): das
 // Produkt gilt ausdrücklich für BEIDE Getriebevarianten, nicht getriebe-
 // spezifisch - würde ohne diese Ausnahme ohnehin schon null ergeben (weder

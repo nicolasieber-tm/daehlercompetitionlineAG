@@ -10,6 +10,7 @@ import { getInquiryByShareToken } from "@/lib/inquiry/share";
 import { getDictionary, isLocale, tf } from "@/lib/i18n/dictionaries";
 import { chfFrom } from "@/lib/i18n/format";
 import { buildBeforeAfterRows } from "@/components/flow/beforeAfter";
+import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import type { FlowCategory } from "@/lib/supabase/rows";
 
 export const metadata: Metadata = {
@@ -33,6 +34,11 @@ export default async function SharedInquiryPage({
   const totalLabel = unpriced ? t.steps.done.package.totalWithOnRequest : t.steps.done.package.total;
   const totalValue = inquiry.estimatedTotal != null ? chfFrom(inquiry.estimatedTotal, locale) : t.steps.done.package.onRequest;
 
+  // Nachzug Prüfung Phase D, Punkt 1: dieselbe Positionsdarstellung wie in
+  // der Kachel (CategoryStep.tsx) und in den Mails/dem Antwortentwurf
+  // (displayItemFields()), statt des rohen Excel-Namens ("Stufe 1: (Basis
+  // 460 PS) 590PS / 720Nm (M6 & A8-Getriebe)") - lib/inquiry/share.ts
+  // liefert dafür jetzt name/description/variantGroup/psTo/nmTo roh.
   const summaryLines = categories.flatMap((c) => {
     const items = inquiry.items.filter((i) => i.category === c);
     if (items.length === 0) {
@@ -45,17 +51,29 @@ export default async function SharedInquiryPage({
         },
       ];
     }
-    return items.map((p, i) => ({
-      key: `${c}-${i}`,
-      category: t.steps.wish.categories[c]?.title ?? c,
-      name: p.name,
-      price:
-        p.priceStatus === "priced" && p.priceTotal != null
-          ? tf(t.priceStatus.priced, { price: chfFrom(p.priceTotal, locale) })
-          : p.priceStatus === "in_preparation"
-            ? t.priceStatus.in_preparation
-            : t.priceStatus.on_request,
-    }));
+    return items.map((p, i) => {
+      const display = displayItemFields(
+        {
+          name: p.name,
+          description: p.description,
+          isStage: isStageItem({ name: p.name, variant_group: p.variantGroup, ps_to: p.psTo }),
+          psTo: p.psTo,
+          nmTo: p.nmTo,
+        },
+        locale,
+      );
+      return {
+        key: `${c}-${i}`,
+        category: t.steps.wish.categories[c]?.title ?? c,
+        name: display.name,
+        price:
+          p.priceStatus === "priced" && p.priceTotal != null
+            ? tf(t.priceStatus.priced, { price: chfFrom(p.priceTotal, locale) })
+            : p.priceStatus === "in_preparation"
+              ? t.priceStatus.in_preparation
+              : t.priceStatus.on_request,
+      };
+    });
   });
   if (inquiry.consulting) {
     summaryLines.push({
@@ -69,11 +87,19 @@ export default async function SharedInquiryPage({
   const beforeAfterRows = buildBeforeAfterRows(
     {
       categories,
-      items: inquiry.items.map((i) => ({ category: i.category as FlowCategory, name: i.name })),
+      items: inquiry.items.map((i) => ({
+        category: i.category as FlowCategory,
+        name: i.name,
+        description: i.description,
+        psTo: i.psTo,
+        nmTo: i.nmTo,
+        variantGroup: i.variantGroup,
+      })),
       consulting: inquiry.consulting,
       character: inquiry.character,
     },
     t,
+    locale,
   );
 
   return (

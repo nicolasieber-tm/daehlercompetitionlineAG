@@ -8,6 +8,7 @@ import type { Dispatch } from "react";
 import { BeforeAfter, Button, Question, StepLabel, Summary } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import { chfFrom } from "@/lib/i18n/format";
+import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
 import type { FlowAction, FlowState } from "../state";
 import { allSelectedProducts, hasUnpricedSelection, selectionTotal } from "../state";
@@ -92,17 +93,33 @@ export function DoneStep({
         },
       ];
     }
-    return items.map((p) => ({
-      key: p.id,
-      category: t.steps.wish.categories[c].title,
-      name: p.name,
-      price:
-        p.priceStatus === "priced" && p.priceTotal != null
-          ? tf(t.priceStatus.priced, { price: chfFrom(p.priceTotal, locale) })
-          : p.priceStatus === "in_preparation"
-            ? t.priceStatus.in_preparation
-            : t.priceStatus.on_request,
-    }));
+    return items.map((p) => {
+      // Nachzug Prüfung Phase D, Punkt 1: dieselbe Positionsdarstellung wie
+      // in der Kachel (CategoryStep.tsx) und in den Mails/dem Antwortentwurf
+      // (displayItemFields()), statt des rohen Excel-Namens ("Stufe 1: (Basis
+      // 460 PS) 590PS / 720Nm (M6 & A8-Getriebe)").
+      const display = displayItemFields(
+        {
+          name: p.name,
+          description: p.description,
+          isStage: isStageItem({ name: p.name, variant_group: p.variantGroup, ps_to: p.psTo }),
+          psTo: p.psTo,
+          nmTo: p.nmTo,
+        },
+        locale,
+      );
+      return {
+        key: p.id,
+        category: t.steps.wish.categories[c].title,
+        name: display.name,
+        price:
+          p.priceStatus === "priced" && p.priceTotal != null
+            ? tf(t.priceStatus.priced, { price: chfFrom(p.priceTotal, locale) })
+            : p.priceStatus === "in_preparation"
+              ? t.priceStatus.in_preparation
+              : t.priceStatus.on_request,
+      };
+    });
   });
   if (state.consulting) {
     summaryLines.push({
@@ -119,6 +136,7 @@ export function DoneStep({
       items: allSelectedProducts(state).map((p) => ({
         category: p.category,
         name: p.name,
+        description: p.description,
         psTo: p.psTo,
         nmTo: p.nmTo,
         variantGroup: p.variantGroup,
@@ -129,6 +147,7 @@ export function DoneStep({
       seriesNm,
     },
     t,
+    locale,
   );
 
   return (

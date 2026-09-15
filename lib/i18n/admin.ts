@@ -562,3 +562,24 @@ export const admin = {
 } as const;
 
 export type Admin = typeof admin;
+
+// Nachzug Prüfung Phase D, Punkt 5: der Fehler-Toast in
+// components/admin/QuickInquiryForm.tsx handleCreate() und der von
+// app/api/admin/quick/create/route.ts gebaute error-Text zeigten rohe
+// zod-Feldpfade ("familyId, year, firstName ...") statt der deutschen
+// Bezeichnung, obwohl die Liste im selben Formular (`missing`-Block) bereits
+// über admin.quick.form.missingFieldLabels übersetzt. Gemeinsame Helfer
+// hier (statt einer eigenen Kopie je Aufrufer, wie zuvor in
+// QuickInquiryForm.tsx missingFieldLabel()), damit Formular-Liste,
+// Fehler-Toast und die serverseitige Fehlermeldung dieselbe Übersetzung
+// verwenden.
+
+/** zod-Feldpfad (aus `missing`, siehe lib/ai/to-payload.ts toInquiryPayload()) -> deutsche Bezeichnung. */
+export function missingFieldLabel(path: string): string {
+  return admin.quick.form.missingFieldLabels[path] ?? admin.quick.form.missingFieldFallback;
+}
+
+/** Mehrere zod-Feldpfade zu einer deutschen, komma-getrennten Liste. */
+export function formatMissingFields(missing: string[]): string {
+  return missing.map(missingFieldLabel).join(", ");
+}

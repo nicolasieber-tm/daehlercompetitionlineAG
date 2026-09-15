@@ -18,6 +18,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { extractionSchema } from "@/lib/ai/extract";
 import { toInquiryPayload } from "@/lib/ai/to-payload";
 import { createInquiry, InvalidSelectionError } from "@/lib/inquiry/create";
+import { formatMissingFields } from "@/lib/i18n/admin";
 import { FLOW_CATEGORIES, type FlowCategory } from "@/lib/supabase/rows";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -86,8 +87,14 @@ export async function POST(request: Request) {
 
   const { ok, payload, missing } = await toInquiryPayload(parsed.data.extraction, parsed.data.overrides);
   if (!ok || !payload) {
+    // Nachzug Prüfung Phase D, Punkt 5: `error` zeigte bisher die rohen
+    // zod-Feldpfade ("familyId, year, firstName ..."), jetzt dieselbe
+    // deutsche Übersetzung wie die Liste im Formular (siehe
+    // components/admin/QuickInquiryForm.tsx, admin.quick.form.
+    // missingFieldLabels). `missing` selbst bleibt unverändert (rohe Pfade,
+    // die UI übersetzt sie beim Rendern der Liste eigenständig).
     return NextResponse.json(
-      { ok: false, error: `Pflichtfelder fehlen oder sind ungültig: ${missing.join(", ")}`, missing },
+      { ok: false, error: `Pflichtfelder fehlen oder sind ungültig: ${formatMissingFields(missing)}`, missing },
       { status: 422 },
     );
   }

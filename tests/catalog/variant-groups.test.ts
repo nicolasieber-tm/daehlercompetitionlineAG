@@ -112,3 +112,43 @@ describe("variantGroupFor: motor ansaugung", () => {
     expect(variantGroupFor("motor", "Domstrebensatz Carbon / Schwarz")).toBeNull();
   });
 });
+
+// Nachzug Prüfung Phase D, Punkt 2: Kraftübertragung (source_category, Flow-
+// Kategorie "motor", siehe docs/excel-import.md Kategorie-Mapping) -
+// "Getriebeoptimierung St.1/St.2/St.3" sind drei alternative
+// Programmierstufen, exklusiv zueinander. Reale Namen aus der DB.
+describe("variantGroupFor: motor getriebeoptimierung", () => {
+  it("Getriebeoptimierung St.1/St.2/St.3 sind exklusiv", () => {
+    expect(variantGroupFor("motor", "Getriebeoptimierung St.1 / 8 HP")).toBe("getriebeoptimierung");
+    expect(variantGroupFor("motor", "Getriebeoptimierung St.2 / 8 HP")).toBe("getriebeoptimierung");
+    expect(variantGroupFor("motor", "Getriebeoptimierung St.3 / 8 HP")).toBe("getriebeoptimierung");
+  });
+
+  it("kein Konflikt mit 'leistung'/'ansaugung' (keiner der Getriebeoptimierung-Namen matcht diese Muster)", () => {
+    expect(variantGroupFor("motor", "Stufe 1: (Basis 460 PS) 590PS / 720Nm")).toBe("leistung");
+    expect(variantGroupFor("motor", "Sportluftfilter Satz")).toBe("ansaugung");
+  });
+});
+
+// Nachzug Prüfung Phase D, Punkt 2: "Edelstahl Mittelschalldämpfer"/"...HP"
+// vs. "Edelstahl H-Pipe Ersatz Mittelschalldämpfer"/"Edelstahl X-Rohr Ersatz
+// Mittelschalldämpfer" sind alternative Mittelschalldämpfer-Ausführungen,
+// exklusiv zueinander; "Komplettanlage" bleibt unverändert "anlage" (die
+// anlage-Regel wird zuerst geprüft). Reale Namen aus der DB.
+describe("variantGroupFor: auspuff mittelschalldaempfer", () => {
+  it("Mittelschalldämpfer-Varianten sind exklusiv (reale Namen)", () => {
+    expect(variantGroupFor("auspuff", "Edelstahl Mittelschalldämpfer")).toBe("mittelschalldaempfer");
+    expect(variantGroupFor("auspuff", "Edelstahl Mittelschalldämpfer HP")).toBe("mittelschalldaempfer");
+    expect(variantGroupFor("auspuff", "Edelstahl H-Pipe Ersatz Mittelschalldämpfer")).toBe("mittelschalldaempfer");
+    expect(variantGroupFor("auspuff", "Edelstahl X-Rohr Ersatz Mittelschalldämpfer")).toBe("mittelschalldaempfer");
+    expect(variantGroupFor("auspuff", "Edelstahlmittelschalldämpfer")).toBe("mittelschalldaempfer");
+  });
+
+  it("deckt auch 'X-Pipe' ab (in den 42 Preislisten bisher nicht vorkommend, Aufgabenstellung verlangt es trotzdem)", () => {
+    expect(variantGroupFor("auspuff", "Edelstahl X-Pipe Ersatz Mittelschalldämpfer")).toBe("mittelschalldaempfer");
+  });
+
+  it("'Komplettanlage' bleibt 'anlage', die anlage-Regel wird zuerst geprüft", () => {
+    expect(variantGroupFor("auspuff", "Edelstahl Komplettanlage HP")).toBe("anlage");
+  });
+});

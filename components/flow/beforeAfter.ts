@@ -6,13 +6,14 @@
 // Server Component, nur mit den schlankeren Feldern aus
 // lib/inquiry/share.ts SharedInquiryView) verwendet - daher sind die
 // "reichen" Felder (seriesPs/seriesNm, psTo/nmTo je Position) optional.
-import type { Dictionary } from "@/lib/i18n/dictionaries";
-import { normalizeNbsp } from "@/lib/catalog/product-display";
+import type { Dictionary, Locale } from "@/lib/i18n/dictionaries";
+import { isStageItem, normalizeNbsp, productDisplay } from "@/lib/catalog/product-display";
 import type { FlowCategory } from "@/lib/supabase/rows";
 
 export interface BeforeAfterItemInput {
   category: FlowCategory;
   name: string;
+  description?: string | null;
   psTo?: number | null;
   nmTo?: number | null;
   variantGroup?: string | null;
@@ -38,20 +39,30 @@ function itemsOf(input: BeforeAfterInput, category: FlowCategory): BeforeAfterIt
   return input.items.filter((i) => i.category === category);
 }
 
-// NBSP-normalisiert statt der vollen productDisplay()-Titel-Herleitung: hier
-// gibt es keinen Locale-Parameter (app/p/[token]/page.tsx, ausserhalb der
-// mir zugewiesenen Dateien, ruft buildBeforeAfterRows() ohne Locale-Bezug
-// auf), und für Nicht-Leistungsprodukte liefert productDisplay() ohnehin nur
-// den NBSP-normalisierten Namen zurück (siehe lib/catalog/product-display.ts
-// plainDisplay()) - normalizeNbsp() allein deckt das hier ab, ohne einen
-// Locale-Parameter einzuführen, der einen ausserhalb dieser Aufgabe
-// liegenden Aufrufer bräche.
-function joinNames(items: BeforeAfterItemInput[], adviceValue: string): string {
-  return items.length > 0 ? items.map((i) => normalizeNbsp(i.name)).join(", ") : adviceValue;
+// Nachzug Prüfung Phase D, Punkt 1: derselbe kurze, unterscheidbare Titel
+// wie in der Kachel (CategoryStep.tsx displayTitle()) und in den Mails
+// (displayItemFields()), statt des rohen Excel-Namens - vorher blieb hier
+// z.B. "Stufe 1: (Basis 460 PS) 590PS / 720Nm (M6 & A8-Getriebe)" stehen.
+// Nur der TITEL (nicht die volle "Name (Subtitle, Detail)"-Form aus
+// displayItemFields()): die Vorher/Nachher-Zeile ist knapp gehalten (mehrere
+// Namen mit ", " verbunden), die PS/Nm-Werte der Hauptstufe stehen für die
+// Motor-Zeile ohnehin schon separat als Zahlen (siehe unten).
+function displayName(item: BeforeAfterItemInput, locale: Locale): string {
+  if (!isStageItem({ name: item.name, variant_group: item.variantGroup, ps_to: item.psTo })) {
+    return normalizeNbsp(item.name);
+  }
+  return productDisplay(
+    { name: item.name, description: item.description, variant_group: item.variantGroup, ps_to: item.psTo, nm_to: item.nmTo },
+    locale,
+  ).title;
+}
+
+function joinNames(items: BeforeAfterItemInput[], adviceValue: string, locale: Locale): string {
+  return items.length > 0 ? items.map((i) => displayName(i, locale)).join(", ") : adviceValue;
 }
 
 /** Baut die Vorher/Nachher-Zeilen aus dem gewählten Paket, siehe docs/vorschau.html beforeAfter(). */
-export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary): BeforeAfterRowData[] {
+export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary, locale: Locale): BeforeAfterRowData[] {
   const rows: BeforeAfterRowData[] = [];
   const b = t.steps.done.beforeAfter;
   const advice = b.adviceValue;
@@ -66,10 +77,10 @@ export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary): Be
         : b.seriesValue;
     let after: string;
     if (stage) {
-      const extraNames = extras.map((i) => normalizeNbsp(i.name)).join(", ");
+      const extraNames = extras.map((i) => displayName(i, locale)).join(", ");
       after = `${stage.psTo} PS · ${stage.nmTo ?? "?"} Nm${extraNames ? " · " + extraNames : ""}`;
     } else if (motorItems.length > 0) {
-      after = motorItems.map((i) => normalizeNbsp(i.name)).join(", ");
+      after = motorItems.map((i) => displayName(i, locale)).join(", ");
     } else {
       after = advice;
     }
@@ -81,7 +92,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary): Be
       key: "sound",
       category: b.rows.sound,
       before: b.seriesExhaustValue,
-      after: joinNames(itemsOf(input, "auspuff"), advice),
+      after: joinNames(itemsOf(input, "auspuff"), advice, locale),
     });
   }
 
@@ -90,7 +101,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary): Be
       key: "fahrwerk",
       category: b.rows.fahrwerk,
       before: b.seriesHeightValue,
-      after: joinNames(itemsOf(input, "fahrwerk"), advice),
+      after: joinNames(itemsOf(input, "fahrwerk"), advice, locale),
     });
   }
 
@@ -99,7 +110,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary): Be
       key: "raeder",
       category: b.rows.raeder,
       before: b.seriesWheelsValue,
-      after: joinNames(itemsOf(input, "raeder"), advice),
+      after: joinNames(itemsOf(input, "raeder"), advice, locale),
     });
   }
 
@@ -108,7 +119,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary): Be
       key: "exterieur",
       category: b.rows.exterieur,
       before: b.seriesValue,
-      after: joinNames(itemsOf(input, "exterieur"), advice),
+      after: joinNames(itemsOf(input, "exterieur"), advice, locale),
     });
   }
 
@@ -117,7 +128,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary): Be
       key: "interieur",
       category: b.rows.interieur,
       before: b.seriesValue,
-      after: joinNames(itemsOf(input, "interieur"), advice),
+      after: joinNames(itemsOf(input, "interieur"), advice, locale),
     });
   }
 

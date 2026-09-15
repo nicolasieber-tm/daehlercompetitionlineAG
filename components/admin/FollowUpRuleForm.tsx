@@ -91,11 +91,17 @@ export function FollowUpRuleForm({
         <div className="grid grid-cols-2 gap-3">
           <FormField
             label={t.daysAfterReply}
-            inputProps={{ type: "number", min: 0, value: daysAfterReply, onChange: (e) => setDaysAfterReply(e.target.value) }}
+            inputProps={{
+              type: "number",
+              min: 1,
+              max: 365,
+              value: daysAfterReply,
+              onChange: (e) => setDaysAfterReply(e.target.value),
+            }}
           />
           <FormField
             label={t.maxCount}
-            inputProps={{ type: "number", min: 1, value: maxCount, onChange: (e) => setMaxCount(e.target.value) }}
+            inputProps={{ type: "number", min: 1, max: 10, value: maxCount, onChange: (e) => setMaxCount(e.target.value) }}
           />
         </div>
       </div>

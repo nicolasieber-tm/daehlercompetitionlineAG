@@ -313,7 +313,17 @@ export function CategoryStep({
                 <div className="flex flex-col gap-5">
                   {section.groups.map((g, gi) => (
                     <div key={`${section.id}-${g.groupLabel ?? ""}-${gi}`}>
-                      {g.groupLabel ? <div className="mb-2 text-[13px] text-dim">{g.groupLabel}</div> : null}
+                      {/* Nachzug Prüfung Phase D, Punkt 4: die Gruppenzeile
+                          (z.B. "DME Leistungssteigerungen:") nur zeigen, wenn
+                          der Abschnitt (z.B. "Leistungsstufen") mehr als eine
+                          Gruppe enthält (z.B. DME UND DDE für ein Modell mit
+                          gemischtem Fitment) - sonst wiederholt sie nur die
+                          bereits gezeigte Abschnittsüberschrift und die Motor-
+                          Leistungsstufen unter ihr sind ohnehin über den
+                          Titel (Stufe N/Leistungssteigerung) unterscheidbar. */}
+                      {section.groups.length > 1 && g.groupLabel ? (
+                        <div className="mb-2 text-[13px] text-dim">{g.groupLabel}</div>
+                      ) : null}
                       <div className="grid grid-cols-1 gap-2.5 xs:grid-cols-2 md2:grid-cols-3">
                         {g.products.map((product) => renderProductTile(product))}
                       </div>
