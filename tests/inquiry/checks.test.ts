@@ -4,7 +4,12 @@ import { describe, expect, it } from "vitest";
 import { de } from "@/lib/i18n/de";
 import { en } from "@/lib/i18n/en";
 import { CHECK_RULES, runChecks } from "@/lib/rules/checks";
-import type { CheckContext, CheckProduct } from "@/lib/rules/checks";
+import type { CheckContext, CheckFamily, CheckProduct } from "@/lib/rules/checks";
+
+/** Minimale, gültige Familie (Marke/Name irrelevant für die meisten Regeln - nur modell_mehrdeutig wertet sie aus). */
+function family(overrides: Partial<CheckFamily> = {}): CheckFamily {
+  return { hasPricelist: true, brand: "BMW", name: "M2 G87", codes: ["G87"], ...overrides };
+}
 
 function ctx(overrides: Partial<CheckContext> = {}): CheckContext {
   return {
@@ -17,7 +22,7 @@ function ctx(overrides: Partial<CheckContext> = {}): CheckContext {
       gearbox: null,
       ...overrides.inquiry,
     },
-    family: overrides.family !== undefined ? overrides.family : { hasPricelist: true },
+    family: overrides.family !== undefined ? overrides.family : family(),
     model: overrides.model !== undefined ? overrides.model : null,
     products: overrides.products ?? [],
   };
@@ -168,10 +173,10 @@ describe("zeitraum_kapazitaet", () => {
 describe("familie_ohne_preisliste", () => {
   const rule = CHECK_RULES.find((r) => r.id === "familie_ohne_preisliste")!;
   it("feuert ohne Preisliste", () => {
-    expect(rule.when(ctx({ family: { hasPricelist: false } }))).toBe(true);
+    expect(rule.when(ctx({ family: family({ hasPricelist: false }) }))).toBe(true);
   });
   it("feuert nicht mit Preisliste", () => {
-    expect(rule.when(ctx({ family: { hasPricelist: true } }))).toBe(false);
+    expect(rule.when(ctx({ family: family({ hasPricelist: true }) }))).toBe(false);
   });
 });
 
@@ -285,6 +290,42 @@ describe("vmax_doppelt", () => {
       ],
     });
     expect(rule.when(c)).toBe(true);
+  });
+});
+
+// Feinschliff-Prüfung 15.09.2026 (Ambiguität X1/X2, X3/X4, X5/X6, siehe
+// docs/architektur.md Abschnitt "Fahrzeugbezeichnung" und
+// lib/catalog/vehicle-label.ts vehicleLineIsAmbiguous()).
+describe("modell_mehrdeutig", () => {
+  const rule = CHECK_RULES.find((r) => r.id === "modell_mehrdeutig")!;
+
+  it("feuert, wenn die Motorisierung mit keiner Alternative der Baureihe ein Wort teilt (X1/X2)", () => {
+    const c = ctx({
+      family: family({ brand: "BMW", name: "X1 U11 / X2 U10", codes: ["U11", "U10"] }),
+      model: { id: "m1", name: "20d" },
+    });
+    expect(rule.when(c)).toBe(true);
+  });
+
+  it("feuert nicht, wenn die Motorisierung eine Alternative eindeutig trifft", () => {
+    const c = ctx({
+      family: family({ brand: "BMW", name: "X1 U11 / X2 U10", codes: ["U11", "U10"] }),
+      model: { id: "m1", name: "X1 xDrive20d" },
+    });
+    expect(rule.when(c)).toBe(false);
+  });
+
+  it("feuert nicht ohne Alternativen in der Baureihe", () => {
+    const c = ctx({
+      family: family({ brand: "BMW", name: "M2 G87", codes: ["G87"] }),
+      model: { id: "m1", name: "M2" },
+    });
+    expect(rule.when(c)).toBe(false);
+  });
+
+  it("feuert nicht ohne gewähltes Modell", () => {
+    const c = ctx({ family: family({ brand: "BMW", name: "X1 U11 / X2 U10", codes: ["U11", "U10"] }), model: null });
+    expect(rule.when(c)).toBe(false);
   });
 });
 

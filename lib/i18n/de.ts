@@ -412,6 +412,12 @@ export const de = {
       "Getriebespezifische Position gewählt, Getriebe (Handschalter/Automat) aber nicht bekannt: vor der Bestätigung klären.",
     vmax_doppelt:
       "Die gewählte Leistungsstufe enthält die V/max-Aufhebung bereits, zusätzlich wurde das eigenständige V/max-Produkt gewählt: doppelt, bitte bereinigen.",
+    // Ergänzung 15.09.2026 (Feinschliff-Prüfung, Ambiguität X1/X2, X3/X4,
+    // X5/X6): die Formel (lib/catalog/vehicle-label.ts) kann die Alternative
+    // einer Baureihe nicht auflösen, wenn die Motorisierung mit keiner ein
+    // Wort teilt - vehicleLineIsAmbiguous() erkennt genau das.
+    modell_mehrdeutig:
+      "Baureihe umfasst mehrere Modelle (z. B. X1/X2, X3/X4, X5/X6), Modell beim Kunden klären.",
   },
 
   draft: {
@@ -423,7 +429,13 @@ export const de = {
     greeting: "Guten Tag {first} {last}",
     thanks:
       "Danke für Ihre Anfrage für Ihren {model}{yearSuffix}.",
-    yearSuffix: " (Jahrgang {year})",
+    // Korrektur 15.09.2026 (Feinschliff-Prüfung, Befund "Doppelklammer"):
+    // {model} kann selbst schon in Klammern enden (die Codes, z.B. "BMW M2
+    // (G87)") - ein weiteres, direkt folgendes "(Jahrgang 2026)" liest sich
+    // wie eine zweite Klammer ("BMW M2 (G87) (Jahrgang 2026)"). Komma statt
+    // Klammer trennt die beiden Angaben klar, ohne dass es wie eine
+    // verschachtelte/zweite Klammer aussieht.
+    yearSuffix: ", Jahrgang {year}",
     character: {
       dezent: "Dezent und trotzdem spürbar, das können wir.",
       sportlich: "Sportlich und alltagstauglich, das ist genau unsere Linie.",

@@ -9,7 +9,12 @@
 // mitgeprüft, wo ein Modell/keine vehicleText im Spiel ist (der Kundenflow
 // kennt kein vehicleText).
 import { describe, expect, it } from "vitest";
-import { vehicleDisplayLabel, vehicleFamilyLine, vehicleInternalLine } from "@/lib/catalog/vehicle-label";
+import {
+  vehicleDisplayLabel,
+  vehicleFamilyLine,
+  vehicleInternalLine,
+  vehicleLineIsAmbiguous,
+} from "@/lib/catalog/vehicle-label";
 import type { VehicleLabelFamily, VehicleLabelModel } from "@/lib/catalog/vehicle-label";
 import { vehicleDisplayName } from "@/components/flow/vehicleLabel";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
@@ -108,36 +113,67 @@ describe("vehicleDisplayLabel: Pflicht-Beispiele aus der Aufgabenstellung", () =
     expect(vehicleDisplayLabel(f("BMW", "XM", ["G09"]), m("Label"), null)).toBe("BMW XM Label (G09)");
   });
 
-  it('BMW X3 M (F97, F98): "X3M" (Linie) und "X3 M" (Motorisierung) sind ohne Leerzeichen identisch - Schreibweise der Motorisierung gewinnt', () => {
+  it('BMW X3 M (F97): "X3M" (Linie) und "X3 M" (Motorisierung) sind ohne Leerzeichen identisch - Schreibweise der Motorisierung gewinnt; Codes je Alternative (Feinschliff 15.09.2026): nur F97 (X3M), nicht auch F98 (X4M)', () => {
     expect(vehicleDisplayLabel(f("BMW", "X3M F97, X4M F98", ["F97", "F98"]), m("X3 M"), null)).toBe(
-      "BMW X3 M (F97, F98)",
+      "BMW X3 M (F97)",
     );
   });
 
-  const ACHTER_M8 = f("BMW", "8er / M8", ["G14", "G15", "G16", "F91", "F92", "F93"]);
+  // Codes je Alternative (Feinschliff-Prüfung 15.09.2026): jedes
+  // Alternativ-Segment trägt seine eigenen Codes im Text ("8er G14, G15,
+  // G16 / M8 F91, F92, F93") - in die Klammer kommen nur die Codes der
+  // gewählten Alternative, nicht die der anderen.
+  const ACHTER_M8 = f("BMW", "8er G14, G15, G16 / M8 F91, F92, F93", ["G14", "G15", "G16", "F91", "F92", "F93"]);
 
-  it("BMW 8er 40i (...): keine Alternative teilt ein Wort mit '40i' - die erste ('8er') gewinnt", () => {
-    expect(vehicleDisplayLabel(ACHTER_M8, m("40i"), null)).toBe(
-      "BMW 8er 40i (G14, G15, G16, F91, F92, F93)",
+  it("BMW 8er 40i (G14, G15, G16): keine Alternative teilt ein Wort mit '40i' - die erste ('8er') gewinnt, nur ihre eigenen Codes", () => {
+    expect(vehicleDisplayLabel(ACHTER_M8, m("40i"), null)).toBe("BMW 8er 40i (G14, G15, G16)");
+  });
+
+  it("BMW M8 (F91, F92, F93): Alternative 'M8' passt exakt zur Motorisierung 'M8', nur ihre eigenen Codes", () => {
+    expect(vehicleDisplayLabel(ACHTER_M8, m("M8"), null)).toBe("BMW M8 (F91, F92, F93)");
+  });
+
+  // Codes je Alternative, Sonderfall Komma: das Komma vor "M6" trennt zwei
+  // Alternativen, die beiden Kommas danach nur die Codes-Liste von M6 -
+  // unterscheidbar einzig daran, ob auf das Komma ein Code- oder ein
+  // Name-Wort folgt (siehe lib/catalog/vehicle-label.ts analyzeFamily()).
+  const M5_M6 = f("BMW", "M5 F10, M6 F06, F12, F13", ["F10", "F06", "F12", "F13"]);
+
+  it("BMW M5 (F10)", () => {
+    expect(vehicleDisplayLabel(M5_M6, m("M5"), null)).toBe("BMW M5 (F10)");
+  });
+
+  it("BMW M6 (F06, F12, F13)", () => {
+    expect(vehicleDisplayLabel(M5_M6, m("M6"), null)).toBe("BMW M6 (F06, F12, F13)");
+  });
+
+  // "5er G30, G31, G38": keine Alternativen (kein "/" oder Name-Wort nach
+  // einem Komma), nur eine Codes-Liste - unverändert gegenüber vorher, alle
+  // Codes gehören zur einzigen Alternative.
+  it("BMW 5er (G30, G31, G38): kein Alternativ-Segment, alle Codes gehören zur einzigen Linie", () => {
+    expect(vehicleFamilyLine(f("BMW", "5er G30, G31, G38", ["G30", "G31", "G38"]))).toBe(
+      "BMW 5er (G30, G31, G38)",
     );
   });
 
-  it("BMW M8 (...): Alternative 'M8' passt exakt zur Motorisierung 'M8'", () => {
-    expect(vehicleDisplayLabel(ACHTER_M8, m("M8"), null)).toBe("BMW M8 (G14, G15, G16, F91, F92, F93)");
-  });
-
-  it('BMW X5M (F95, F96): "LCI" direkt nach einem Code ("F95/LCI") dokumentiert nur, dass der Code die Facelift-Version mitabdeckt - kein Zusatz in der Klammer, kein Wort der Linie', () => {
+  it('BMW X5M (F95): "LCI" direkt nach einem Code ("F95/LCI") dokumentiert nur, dass der Code die Facelift-Version mitabdeckt - kein Zusatz in der Klammer, kein Wort der Linie; Codes je Alternative: nur F95 (X5M), nicht auch F96 (X6M)', () => {
     expect(vehicleDisplayLabel(f("BMW", "X5M F95/LCI, X6M F96/LCI", ["F95", "F96"]), m("X5M"), null)).toBe(
-      "BMW X5M (F95, F96)",
+      "BMW X5M (F95)",
     );
   });
 
-  it('BMW X5M LCI (F95, F96) vs. BMW X5M (F95, F96): Vorfacelift- und Facelift-Modell derselben Familie bleiben unterscheidbar (Prüf-Befund 15.09.2026 - beide fielen vorher auf "BMW X5M (F95 LCI, F96 LCI)")', () => {
+  it('BMW X5M LCI (F95) vs. BMW X5M (F95): Vorfacelift- und Facelift-Modell derselben Familie bleiben unterscheidbar (Prüf-Befund 15.09.2026 - beide fielen vorher auf "BMW X5M (F95 LCI, F96 LCI)"); Feinschliff 15.09.2026: die Klammer trägt zusätzlich nur noch die eigenen Codes von X5M, nicht mehr auch F96 von X6M', () => {
     const X5M_X6M = f("BMW", "X5M F95/LCI, X6M F96/LCI", ["F95", "F96"]);
-    expect(vehicleDisplayLabel(X5M_X6M, m("X5M"), null)).toBe("BMW X5M (F95, F96)");
-    expect(vehicleDisplayLabel(X5M_X6M, m("X5M LCI"), null)).toBe("BMW X5M LCI (F95, F96)");
-    expect(vehicleDisplayLabel(X5M_X6M, m("X6M"), null)).toBe("BMW X6M (F95, F96)");
-    expect(vehicleDisplayLabel(X5M_X6M, m("X6M LCI"), null)).toBe("BMW X6M LCI (F95, F96)");
+    expect(vehicleDisplayLabel(X5M_X6M, m("X5M"), null)).toBe("BMW X5M (F95)");
+    expect(vehicleDisplayLabel(X5M_X6M, m("X5M LCI"), null)).toBe("BMW X5M LCI (F95)");
+    expect(vehicleDisplayLabel(X5M_X6M, m("X6M"), null)).toBe("BMW X6M (F96)");
+    expect(vehicleDisplayLabel(X5M_X6M, m("X6M LCI"), null)).toBe("BMW X6M LCI (F96)");
+  });
+
+  it("BMW X1 (U11) / BMW X2 (U10): Codes je Alternative über die einfachste Form (nur Name + eigener Code)", () => {
+    const X1_X2 = f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]);
+    expect(vehicleDisplayLabel(X1_X2, m("X1"), null)).toBe("BMW X1 (U11)");
+    expect(vehicleDisplayLabel(X1_X2, m("X2"), null)).toBe("BMW X2 (U10)");
   });
 
   it("BMW iX3 40 xDrive (NA5): Code-Muster NA + eine Ziffer", () => {
@@ -190,11 +226,67 @@ describe("vehicleDisplayLabel: weitere Fälle", () => {
     expect(vehicleDisplayLabel(f("BMW", "Z4", []), m("sDrive20i"), null)).toBe("BMW Z4 sDrive20i");
   });
 
-  it("Marke steht nicht am Anfang der Linie: MINI/Toyota-Platzhalter werden NICHT dedupliziert (nur echter Präfix zählt)", () => {
-    expect(vehicleDisplayLabel(f("MINI", "Älteres MINI-Modell", []), null, null)).toBe("MINI Älteres MINI-Modell");
-    expect(vehicleDisplayLabel(f("Toyota", "Anderes Toyota-Modell", []), null, null)).toBe(
-      "Toyota Anderes Toyota-Modell",
+  it("Marke steht mitten im (von Hand gepflegten) Familiennamen statt am Anfang: vehicleFamilyLine() entfernt sie trotzdem (Feinschliff-Prüfung 15.09.2026, vorher blieb \"MINI Älteres MINI-Modell\" stehen)", () => {
+    expect(vehicleDisplayLabel(f("MINI", "Älteres MINI-Modell", []), null, null)).toBe("MINI Älteres Modell");
+    expect(vehicleDisplayLabel(f("Toyota", "Anderes Toyota-Modell", []), null, null)).toBe("Toyota Anderes Modell");
+  });
+
+  it("Platzhalter-Familien nach der Umbenennung (supabase/seed.sql, Feinschliff-Prüfung 15.09.2026): kein Markenwort mehr im Namen, unverändert korrekt", () => {
+    expect(vehicleDisplayLabel(f("BMW", "Älteres Modell", []), null, null)).toBe("BMW Älteres Modell");
+    expect(vehicleDisplayLabel(f("MINI", "Älteres Modell", []), null, null)).toBe("MINI Älteres Modell");
+    expect(vehicleDisplayLabel(f("Toyota", "Anderes Modell", []), null, null)).toBe("Toyota Anderes Modell");
+    expect(vehicleDisplayLabel(f("Wiesmann", "Wiesmann", []), null, null)).toBe("Wiesmann");
+  });
+});
+
+// --- Keine Doppelklammern (Feinschliff-Prüfung 15.09.2026) ------------------
+// Enthält die Motorisierung selbst eine Klammer (Kraftstoffart aus dem
+// Excel-Namen, z.B. "Countryman One (Benzin)", "Cooper SE (Electric)"),
+// werden ihr Inhalt und die Codes zu EINER Klammer verschmolzen statt zwei
+// Klammern hintereinander zu setzen.
+describe("vehicleDisplayLabel: keine Doppelklammern, wenn die Motorisierung selbst schon eine Klammer trägt", () => {
+  it("MINI Countryman One (Benzin, F60)", () => {
+    expect(vehicleDisplayLabel(f("MINI", "MINI F60 Countryman", ["F60"]), m("One (Benzin)"), null)).toBe(
+      "MINI Countryman One (Benzin, F60)",
     );
+  });
+
+  it("MINI Clubman Cooper SE (Electric, F54)", () => {
+    expect(vehicleDisplayLabel(f("MINI", "MINI F54 Clubman", ["F54"]), m("Cooper SE (Electric)"), null)).toBe(
+      "MINI Clubman Cooper SE (Electric, F54)",
+    );
+  });
+
+  it("ohne Codes bleibt die einzelne Klammer der Motorisierung unverändert", () => {
+    expect(vehicleDisplayLabel(f("MINI", "Countryman", []), m("One (Benzin)"), null)).toBe(
+      "MINI Countryman One (Benzin)",
+    );
+  });
+});
+
+// --- Ambiguität X1/X2, X3/X4, X5/X6 (Feinschliff-Prüfung 15.09.2026) -------
+// Die Formel kann die Alternative nicht auflösen, wenn die Motorisierung mit
+// KEINER der Alternativen ein Wort teilt - vehicleLineIsAmbiguous() macht
+// das für lib/rules/checks.ts (Prüfhinweis "modell_mehrdeutig") feststellbar.
+describe("vehicleLineIsAmbiguous", () => {
+  it("true: reine Antriebsbezeichnung passt gleich schlecht zu X1 wie zu X2", () => {
+    expect(vehicleLineIsAmbiguous(f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]), m("20d"))).toBe(true);
+  });
+
+  it("false: die Motorisierung nennt eine der Alternativen explizit", () => {
+    expect(vehicleLineIsAmbiguous(f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]), m("X1 xDrive20d"))).toBe(false);
+  });
+
+  it("false: X3/X4 (dasselbe Muster wie X1/X2) mit eindeutiger Motorisierung", () => {
+    expect(vehicleLineIsAmbiguous(f("BMW", "X3M F97, X4M F98", ["F97", "F98"]), m("X3 M"))).toBe(false);
+  });
+
+  it("true: X5/X6 ohne unterscheidendes Wort in der Motorisierung", () => {
+    expect(vehicleLineIsAmbiguous(f("BMW", "X5M F95/LCI, X6M F96/LCI", ["F95", "F96"]), m("30d"))).toBe(true);
+  });
+
+  it("false: keine Alternativen in der Linie (nichts, was mehrdeutig sein könnte)", () => {
+    expect(vehicleLineIsAmbiguous(f("BMW", "M2 G87", ["G87"]), m("M2"))).toBe(false);
   });
 });
 

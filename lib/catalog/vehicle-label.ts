@@ -20,7 +20,21 @@
 //      Linie und Motorisierung nach Entfernen der Leerzeichen identisch
 //      (z.B. Linie "X3M", Motorisierung "X3 M"), wird die Schreibweise der
 //      Motorisierung übernommen (besser lesbar als die Baureihen-Kurzform).
-//   3. Codes in Klammern ans Ende, wenn vorhanden.
+//   3. Codes in Klammern ans Ende, wenn vorhanden. Besteht der Familienname
+//      aus Alternativ-Segmenten, die jeweils ihre EIGENEN Codes im Text
+//      tragen (z.B. "8er G14, G15, G16 / M8 F91, F92, F93"), gehören nur die
+//      Codes der GEWÄHLTEN Alternative in die Klammer ("BMW M8 (F91, F92,
+//      F93)"), nicht die Codes der anderen Alternative(n). Hat die gewählte
+//      Alternative keine eigenen Codes (kein Code-Token folgt ihr direkt vor
+//      der nächsten Alternative, z.B. "M3" in "M3 / M4 G80, G81, G82, G83"),
+//      gelten ersatzweise alle Codes der Familie ("BMW M3 Touring (G80,
+//      G81, G82, G83)"). Enthält die Motorisierung selbst bereits eine
+//      Klammer (z.B. "Countryman One (Benzin)"), werden deren Inhalt und die
+//      Codes zu EINER Klammer zusammengeführt ("MINI Countryman One
+//      (Benzin, F60)") statt zwei Klammern hintereinander. Korrektur
+//      15.09.2026 (Feinschliff-Prüfung): vorher bekam JEDE Alternative alle
+//      Codes der Familie, siehe analyzeFamily()-Kommentar unten für den
+//      Hintergrund des X5M/X6M-Befunds, den das schon einmal betraf.
 //   4. Ohne Modell (Kurzablauf/Platzhalter): mit vehicleText -> Marke +
 //      vehicleText (die Linie wird hier bewusst NICHT gezeigt - "Wiesmann,
 //      MF4" oder "BMW Älteres Modell, E46 M3" liest sich genauso doppelt/
@@ -49,7 +63,7 @@ export interface VehicleLabelModel {
   name: string;
 }
 
-// --- Codes erkennen/entfernen -----------------------------------------------
+// --- Codes erkennen/entfernen, je Alternativ-Segment -----------------------
 
 // Baureihen-Codes aus dem Import: ein Buchstabe aus E/F/G/U/R plus 2-3
 // Ziffern (E46, F87, G87, U06, R107), oder "NA" plus eine Ziffer (NA5, für
@@ -57,93 +71,135 @@ export interface VehicleLabelModel {
 const CODE_TOKEN_RE = /^(?:[EFGUR]\d{2,3}|NA\d)$/i;
 
 // Tokenisiert eine Familienzeile in Wörter und die dazwischenliegenden
-// Trennzeichen (Leerzeichen, "/", ","), damit removeCodes() Wort-Tokens
-// gezielt entfernen und die Trennzeichen anschliessend aufräumen kann, ohne
-// mit einer einzigen grossen Regex hantieren zu müssen.
+// Trennzeichen (Leerzeichen, "/", ","), damit analyzeFamily() Wort-Tokens
+// gezielt klassifizieren (Code oder Name-Wort) und die Trennzeichen
+// anschliessend aufräumen kann, ohne mit einer einzigen grossen Regex zu
+// hantieren.
 const TOKENIZE_RE = /[^\s,/]+|[\s,/]+/g;
 
 function isSeparatorToken(token: string): boolean {
   return /^[\s,/]+$/.test(token);
 }
 
+/** Ein Alternativ-Segment eines Familiennamens: sein Name-Teil (ohne Codes,
+ * mehrere Wörter möglich, z.B. "M2 Competition") und die Codes, die im Text
+ * direkt (durch Leerzeichen, "," oder "/" getrennt) auf dieses Segment
+ * folgen, bevor das nächste Alternativ-Segment beginnt. */
+interface FamilySegment {
+  name: string;
+  codes: string[];
+}
+
 /**
- * Entfernt Code-Tokens (aus family.codes, sonst per CODE_TOKEN_RE erkannt)
- * aus dem Familiennamen, räumt die dadurch entstehenden Trennzeichen-Reste
- * auf (Regel 1: "ohne Trennzeichen-Reste") und sammelt die gefundenen Codes
- * für die Klammer am Ende (Regel 3). Ein Code, dem direkt ein "LCI"-Token
- * folgt (Facelift-Kennzeichnung, z.B. "F95 LCI" oder "F95/LCI"), dokumentiert
- * nur, dass der Code auch die Facelift-Version abdeckt (BMW behält den
- * Chassis-Code über die Modellpflege hinweg) - "LCI" wird darum komplett
- * entfernt (wie das Trennzeichen davor), taucht weder als Wort der Linie
- * noch als Zusatz in der Klammer auf. Ein Modell, das die Facelift-Version
- * tatsächlich bezeichnet (z.B. Motorisierung "X5M LCI"), bekommt sein "LCI"
- * stattdessen über appendMotorisierung() aus der Motorisierung selbst -
- * sonst würden ein Vorfacelift- und ein Facelift-Modell derselben Familie
- * (z.B. "X5M" und "X5M LCI") auf dieselbe Bezeichnung fallen (Prüf-Befund
- * 15.09.2026: beide ergaben "BMW X5M (F95 LCI, F96 LCI)").
+ * Zerlegt den rohen Familiennamen in seine Alternativ-Segmente (Regel 3).
+ * Ein neues Segment beginnt an einem Name-Wort (kein Code-Token) NUR, wenn
+ * das Trennzeichen direkt davor ein "," oder "/" enthält - reines
+ * Leerzeichen verlängert stattdessen den (mehrwortigen) Namen des aktuellen
+ * Segments weiter (z.B. "M2 Competition", oder "MINI F60 Countryman": "F60"
+ * ist dort ein Code MITTEN im Namen, kein Alternativ-Trenner, das folgende
+ * "Countryman" gehört weiterhin zum selben, einzigen Segment). Ein
+ * Code-Token gehört immer zum GERADE OFFENEN Segment, unabhängig vom
+ * Trennzeichen davor (Kommas trennen innerhalb einer Codes-Liste genauso
+ * wie zwischen zwei Alternativen - "M5 F10, M6 F06, F12, F13": das Komma vor
+ * "M6" trennt Alternativen, die beiden Kommas danach nur die Codes-Liste
+ * von M6 - unterscheidbar einzig daran, ob auf das Komma ein Code- oder ein
+ * Name-Wort folgt). Ein Code, dem direkt ein "LCI"-Token folgt
+ * (Facelift-Kennzeichnung, "F95 LCI" oder "F95/LCI"), dokumentiert nur, dass
+ * der Code auch die Facelift-Version abdeckt (BMW behält den Chassis-Code
+ * über die Modellpflege hinweg) - "LCI" wird darum komplett entfernt (wie
+ * das Trennzeichen davor), taucht weder im Namen noch in der Klammer auf.
+ * Ein Modell, das die Facelift-Version tatsächlich bezeichnet (Motorisierung
+ * "X5M LCI"), bekommt sein "LCI" stattdessen über appendMotorisierung() aus
+ * der Motorisierung selbst - sonst würden Vorfacelift- und Facelift-Modell
+ * derselben Familie (z.B. "X5M" und "X5M LCI") auf dieselbe Bezeichnung
+ * fallen (Prüf-Befund 15.09.2026: beide ergaben "BMW X5M (F95 LCI, F96
+ * LCI)").
  */
-function removeCodes(name: string, explicitCodes: string[] | null | undefined): { line: string; codes: string[] } {
+function analyzeFamily(
+  name: string,
+  explicitCodes: string[] | null | undefined,
+): { segments: FamilySegment[]; explicitList: string[] | null } {
   const explicitList = explicitCodes && explicitCodes.length > 0 ? explicitCodes.map((c) => c.trim()) : null;
   const explicitSet = explicitList ? new Set(explicitList.map((c) => c.toUpperCase())) : null;
   const isCode = (token: string): boolean =>
     explicitSet ? explicitSet.has(token.toUpperCase()) : CODE_TOKEN_RE.test(token);
 
   const tokens = name.match(TOKENIZE_RE) ?? [];
-  const out: string[] = [];
-  // Automatisch erkannte Codes (kein explicitCodes übergeben): Basisform
-  // (gross, für Duplikaterkennung) -> im Namenstext gefundene Original-
-  // Schreibweise, in Fundreihenfolge.
-  const foundKeys = new Set<string>();
-  const foundOrder: string[] = [];
+  const segments: FamilySegment[] = [];
+  let nameWords: string[] = [];
+  let codes: string[] = [];
+  // Trennzeichen unmittelbar vor dem nächsten Token enthält "," oder "/"?
+  let sepHasCommaOrSlash = false;
+
+  const flush = (): void => {
+    if (nameWords.length === 0 && codes.length === 0) return;
+    segments.push({ name: nameWords.join(" "), codes });
+    nameWords = [];
+    codes = [];
+  };
 
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
     if (isSeparatorToken(token)) {
-      out.push(token);
+      sepHasCommaOrSlash = /[,/]/.test(token);
       continue;
     }
-    if (!isCode(token)) {
-      out.push(token);
+    if (isCode(token)) {
+      codes.push(token);
+      // Optional direkt gefolgt von "LCI" (durch Leerzeichen oder "/"
+      // getrennt) - siehe Kommentar oben.
+      let lookahead = i + 1;
+      if (lookahead < tokens.length && isSeparatorToken(tokens[lookahead])) lookahead += 1;
+      if (lookahead < tokens.length && /^LCI$/i.test(tokens[lookahead])) {
+        i = lookahead;
+      }
+      sepHasCommaOrSlash = false;
       continue;
     }
-    const key = token.toUpperCase();
-    if (!foundKeys.has(key)) {
-      foundKeys.add(key);
-      foundOrder.push(token);
-    }
-    // Code-Token entfernt (trägt nichts zur Linie bei): optional direkt
-    // gefolgt von "LCI" (durch Leerzeichen oder "/" getrennt) - dann auch
-    // das Trennzeichen und das "LCI"-Token mitentfernen (siehe Kommentar
-    // oben).
-    let lookahead = i + 1;
-    if (lookahead < tokens.length && isSeparatorToken(tokens[lookahead])) lookahead += 1;
-    if (lookahead < tokens.length && /^LCI$/i.test(tokens[lookahead])) {
-      i = lookahead;
-    }
+    // Name-Wort: neues Segment nur nach einem "," oder "/" - reines
+    // Leerzeichen verlängert den Namen des aktuellen Segments.
+    if (nameWords.length > 0 && sepHasCommaOrSlash) flush();
+    nameWords.push(token);
+    sepHasCommaOrSlash = false;
   }
+  flush();
 
-  // codes für die Klammer: explizite Liste (in ihrer Reihenfolge) - sonst
-  // die automatisch erkannten Codes in Fundreihenfolge.
-  const codes = explicitList ?? foundOrder;
-
-  let line = out.join("");
-  line = line.replace(/\s*\/\s*/g, " / "); // Schrägstrich-Abstände vereinheitlichen
-  line = line.replace(/\s+,/g, ","); // Leerzeichen vor Komma entfernen (Rest einer entfernten Codes-Liste)
-  line = line.replace(/\s{2,}/g, " "); // mehrfache Leerzeichen zusammenfassen
-  line = line.replace(/^[\s,/]+/, "").replace(/[\s,/]+$/, ""); // führende/schliessende Trennzeichen-Reste
-  line = line.replace(/,(?:\s*,)+/g, ","); // doppelte Kommas (beide Nachbar-Codes entfernt)
-  line = line.replace(/\/(?:\s*\/)+/g, "/"); // doppelte Schrägstriche
-
-  return { line: line.trim(), codes };
+  return { segments, explicitList };
 }
 
-// --- Alternativen (Regel 1) --------------------------------------------------
+/**
+ * Codes für die Klammer (Regel 3): bei genau einem Segment (keine
+ * Alternativen) die explizite Liste unverändert (falls vorhanden - deckt
+ * Fälle ab, in denen ein Code gar nicht im Namenstext auftaucht, z.B. "iX3"
+ * mit codes ["NA5"]), sonst die im Text gefundenen Codes des Segments. Bei
+ * mehreren Segmenten (Alternativen): die eigenen Codes des gewählten
+ * Segments - hat es keine, ersatzweise alle Codes aller Segmente
+ * (Fundreihenfolge, ohne Duplikate).
+ */
+function resolveCodes(segments: FamilySegment[], chosenIndex: number, explicitList: string[] | null): string[] {
+  if (segments.length <= 1) return explicitList ?? segments[0]?.codes ?? [];
 
-function splitAlternatives(line: string): string[] {
-  return line
-    .split(/[,/]/)
-    .map((part) => part.trim())
-    .filter(Boolean);
+  const chosen = segments[chosenIndex];
+  if (chosen && chosen.codes.length > 0) return chosen.codes;
+
+  // Kein Segment hat im Text überhaupt Codes gefunden (z.B. "M3 / M4" mit
+  // codes[] nur als separates DB-Feld, nicht im Namenstext eingebettet) -
+  // die Alternativen tragen dann schlicht keine eigenen Codes im Text,
+  // Regel 3 greift wie im Ein-Segment-Fall: die explizite Liste unverändert.
+  const totalFound = segments.reduce((n, s) => n + s.codes.length, 0);
+  if (totalFound === 0) return explicitList ?? [];
+
+  const seen = new Set<string>();
+  const all: string[] = [];
+  for (const segment of segments) {
+    for (const code of segment.codes) {
+      const key = code.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      all.push(code);
+    }
+  }
+  return all;
 }
 
 function normalizeCompact(value: string): string {
@@ -161,45 +217,62 @@ function motorisierungWords(motorisierung: string): string[] {
   return motorisierung.split(/[\s/]+/).filter(Boolean);
 }
 
-/** Anzahl Wörter der Motorisierung, die in der (leerzeichenfrei verglichenen) Alternative vorkommen - siehe Regel 1, "X3M" = "X3 M". */
-function sharedWordScore(alternative: string, motorisierung: string): number {
-  const altCompact = normalizeCompact(alternative);
+/** Anzahl Wörter der Motorisierung, die im (leerzeichenfrei verglichenen) Segmentnamen vorkommen - siehe Regel 1, "X3M" = "X3 M". */
+function sharedWordScore(segmentName: string, motorisierung: string): number {
+  const nameCompact = normalizeCompact(segmentName);
   let score = 0;
   for (const word of motorisierungWords(motorisierung)) {
-    if (altCompact.includes(normalizeCompact(word))) score += 1;
+    if (nameCompact.includes(normalizeCompact(word))) score += 1;
   }
   return score;
 }
 
-/** Wählt die Alternative mit dem höchsten sharedWordScore; bei Gleichstand (auch 0) die erste. */
-function chooseAlternative(line: string, motorisierung: string | null): string {
-  const alternatives = splitAlternatives(line);
-  if (alternatives.length <= 1) return line;
-  if (!motorisierung) return alternatives[0];
+/** Wählt den Index des Segments mit dem höchsten sharedWordScore; bei Gleichstand (auch 0) das erste. */
+function chooseSegmentIndex(segments: FamilySegment[], motorisierung: string | null): number {
+  if (segments.length <= 1 || !motorisierung) return 0;
 
-  let best = alternatives[0];
-  let bestScore = sharedWordScore(alternatives[0], motorisierung);
-  for (const alt of alternatives.slice(1)) {
-    const score = sharedWordScore(alt, motorisierung);
+  let bestIndex = 0;
+  let bestScore = sharedWordScore(segments[0].name, motorisierung);
+  for (let i = 1; i < segments.length; i++) {
+    const score = sharedWordScore(segments[i].name, motorisierung);
     if (score > bestScore) {
-      best = alt;
       bestScore = score;
+      bestIndex = i;
     }
   }
-  return best;
+  return bestIndex;
+}
+
+/**
+ * true, wenn die Formel die Alternative NICHT auflösen kann: die Linie
+ * besteht aus mehreren Segmenten (z.B. eine Baureihe, die sowohl X1 als
+ * auch X2 umfasst), und die Motorisierung teilt mit KEINEM davon auch nur
+ * ein Wort (z.B. eine reine Motorbezeichnung wie "20d", die es für beide
+ * Modelle gibt). chooseSegmentIndex() wählt in diesem Fall stillschweigend
+ * das erste Segment (Regel 1, "bei Gleichstand auch 0 die erste
+ * Alternative") - technisch korrekt, aber ohne Grundlage, WELCHES der
+ * beiden Modelle der Kunde tatsächlich hat. Ergänzung 15.09.2026
+ * (Feinschliff-Prüfung, Ambiguität X1/X2, X3/X4, X5/X6): lib/rules/
+ * checks.ts nutzt dies für den Prüfhinweis "modell_mehrdeutig", siehe
+ * docs/architektur.md Abschnitt "Fahrzeugbezeichnung".
+ */
+export function vehicleLineIsAmbiguous(family: VehicleLabelFamily, model: VehicleLabelModel): boolean {
+  const { segments } = analyzeFamily(family.name, family.codes);
+  if (segments.length <= 1) return false;
+  return segments.every((segment) => sharedWordScore(segment.name, model.name) === 0);
 }
 
 // --- Motorisierung anhängen (Regel 2) ---------------------------------------
 
 /**
- * Hängt die Motorisierung an die (bereits per chooseAlternative gewählte)
+ * Hängt die Motorisierung an die (bereits per chooseSegmentIndex gewählte)
  * Linie an: bereits als eigenes Wort vorhandene Wörter werden weggelassen,
  * der Rest angehängt. Sind Linie und Motorisierung leerzeichenfrei
  * identisch (z.B. "X3M" und "X3 M"), wird die - besser lesbare -
  * Schreibweise der Motorisierung übernommen statt der Baureihen-Kurzform.
  *
  * Prüft nur gegen Wörter der gewählten Linie, NICHT gegen die Codes/Klammer
- * (siehe removeCodes(): "LCI" steht dort nicht mehr, ein Modell "X5M LCI"
+ * (siehe analyzeFamily(): "LCI" steht dort nicht mehr, ein Modell "X5M LCI"
  * muss sein "LCI" also aus der Motorisierung selbst bekommen, damit es sich
  * von einem Vorfacelift-Modell "X5M" derselben Familie unterscheidet).
  */
@@ -209,7 +282,7 @@ function appendMotorisierung(line: string, motorisierung: string): string {
   const lineWords = new Set(line.toLowerCase().split(/\s+/).filter(Boolean));
   const isKnown = (word: string) => lineWords.has(word.toLowerCase());
 
-  // Tokenisiert wie removeCodes() (Wörter und die Trennzeichen dazwischen,
+  // Tokenisiert wie analyzeFamily() (Wörter und die Trennzeichen dazwischen,
   // hier "/" statt "," - Motorisierungen haben keine Code-Listen), damit
   // "M3/Comp." mit entferntem "M3" zu "Comp." wird statt zu "/Comp." oder
   // " Comp." (Trennzeichen-Reste, analog Regel 1).
@@ -233,6 +306,52 @@ function prependBrand(line: string, brand: string): string {
   return line ? `${brand} ${line}` : brand;
 }
 
+/**
+ * Entfernt das Markenwort als eigenes Wort aus JEDER Position der Linie,
+ * nicht nur am Anfang (anders als prependBrand()s eigene, einfachere
+ * Dublettenprüfung) - für von Hand gepflegte Familiennamen, die die Marke
+ * mitten im Namen tragen, z.B. "Älteres MINI-Modell" (Markenwort nach einem
+ * Bindestrich statt am Anfang). Nur für vehicleFamilyLine() (Regel 4 ohne
+ * Modell): dort ist die Linie der einzige Text, den der Kunde sieht, und
+ * prependBrand() setzt die Marke ohnehin danach wieder sauber davor.
+ * Ergänzung 15.09.2026 (Feinschliff-Prüfung, Platzhalter-Familien): die
+ * Seed-Namen selbst heissen jetzt einheitlich "Älteres Modell"/"Anderes
+ * Modell" ohne Markenwort, dieser Schutz greift nur noch bei künftig von
+ * Hand nachgetragenen Namen, die die Marke wieder mit einbauen.
+ */
+function stripBrandWord(line: string, brand: string): string {
+  const trimmedBrand = brand.trim();
+  if (!trimmedBrand) return line;
+  const escaped = trimmedBrand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Trennzeichen (Leerzeichen, ",", "/", "-") direkt vor und nach dem
+  // Markenwort werden mitentfernt, sonst bliebe z.B. aus "Älteres
+  // MINI-Modell" ein Rest "Älteres -Modell" stehen statt "Älteres Modell".
+  const re = new RegExp(`(^|[\\s,/-])${escaped}(?=$|[\\s,/-])[\\s,/-]?`, "gi");
+  const stripped = line.replace(re, "$1");
+  return stripped.replace(/\s{2,}/g, " ").replace(/^[\s,/-]+/, "").replace(/[\s,/-]+$/, "").trim();
+}
+
+/**
+ * Hängt die Codes in EINER Klammer an - verschmilzt sie mit einer bereits in
+ * der Linie vorhandenen, abschliessenden Klammer statt eine zweite
+ * anzuhängen. Die Motorisierung selbst kann eine Klammer enthalten (z.B.
+ * "Countryman One (Benzin)", "Cooper SE (Electric)" - Kraftstoffart aus dem
+ * Excel-Namen, siehe lib/catalog Import); appendMotorisierung() gibt diese
+ * Klammer unverändert als Teil der Linie weiter. Ohne appendCodes() würden
+ * codes hier einfach eine ZWEITE Klammer anhängen ("... One (Benzin)
+ * (F60)") - Feinschliff-Befund 15.09.2026 ("Doppelklammern"). Merge statt
+ * Anhängen: "... One (Benzin, F60)".
+ */
+function appendCodes(line: string, codes: string[]): string {
+  const trailingParen = /^(.*)\s\(([^()]*)\)$/.exec(line);
+  if (trailingParen) {
+    const [, base, inner] = trailingParen;
+    const parts = [inner, ...codes].map((p) => p.trim()).filter(Boolean);
+    return parts.length > 0 ? `${base} (${parts.join(", ")})` : base;
+  }
+  return codes.length > 0 ? `${line} (${codes.join(", ")})` : line;
+}
+
 // --- Öffentliche Formel -------------------------------------------------------
 
 /**
@@ -243,10 +362,12 @@ function prependBrand(line: string, brand: string): string {
  * (Regel 1, "teilt keine ein Wort, gilt die erste Alternative").
  */
 export function vehicleFamilyLine(family: VehicleLabelFamily): string {
-  const { line, codes } = removeCodes(family.name, family.codes);
-  const chosen = chooseAlternative(line, null);
-  const withBrand = prependBrand(chosen, family.brand);
-  return codes.length > 0 ? `${withBrand} (${codes.join(", ")})` : withBrand;
+  const { segments, explicitList } = analyzeFamily(family.name, family.codes);
+  const chosenIndex = chooseSegmentIndex(segments, null);
+  const codes = resolveCodes(segments, chosenIndex, explicitList);
+  const chosenName = stripBrandWord(segments[chosenIndex]?.name ?? "", family.brand);
+  const withBrand = prependBrand(chosenName, family.brand);
+  return appendCodes(withBrand, codes);
 }
 
 /**
@@ -271,11 +392,13 @@ export function vehicleDisplayLabel(
   }
 
   // Regel 1-3: mit Modell.
-  const { line, codes } = removeCodes(family.name, family.codes);
-  const chosenLine = chooseAlternative(line, model.name);
+  const { segments, explicitList } = analyzeFamily(family.name, family.codes);
+  const chosenIndex = chooseSegmentIndex(segments, model.name);
+  const codes = resolveCodes(segments, chosenIndex, explicitList);
+  const chosenLine = segments[chosenIndex]?.name ?? "";
   const withMotorisierung = appendMotorisierung(chosenLine, model.name);
   const withBrand = prependBrand(withMotorisierung, family.brand);
-  return codes.length > 0 ? `${withBrand} (${codes.join(", ")})` : withBrand;
+  return appendCodes(withBrand, codes);
 }
 
 /**

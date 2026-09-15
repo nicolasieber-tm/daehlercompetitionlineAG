@@ -73,7 +73,7 @@ function m2Ctx(): DraftContext {
 
 const M2_BODY_DE = [
   "Guten Tag Max Muster",
-  "Danke für Ihre Anfrage für Ihren BMW M2 (G87) (Jahrgang 2025). Sportlich und alltagstauglich, das ist genau unsere Linie.",
+  "Danke für Ihre Anfrage für Ihren BMW M2 (G87), Jahrgang 2025. Sportlich und alltagstauglich, das ist genau unsere Linie.",
   [
     "Grundsätzlich können wir das so umsetzen:",
     // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
@@ -93,7 +93,7 @@ const M2_BODY_DE = [
 
 const M2_BODY_EN = [
   "Dear Max Muster",
-  "Thank you for your request for your BMW M2 (G87) (model year 2025). Sporty and still practical for everyday use, that is exactly our line.",
+  "Thank you for your request for your BMW M2 (G87), model year 2025. Sporty and still practical for everyday use, that is exactly our line.",
   [
     "In principle, we can put this together:",
     "• Engine: Stage 1 (620 PS / 740 Nm, M6 & A8-Getriebe), from CHF 4'180",
@@ -329,7 +329,7 @@ describe("buildDraft: character/timing null (Schnellweg ohne erkannten Charakter
   it("character null: der Charakter-Satz entfällt, der Rest des Dank-Absatzes bleibt", () => {
     const ctx = { ...m2Ctx(), character: null };
     const { body } = buildDraft(ctx, "de");
-    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW M2 (G87) (Jahrgang 2025).");
+    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW M2 (G87), Jahrgang 2025.");
     expect(body).not.toContain("undefined");
     assertClean(body, SETTINGS.signaturePhone);
   });

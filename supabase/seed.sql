@@ -53,11 +53,17 @@ on conflict (id) do update set
 -- CLAUDE.md, Abschnitt "Modelle ohne Preisliste")
 -- ---------------------------------------------------------------------------
 
+-- Namen bewusst ohne Markenwort (Wiesmann ausgenommen, da dort der
+-- Markenname selbst der einzig sinnvolle Platzhaltername ist): die
+-- Formel setzt die Marke ohnehin über prependBrand() davor, ein
+-- Markenwort im Namen ergäbe sonst z.B. "MINI Älteres MINI-Modell"
+-- (Feinschliff-Prüfung 15.09.2026, siehe lib/catalog/vehicle-label.ts
+-- stripBrandWord()/vehicleFamilyLine()).
 insert into public.model_families (brand, name, slug, has_pricelist, sort) values
   ('Wiesmann', 'Wiesmann', 'wiesmann', false, 999),
   ('BMW', 'Älteres Modell', 'bmw-aelteres-modell', false, 999),
-  ('MINI', 'Älteres MINI-Modell', 'mini-aelteres-modell', false, 999),
-  ('Toyota', 'Anderes Toyota-Modell', 'toyota-anderes-modell', false, 999)
+  ('MINI', 'Älteres Modell', 'mini-aelteres-modell', false, 999),
+  ('Toyota', 'Anderes Modell', 'toyota-anderes-modell', false, 999)
 on conflict (slug) do update set
   brand = excluded.brand,
   name = excluded.name,

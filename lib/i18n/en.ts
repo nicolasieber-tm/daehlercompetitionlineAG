@@ -381,6 +381,8 @@ export const en: Dictionary = {
       "A gearbox-specific item was selected but the gearbox (manual/automatic) is not known: clarify before confirming.",
     vmax_doppelt:
       "The selected power stage already includes the V-max removal, and the standalone V-max item was also selected: duplicate, please clean up.",
+    modell_mehrdeutig:
+      "Model series covers several models (e.g. X1/X2, X3/X4, X5/X6), clarify the model with the customer.",
   },
 
   draft: {
@@ -388,7 +390,10 @@ export const en: Dictionary = {
     greeting: "Dear {first} {last}",
     thanks:
       "Thank you for your request for your {model}{yearSuffix}.",
-    yearSuffix: " (model year {year})",
+    // See de.ts yearSuffix comment: {model} can already end in brackets
+    // (the codes, e.g. "BMW M2 (G87)") - a comma instead of a second pair
+    // of brackets keeps "model year" from reading like a nested bracket.
+    yearSuffix: ", model year {year}",
     character: {
       dezent: "Discreet yet noticeable, we can do that.",
       sportlich: "Sporty and still practical for everyday use, that is exactly our line.",

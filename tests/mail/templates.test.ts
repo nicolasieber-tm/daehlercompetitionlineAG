@@ -116,7 +116,7 @@ const draft = {
   body: [
     "Guten Tag Nadia Muster",
     "",
-    "Danke für Ihre Anfrage für Ihren M3 Touring (Jahrgang 2024). Sportlich und alltagstauglich, das ist genau unsere Linie.",
+    "Danke für Ihre Anfrage für Ihren M3 Touring, Jahrgang 2024. Sportlich und alltagstauglich, das ist genau unsere Linie.",
     "",
     "Grundsätzlich können wir das so umsetzen:",
     "• Motor: Stufe 1 (620 PS / 740 Nm), ab CHF 4'180",
@@ -405,7 +405,7 @@ describe("vehicleLabel: reale Namenspaare aus der Preisliste (Fahrzeugbezeichnun
     expect(vehicleLabel({ family, model, vehicleText: null })).toBe("BMW M2 (G87)");
   });
 
-  it('MINI F60 Countryman, Modell "Countryman One (Benzin)": Marke nicht doppelt, Linie und Modellname verschmolzen', () => {
+  it('MINI F60 Countryman, Modell "Countryman One (Benzin)": Marke nicht doppelt, Linie und Modellname verschmolzen, keine Doppelklammer (Feinschliff-Prüfung 15.09.2026)', () => {
     const family = baseFamily({
       brand: "MINI",
       name: "MINI F60 Countryman",
@@ -413,8 +413,11 @@ describe("vehicleLabel: reale Namenspaare aus der Preisliste (Fahrzeugbezeichnun
       slug: "mini-f60-countryman",
     });
     const model = baseModel({ name: "Countryman One (Benzin)", family_id: family.id });
+    // Die Motorisierung trägt selbst schon eine Klammer (Kraftstoffart aus
+    // dem Excel-Namen) - Codes werden mit ihrem Inhalt zu EINER Klammer
+    // verschmolzen statt eine zweite anzuhängen ("... (Benzin) (F60)").
     expect(vehicleLabel({ family, model, vehicleText: null })).toBe(
-      "MINI Countryman One (Benzin) (F60)",
+      "MINI Countryman One (Benzin, F60)",
     );
   });
 
@@ -493,7 +496,7 @@ describe("vehicleLabel: vehicle_text und Platzhalterfamilien (Fahrzeugbezeichnun
     expect(vehicleLabel({ family, model: null, vehicleText: null })).toBe("BMW Älteres Modell");
   });
 
-  it('MINI- und Toyota-Platzhalter ("Älteres MINI-Modell", "Anderes Toyota-Modell"): Marke wird nur weggelassen, wenn der Name exakt mit ihr BEGINNT', () => {
+  it('MINI- und Toyota-Platzhalter, von Hand mit Markenwort in der Mitte gepflegt ("Älteres MINI-Modell", "Anderes Toyota-Modell"): die Marke wird trotzdem nicht verdoppelt (Feinschliff-Prüfung 15.09.2026)', () => {
     const mini = baseFamily({
       brand: "MINI",
       name: "Älteres MINI-Modell",
@@ -509,10 +512,15 @@ describe("vehicleLabel: vehicle_text und Platzhalterfamilien (Fahrzeugbezeichnun
       has_pricelist: false,
     });
     // "Älteres MINI-Modell" beginnt nicht mit "MINI" (Marke steht in der
-    // Mitte des Namens) - die einfache Präfix-Prüfung dedupliziert hier
-    // bewusst NICHT, das ist der Preis für "keine Code-Logik".
-    expect(vehicleLabel({ family: mini, model: null, vehicleText: null })).toBe("MINI Älteres MINI-Modell");
-    expect(vehicleLabel({ family: toyota, model: null, vehicleText: null })).toBe("Toyota Anderes Toyota-Modell");
+    // Mitte des Namens) - vehicleFamilyLine() entfernt das Markenwort jetzt
+    // an JEDER Position der Linie, nicht nur am Anfang (siehe
+    // lib/catalog/vehicle-label.ts stripBrandWord()), sonst "MINI Älteres
+    // MINI-Modell". Die ausgelieferten Seed-Namen heissen deshalb seit
+    // diesem Feinschliff einheitlich "Älteres Modell"/"Anderes Modell" ohne
+    // Markenwort (supabase/seed.sql) - dieser Test bildet weiterhin einen
+    // von Hand nachgetragenen Namen MIT Markenwort ab, als Schutznetz.
+    expect(vehicleLabel({ family: mini, model: null, vehicleText: null })).toBe("MINI Älteres Modell");
+    expect(vehicleLabel({ family: toyota, model: null, vehicleText: null })).toBe("Toyota Anderes Modell");
   });
 
   it("Echte Familie ohne Preisliste (Wiesmann) ohne vehicleText: behält ihren echten Namen (unverändert)", () => {

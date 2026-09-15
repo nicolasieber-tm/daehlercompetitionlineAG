@@ -11,6 +11,7 @@ import { en } from "@/lib/i18n/en";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { gearboxFor } from "@/lib/catalog/gearbox";
+import { vehicleLineIsAmbiguous } from "@/lib/catalog/vehicle-label";
 import type { Character, FlowCategory, InquiryGearbox, PriceStatus, Timing } from "@/lib/supabase/rows";
 
 /**
@@ -35,6 +36,15 @@ export interface CheckProduct {
 
 export interface CheckFamily {
   hasPricelist: boolean;
+  /**
+   * brand/name/codes: Ausschnitt aus VehicleLabelFamily (siehe
+   * lib/catalog/vehicle-label.ts), nur für den Prüfhinweis
+   * "modell_mehrdeutig" gebraucht (vehicleLineIsAmbiguous()). Ergänzung
+   * 15.09.2026 (Feinschliff-Prüfung, Ambiguität X1/X2, X3/X4, X5/X6).
+   */
+  brand: string;
+  name: string;
+  codes?: string[] | null;
 }
 
 export interface CheckModel {
@@ -227,6 +237,15 @@ export const CHECK_RULES: Array<{ id: string; when: (ctx: CheckContext) => boole
     // Bestätigung bereinigen.
     id: "vmax_doppelt",
     when: (ctx) => chosenStageWithVmax(ctx) && chosenSeparateVmaxProduct(ctx),
+  },
+  {
+    // Feinschliff-Prüfung 15.09.2026 (Ambiguität X1/X2, X3/X4, X5/X6, siehe
+    // docs/architektur.md Abschnitt "Fahrzeugbezeichnung"): die Formel kann
+    // die Alternative einer Baureihe nicht auflösen, wenn die Motorisierung
+    // mit keiner ein Wort teilt - dann wählt sie stillschweigend die erste
+    // Alternative, ohne Grundlage, welches der Modelle der Kunde hat.
+    id: "modell_mehrdeutig",
+    when: (ctx) => ctx.family !== null && ctx.model !== null && vehicleLineIsAmbiguous(ctx.family, ctx.model),
   },
 ];
 

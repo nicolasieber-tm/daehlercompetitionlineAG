@@ -166,7 +166,7 @@ export async function createInquiry(
       year: payload.year,
       gearbox: payload.gearbox,
     },
-    family: { hasPricelist: family.has_pricelist },
+    family: { hasPricelist: family.has_pricelist, brand: family.brand, name: family.name, codes: family.codes },
     model: model ? { id: model.id, name: model.name } : null,
     products: selected.map((p) => ({
       category: p.category,

@@ -43,5 +43,9 @@ export default defineConfig({
         url: baseURL,
         reuseExistingServer: true,
         timeout: 120_000,
+        // E2E-Läufe dürfen keine echten Mails über Resend auslösen (Tages-
+        // kontingent des Testkontos): ohne API-Key protokolliert sendMail()
+        // jeden Versuch als "failed" in outbound_emails, mehr nicht.
+        env: { ...process.env, RESEND_API_KEY: "" },
       },
 });
