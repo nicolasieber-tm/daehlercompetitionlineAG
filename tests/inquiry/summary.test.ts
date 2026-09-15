@@ -38,6 +38,7 @@ function baseInquiry(overrides: Partial<Inquiry> = {}): Inquiry {
     raw_text: null,
     replied_at: null,
     selections: [],
+    series_ps: null,
     share_token: "share-token-1234567890ab",
     source: "web",
     status: "neu",

@@ -273,6 +273,15 @@ export async function createInquiry(
       year: payload.year,
       been_here: payload.beenHere,
       gearbox: payload.gearbox,
+      // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
+      // Punkt 3): effektiv wirksame Serienleistung mitspeichern (siehe
+      // supabase/migrations/20260916010000_inquiries_series_ps.sql) - für
+      // die Vorher/Nachher-Leistungszeile nach dem Absenden (Teilen-Seite,
+      // Bestätigungs-/Zusammenfassungsmail), da models.series_ps bei
+      // mehreren series_ps_suggested-Werten null bleibt und die im
+      // Fahrzeug-Schritt gewählte Basis sonst nicht mehr rekonstruierbar
+      // wäre.
+      series_ps: payload.seriesPs,
       categories: payload.categories,
       consulting: payload.consulting,
       selections: selectionsJson,

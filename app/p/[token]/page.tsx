@@ -5,7 +5,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BeforeAfter, Summary } from "@/components/ui";
+import { BeforeAfter, PowerAfterValue, PowerBeforeValue, Summary } from "@/components/ui";
 import { getInquiryByShareToken } from "@/lib/inquiry/share";
 import { getDictionary, isLocale, tf } from "@/lib/i18n/dictionaries";
 import { chfFrom } from "@/lib/i18n/format";
@@ -97,9 +97,32 @@ export default async function SharedInquiryPage({
       })),
       consulting: inquiry.consulting,
       character: inquiry.character,
+      seriesPs: inquiry.seriesPs,
+      seriesNm: inquiry.seriesNm,
     },
     t,
     locale,
+  );
+  // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+  // dieselbe grosse Zahlen-Darstellung wie der Abschluss-Screen (siehe
+  // components/flow/steps/DoneStep.tsx), hier ebenfalls aus der reinen
+  // Datenfunktion buildBeforeAfterRows() abgeleitet. Befund Prüfer (Beleg
+  // Anfrage 2026-0293): row.extras bleibt angehängt, sonst verschwinden
+  // weitere gewählte Motor-Optionen aus der Zeile, sobald eine Stufe
+  // gewählt ist.
+  const beforeAfterRowsForDisplay = beforeAfterRows.map((row) =>
+    row.power
+      ? {
+          ...row,
+          before: <PowerBeforeValue power={row.power} />,
+          after: (
+            <>
+              <PowerAfterValue power={row.power} />
+              {row.extras ? ` · ${row.extras}` : null}
+            </>
+          ),
+        }
+      : row,
   );
 
   return (
@@ -119,7 +142,11 @@ export default async function SharedInquiryPage({
           ) : null}
         </div>
 
-        <BeforeAfter beforeLabel={t.steps.done.beforeAfter.before} afterLabel={t.steps.done.beforeAfter.after} rows={beforeAfterRows} />
+        <BeforeAfter
+          beforeLabel={t.steps.done.beforeAfter.before}
+          afterLabel={t.steps.done.beforeAfter.after}
+          rows={beforeAfterRowsForDisplay}
+        />
 
         <Summary
           header={t.steps.done.package.header}

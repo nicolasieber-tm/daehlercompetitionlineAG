@@ -12,6 +12,7 @@ import {
   definitionList,
   estimateBox,
   itemList,
+  motorPowerLine,
   optionLabel,
   paragraph,
   renderMail,
@@ -57,6 +58,14 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
   const timing = optionLabel(dict.steps.timing.options, ctx.inquiry.timing);
   const channel = optionLabel(dict.steps.contact.channels, ctx.inquiry.channel);
   const hasOnRequest = ctx.items.some((item) => item.price_status !== "priced");
+  // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+  // "460 PS → 620 PS / 740 Nm (+160 PS)", nur bei gewählter Leistungsstufe
+  // mit bekannter Serienleistung (siehe lib/mail/render.ts motorPowerLine()).
+  const powerLine = motorPowerLine({
+    seriesPs: ctx.inquiry.series_ps,
+    seriesNm: ctx.model?.series_nm ?? null,
+    items: ctx.items,
+  });
 
   const blocks = [
     paragraph(tf(dict.mail.confirmation.intro, { first })),
@@ -64,6 +73,7 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
     definitionList([
       { label: dict.mail.confirmation.vehicleLabel, value: model },
       { label: dict.mail.confirmation.wishLabel, value: wish },
+      ...(powerLine ? [{ label: dict.steps.done.beforeAfter.rows.leistung, value: powerLine }] : []),
       { label: dict.mail.confirmation.timingLabel, value: timing ?? "" },
       { label: dict.mail.confirmation.channelLabel, value: channel ?? "" },
     ]),

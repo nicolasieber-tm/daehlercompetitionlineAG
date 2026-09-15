@@ -5,7 +5,7 @@
 // docs/vorschau.html viewDone() und CLAUDE.md Kundenflow Punkt 6.
 import { useState } from "react";
 import type { Dispatch } from "react";
-import { BeforeAfter, Button, Question, StepLabel, Summary } from "@/components/ui";
+import { BeforeAfter, Button, PowerAfterValue, PowerBeforeValue, Question, StepLabel, Summary } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import { chfFrom } from "@/lib/i18n/format";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
@@ -149,6 +149,28 @@ export function DoneStep({
     t,
     locale,
   );
+  // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+  // die "Leistung"-Zeile bekommt bei bekannten Vorher/Nachher-Zahlen die
+  // grosse Zahlen-Darstellung (components/ui/PowerValue.tsx) statt des
+  // Text-Fallbacks - buildBeforeAfterRows() liefert row.power nur dann.
+  // Befund Prüfer (Beleg Anfrage 2026-0293): row.extras (weitere gewählte
+  // Motor-Optionen neben der Stufe, z. B. "Sportluftfilter Satz") bleibt
+  // dabei angehängt - sonst verschwinden sie aus der Zeile, sobald eine
+  // Stufe gewählt ist und die Zahlen-Darstellung greift.
+  const beforeAfterRowsForDisplay = beforeAfterRows.map((row) =>
+    row.power
+      ? {
+          ...row,
+          before: <PowerBeforeValue power={row.power} />,
+          after: (
+            <>
+              <PowerAfterValue power={row.power} />
+              {row.extras ? ` · ${row.extras}` : null}
+            </>
+          ),
+        }
+      : row,
+  );
 
   return (
     <div>
@@ -176,7 +198,7 @@ export function DoneStep({
       <BeforeAfter
         beforeLabel={t.steps.done.beforeAfter.before}
         afterLabel={t.steps.done.beforeAfter.after}
-        rows={beforeAfterRows}
+        rows={beforeAfterRowsForDisplay}
       />
 
       <div className="mt-5 grid grid-cols-1 gap-2.5 xs:grid-cols-2">

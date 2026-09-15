@@ -46,6 +46,7 @@ function baseInquiry(overrides: Partial<Inquiry> = {}): Inquiry {
     raw_text: null,
     replied_at: null,
     selections: [],
+    series_ps: null,
     share_token: "share-token-1234567890ab",
     source: "web",
     status: "neu",
@@ -730,5 +731,35 @@ describe("Klicktest-Rückmeldung: Getriebe-Zeile und Positionsdarstellung", () =
     const result = buildSummary(m2Ctx());
     expect(result.text).toContain("Motor: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe)");
     expect(result.text).not.toContain("(Basis 480 PS)");
+  });
+
+  // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+  // "Leistung"-Zeile "460 PS → 620 PS / 740 Nm (+160 PS)" in der Bestätigungs-/
+  // Zusammenfassungsmail, nur bei gewählter Leistungsstufe (variant_group
+  // "leistung") mit bekannter Serienleistung (inquiries.series_ps).
+  it("buildConfirmation zeigt die Vorher/Nachher-Leistungszeile bei gewählter Stufe", () => {
+    const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
+    const result = buildConfirmation({ ...ctx, inquiry: { ...ctx.inquiry, series_ps: 480 } });
+    // baseModel() liefert series_nm 650 (siehe Fixture oben).
+    expect(result.text).toContain("Leistung: 480 PS / 650 Nm → 620 PS / 740 Nm (+140 PS / +90 Nm)");
+  });
+
+  it("buildSummary zeigt dieselbe Vorher/Nachher-Leistungszeile", () => {
+    const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
+    const result = buildSummary({ ...ctx, inquiry: { ...ctx.inquiry, series_ps: 480 } });
+    expect(result.text).toContain("Leistung: 480 PS / 650 Nm → 620 PS / 740 Nm (+140 PS / +90 Nm)");
+  });
+
+  it("ohne gewählte Leistungsstufe (variant_group nicht 'leistung') keine Leistungszeile", () => {
+    // stufe1 im Standard-m2Ctx() trägt kein variant_group (siehe oben).
+    const ctx = m2Ctx();
+    const result = buildConfirmation({ ...ctx, inquiry: { ...ctx.inquiry, series_ps: 480 } });
+    expect(result.text).not.toMatch(/^Leistung: /m);
+  });
+
+  it("ohne bekannte Serienleistung (inquiries.series_ps null) keine Leistungszeile", () => {
+    const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
+    const result = buildConfirmation(ctx); // baseInquiry(): series_ps null
+    expect(result.text).not.toMatch(/^Leistung: /m);
   });
 });

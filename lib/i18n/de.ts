@@ -144,6 +144,11 @@ export const de = {
         targetUnitUnselected: "PS · wählen Sie eine Stufe",
         plus: "+{diff} PS · {detail}",
       },
+      // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
+      // Punkt 1): Sperr-Hinweis an einer Kachel, deren V/max-Aufhebung
+      // bereits Teil einer gewählten Leistungsstufe ist (components/flow/
+      // state.ts isVmaxLocked(), CategoryStep.tsx).
+      includedInStage: "In {stage} enthalten",
       followUp: {
         motor: {
           question: "Was ist Ihnen wichtiger?",
@@ -248,7 +253,9 @@ export const de = {
       label: "Und wer sind Sie?",
       firstName: "Vorname",
       lastName: "Name",
-      city: "Ort",
+      // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
+      // Punkt 2): Ort ist kein Pflichtfeld mehr, Label macht das kenntlich.
+      city: "Ort (optional)",
       phone: "Telefon",
       email: "E-Mail",
       channelLabel: "Wie erreichen wir Sie am liebsten?",
@@ -338,6 +345,9 @@ export const de = {
     loadFailed: "Die Produkte konnten nicht geladen werden.",
     shareCopyFailed: "Der Link konnte nicht kopiert werden.",
     summaryMailFailed: "Die Zusammenfassung konnte nicht gesendet werden.",
+    // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
+    // Punkt 2): Telefon ist nur bei Kanal Telefon/WhatsApp Pflicht.
+    phoneRequiredForChannel: "Telefon ist bei Kontakt per Telefon oder WhatsApp ein Pflichtfeld.",
   },
 
   mail: {

@@ -13,11 +13,28 @@ import { vehicleDisplayName } from "../vehicleLabel";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 2):
+ * dieselben Pflichtfelder wie viewContact()/canNext() in docs/vorschau.html
+ * (Vorname, Name, E-Mail) - Ort ist nie Pflicht, Telefon nur bei Kanal
+ * "phone"/"whatsapp" (siehe lib/inquiry/schema.ts InquiryPayloadSchema,
+ * dieselbe Regel serverseitig). `channel` optional, damit bestehende
+ * Aufrufer ohne Kanalbezug (falls vorhanden) weiter kompilieren; ohne
+ * Angabe gilt Telefon als optional.
+ */
 export function contactFieldError(
   field: keyof ContactFields,
   value: string,
   t: ReturnType<typeof useT>["t"],
+  channel?: Channel,
 ): string | null {
+  if (field === "city") return null;
+  if (field === "phone") {
+    if (value.trim().length === 0 && (channel === "phone" || channel === "whatsapp")) {
+      return t.errors.phoneRequiredForChannel;
+    }
+    return null;
+  }
   if (value.trim().length === 0) return t.errors.required;
   if (field === "email" && !EMAIL_PATTERN.test(value.trim())) return t.errors.invalidEmail;
   return null;
@@ -25,7 +42,7 @@ export function contactFieldError(
 
 export function isContactValid(state: FlowState, t: ReturnType<typeof useT>["t"]): boolean {
   const fields: (keyof ContactFields)[] = ["firstName", "lastName", "city", "phone", "email"];
-  const hasFieldError = fields.some((f) => contactFieldError(f, state.contact[f], t) !== null);
+  const hasFieldError = fields.some((f) => contactFieldError(f, state.contact[f], t, state.channel) !== null);
   return !hasFieldError && state.privacyAccepted;
 }
 
@@ -45,7 +62,7 @@ export function ContactStep({
   function showError(field: keyof ContactFields): string | null {
     const shouldShow = !!state.contactTouched[field] || state.submitAttempted;
     if (!shouldShow) return null;
-    return contactFieldError(field, state.contact[field], t);
+    return contactFieldError(field, state.contact[field], t, state.channel);
   }
 
   const showPrivacyError = (!!state.contactTouched.privacy || state.submitAttempted) && !state.privacyAccepted;

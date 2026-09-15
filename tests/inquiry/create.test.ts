@@ -137,6 +137,7 @@ function basePayload(overrides: Partial<InquiryPayload> = {}): InquiryPayload {
     year: "2025",
     beenHere: false,
     gearbox: "manual",
+    seriesPs: 480,
     categories: ["motor", "auspuff", "fahrwerk"],
     consulting: false,
     selections: [{ productId: motorProductId }, { productId: auspuffProductId }, { productId: fahrwerkProductId }],
@@ -203,6 +204,11 @@ describe("createInquiry: M2 G87 / M2 mit 3 Produkten (echter Katalog)", () => {
     expect(inquiry.share_token).toBe(result.shareToken);
     expect(inquiry.draft_subject).toBe(result.draft.subject);
     expect(inquiry.draft_reply).toBe(result.draft.body);
+    // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+    // die effektiv wirksame Serienleistung wird mitgespeichert (siehe
+    // basePayload() oben: seriesPs 480, passend zur Basis-480-Stufe
+    // motorProductId).
+    expect(inquiry.series_ps).toBe(480);
 
     const selections = inquiry.selections as unknown as Array<{
       product_id: string;

@@ -65,6 +65,37 @@ export function isStandaloneVmaxProduct(name: string): boolean {
   return STANDALONE_VMAX_PATTERN.test(name);
 }
 
+// Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+// V/max-Doppelung. Wählt der Kunde eine Leistungsstufe, deren Name die
+// V/max-Aufhebung bereits enthält (z.B. M2 G87 "Stufe 1: ... inkl.
+// Anhebung der V/max Begrenzung"), ist das eigenständige V/max-Produkt
+// ("Aufhebung der serienmässigen V/max Begrenzung", ein eigenes Produkt,
+// NICHT in derselben variant_group "leistung" - anders als der
+// Sonderfall isStandaloneVmaxProduct()/STANDALONE_VMAX_PATTERN oben, der
+// nur "... ohne Leistungssteigerung"-Produkte betrifft) überflüssig und
+// wird im Motor-Schritt gesperrt (components/flow/state.ts isVmaxLocked()/
+// PICK_PRODUCT). hasVmaxLift() erkennt dasselbe Muster wie der Titel-
+// Zusatz oben (VMAX_CORE_PATTERN + Aufheb/Anheb/inkl), hier für einen
+// einzelnen Produktnamen statt name+description (die Sperr-Logik prüft nur
+// den Namen, wie in der Aufgabenstellung vorgegeben).
+export function hasVmaxLift(name: string): boolean {
+  const n = normalizeNbsp(name);
+  return VMAX_MENTION_PATTERN.test(n) && VMAX_LIFT_PATTERN.test(n);
+}
+
+// Dieselbe "ist eine Motor-Leistungsstufe"-Regel wie productDisplay() unten
+// (variant_group "leistung", ohne das eigenständige "... ohne
+// Leistungssteigerung"-V/max-Produkt), hier aber mit den camelCase-Feldern
+// von lib/catalog/queries.ts CatalogProduct statt der snake_case
+// ProductDisplayInput/StageItemInput-Form oben: isStageProduct() wird von
+// components/flow/state.ts (Reducer) und CategoryStep.tsx direkt auf
+// CatalogProduct-Objekten aufgerufen (immer volles Katalogobjekt, kein
+// "variant_group evtl. undefined bei älterer Anfrage"-Fall wie bei
+// isStageItem() unten, das ist ausschliesslich für Mail-/Entwurfs-Kontext).
+export function isStageProduct(product: { variantGroup: string | null; name: string }): boolean {
+  return product.variantGroup === "leistung" && !isStandaloneVmaxProduct(product.name);
+}
+
 // Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 6): mehrere
 // Leistungsstufen tragen identische PS/Nm-Werte innerhalb desselben Modells
 // und unterscheiden sich nur noch durch eine Bauzeitangabe im Namen (z.B.
@@ -230,6 +261,21 @@ function stageDisplay(
   }
 
   return { title, subtitle, detail };
+}
+
+/**
+ * Kurzer Stufen-Name OHNE den V/max-Zusatz ("Stufe 1", nicht "Stufe 1 mit
+ * V/max-Aufhebung") - für den Sperr-Hinweis an einer ANDEREN, gesperrten
+ * Kachel ("In Stufe 1 enthalten", siehe CategoryStep.tsx und CLAUDE.md
+ * Abschnitt "AUFGABE", Punkt 1). productDisplay()/stageDisplay() oben liefern
+ * für eine V/max-Stufe bewusst den vollen Titel inkl. Zusatz (das ist der
+ * Titel IHRER EIGENEN Kachel) - hier wird nur die Stufennummer gebraucht,
+ * ein zweiter Blick auf STAGE_NUMBER_PATTERN/STRINGS reicht dafür.
+ */
+export function stageShortTitle(name: string, locale: Locale): string {
+  const strings = STRINGS[locale] ?? STRINGS.de;
+  const stageMatch = STAGE_NUMBER_PATTERN.exec(name);
+  return stageMatch ? strings.stage(stageMatch[1]) : strings.increase;
 }
 
 function plainDisplay(name: string, description: string | null | undefined): ProductDisplay {

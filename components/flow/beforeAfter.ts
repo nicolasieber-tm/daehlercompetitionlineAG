@@ -8,6 +8,8 @@
 // "reichen" Felder (seriesPs/seriesNm, psTo/nmTo je Position) optional.
 import type { Dictionary, Locale } from "@/lib/i18n/dictionaries";
 import { isStageItem, normalizeNbsp, productDisplay } from "@/lib/catalog/product-display";
+import { buildPowerBeforeAfter } from "@/lib/catalog/power-before-after";
+import type { PowerBeforeAfter } from "@/lib/catalog/power-before-after";
 import type { FlowCategory } from "@/lib/supabase/rows";
 
 export interface BeforeAfterItemInput {
@@ -33,6 +35,27 @@ export interface BeforeAfterRowData {
   category: string;
   before: string;
   after: string;
+  /**
+   * Nur bei key "leistung" UND gewählter Leistungsstufe mit bekannter
+   * Serienleistung gefüllt (Rückmeldung zweiter Klicktest, CLAUDE.md
+   * Abschnitt "AUFGABE", Punkt 3): strukturierte Vorher/Nachher-Zahlen für
+   * die grosse Zahlen-Darstellung (components/ui/BeforeAfter.tsx), wie
+   * .stat b / .delta .n in docs/vorschau.html. `before`/`after` oben bleiben
+   * daneben unverändert die Text-Fallbacks (ohne gewählte Stufe: Serie/
+   * Beratung/Produktnamen, siehe unten).
+   */
+  power?: PowerBeforeAfter;
+  /**
+   * Nur bei key "leistung" gefüllt: die Namen weiterer gewählter Motor-
+   * Optionen neben der Hauptstufe (z. B. "Sportluftfilter Satz"), mit ", "
+   * verbunden - wie in `after` oben und wie docs/vorschau.html beforeAfter()
+   * sie anhängt ("… · Sportluftfilter Satz"). Getrennt von `after` geliefert,
+   * damit die Anzeige sie auch dann noch zeigen kann, wenn `power` gesetzt
+   * ist und `after` (Text-Fallback) durch die grosse Zahlen-Darstellung
+   * ersetzt wird - Befund Prüfer: bei gewählter Stufe verschwanden weitere
+   * gewählte Motor-Optionen sonst aus der Zeile (Beleg Anfrage 2026-0293).
+   */
+  extras?: string;
 }
 
 function itemsOf(input: BeforeAfterInput, category: FlowCategory): BeforeAfterItemInput[] {
@@ -76,15 +99,16 @@ export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary, loc
         ? `${input.seriesPs} PS · ${input.seriesNm} Nm`
         : b.seriesValue;
     let after: string;
+    const extraNames = extras.map((i) => displayName(i, locale)).join(", ");
     if (stage) {
-      const extraNames = extras.map((i) => displayName(i, locale)).join(", ");
       after = `${stage.psTo} PS · ${stage.nmTo ?? "?"} Nm${extraNames ? " · " + extraNames : ""}`;
     } else if (motorItems.length > 0) {
       after = motorItems.map((i) => displayName(i, locale)).join(", ");
     } else {
       after = advice;
     }
-    rows.push({ key: "leistung", category: b.rows.leistung, before, after });
+    const power = buildPowerBeforeAfter(input.seriesPs, input.seriesNm, stage?.psTo, stage?.nmTo) ?? undefined;
+    rows.push({ key: "leistung", category: b.rows.leistung, before, after, power, extras: stage ? extraNames : undefined });
   }
 
   if (input.categories.includes("auspuff")) {

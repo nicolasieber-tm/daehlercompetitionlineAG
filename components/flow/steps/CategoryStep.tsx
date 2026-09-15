@@ -10,12 +10,12 @@ import { Button, Tile } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import { chfFrom } from "@/lib/i18n/format";
 import { de } from "@/lib/i18n/de";
-import { isStandaloneVmaxProduct, productDisplay } from "@/lib/catalog/product-display";
+import { isStageProduct, productDisplay, stageShortTitle } from "@/lib/catalog/product-display";
 import type { CatalogFamily, CatalogModel, CatalogProduct, CategoryNote, ProductGroup } from "@/lib/catalog/queries";
 import type { FlowCategory } from "@/lib/supabase/rows";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import type { FlowAction, FlowState } from "../state";
-import { gearboxSelectionVisible, motorProductVisible } from "../state";
+import { gearboxSelectionVisible, isVmaxLocked, motorProductVisible, vmaxLiftStage } from "../state";
 import { usePsCounter } from "../usePsCounter";
 import { UPSELL_TARGET } from "../upsell";
 import { vehicleDisplayName } from "../vehicleLabel";
@@ -29,16 +29,16 @@ type MotorSubsectionId = "leistungsstufen" | "weitereOptionen" | "kraftuebertrag
 type AuspuffSubsectionId = "anlagen" | "endrohre" | "weitereOptionen" | "activeSound";
 type FahrwerkSubsectionId = "fahrwerk" | "weitereOptionen" | "bremse";
 
-// Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 1): variant_group
-// "leistung" allein reicht nicht als "ist eine Leistungsstufe"-Signal - das
+// isStageProduct() jetzt in lib/catalog/product-display.ts (Rückmeldung
+// zweiter Klicktest, CLAUDE.md Abschnitt "AUFGABE", Punkt 1: dieselbe
+// generische Hilfsfunktion wird auch vom Reducer für die V/max-Sperre
+// gebraucht, siehe components/flow/state.ts isVmaxLocked()). Korrektur
+// 15.09.2026 (Prüfung Modul Parser, Befund 1): variant_group "leistung"
+// allein reicht nicht als "ist eine Leistungsstufe"-Signal - das
 // eigenständige V/max-Produkt "... ohne Leistungssteigerung" liegt bewusst
 // in derselben variant_group (Exklusivität, siehe lib/catalog/variant-
 // groups.ts), ist aber keine Stufe und gehört deshalb weder unter die
-// Zwischenüberschrift "Leistungsstufen" noch in den Stufen-Titel (siehe
-// lib/catalog/product-display.ts isStandaloneVmaxProduct()).
-function isStageProduct(p: Pick<CatalogProduct, "variantGroup" | "name">): boolean {
-  return p.variantGroup === "leistung" && !isStandaloneVmaxProduct(p.name);
-}
+// Zwischenüberschrift "Leistungsstufen" noch in den Stufen-Titel.
 
 function motorSubsectionId(p: CatalogProduct): MotorSubsectionId {
   if (p.sourceCategory === "Kraftübertragung") return "kraftuebertragung";
@@ -239,6 +239,15 @@ export function CategoryStep({
           locale,
         )
       : null;
+
+    // V/max-Doppelung (Rückmeldung zweiter Klicktest, CLAUDE.md Abschnitt
+    // "AUFGABE", Punkt 1): eine bereits gewählte Leistungsstufe mit V/max-
+    // Aufhebung im Namen sperrt das eigenständige V/max-Zusatzprodukt (und
+    // umgekehrt automatisch entfernt, siehe state.ts PICK_PRODUCT) -
+    // Kachel ausgegraut, nicht wählbar, Hinweis "In {stage} enthalten".
+    const lockingStage = category === "motor" ? vmaxLiftStage(state.selections) : null;
+    const locked = lockingStage != null && isVmaxLocked(product, state.selections);
+
     return (
       <Tile
         key={product.id}
@@ -255,8 +264,12 @@ export function CategoryStep({
         }
         price={priceText(product, t, tf, locale)}
         priceMuted={product.priceStatus !== "priced"}
+        badge={locked && lockingStage ? tf(t.steps.category.includedInStage, { stage: stageShortTitle(lockingStage.name, locale) }) : undefined}
         selected={picked.some((p) => p.id === product.id)}
-        onClick={() => handlePick(product)}
+        disabled={locked}
+        aria-disabled={locked || undefined}
+        className={locked ? "opacity-50" : undefined}
+        onClick={locked ? undefined : () => handlePick(product)}
       />
     );
   }

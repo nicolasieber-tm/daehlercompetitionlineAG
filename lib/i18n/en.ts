@@ -130,6 +130,7 @@ export const en: Dictionary = {
         targetUnitUnselected: "PS · choose a stage",
         plus: "+{diff} PS · {detail}",
       },
+      includedInStage: "Included in {stage}",
       followUp: {
         motor: {
           question: "What matters more to you?",
@@ -234,7 +235,7 @@ export const en: Dictionary = {
       label: "And who are you?",
       firstName: "First name",
       lastName: "Last name",
-      city: "Town",
+      city: "Town (optional)",
       phone: "Phone",
       email: "Email",
       channelLabel: "How would you like us to reach you?",
@@ -323,6 +324,7 @@ export const en: Dictionary = {
     loadFailed: "The products could not be loaded.",
     shareCopyFailed: "The link could not be copied.",
     summaryMailFailed: "The summary could not be sent.",
+    phoneRequiredForChannel: "Phone is required when contacting you by phone or WhatsApp.",
   },
 
   mail: {

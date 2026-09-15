@@ -74,6 +74,17 @@ export const InquiryPayloadObjectSchema = z.object({
   // sie auch kein Pflichtfeld (siehe FlowNav canNext in components/flow/
   // Flow.tsx, das die Frage nur bei hasGearboxSpecificProducts erzwingt).
   gearbox: z.enum(GEARBOX_VALUES).nullable(),
+  // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+  // die im Fahrzeug-Schritt effektiv wirksame Serienleistung (models.
+  // series_ps, sonst die Chip-Auswahl bei mehreren series_ps_suggested-
+  // Werten, siehe components/flow/state.ts effectiveSeriesPs()) - wird nach
+  // dem Absenden für die Vorher/Nachher-Leistungszeile auf Abschluss-Screen,
+  // Teilen-Seite und Bestätigungs-/Zusammenfassungsmail gebraucht
+  // (inquiries.series_ps, siehe supabase/migrations/
+  // 20260916010000_inquiries_series_ps.sql). Optional (Schnellweg/ältere
+  // Aufrufer ohne Chip-UI liefern das Feld gar nicht) - dann null, wie ohne
+  // gewählte Serienleistung.
+  seriesPs: z.number().int().min(1).max(2000).nullable().optional().transform((v) => v ?? null),
   categories: z.array(flowCategorySchema).max(FLOW_CATEGORY_VALUES.length),
   consulting: z.boolean(),
   selections: z.array(selectionSchema).max(200),
@@ -85,8 +96,33 @@ export const InquiryPayloadObjectSchema = z.object({
   // beliebig lange Werte in Mails, Antwortentwurf und DB-Spalten schreiben.
   firstName: z.string().trim().min(1, "Vorname ist ein Pflichtfeld.").max(80),
   lastName: z.string().trim().min(1, "Name ist ein Pflichtfeld.").max(80),
-  city: z.string().trim().min(1, "Ort ist ein Pflichtfeld.").max(80),
-  phone: z.string().trim().min(1, "Telefon ist ein Pflichtfeld.").max(40),
+  // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 2):
+  // Ort ist kein Pflichtfeld mehr (die Vorschau, docs/vorschau.html
+  // viewContact()/canNext(), verlangt ihn nie) - leerer String zählt wie
+  // kein Ort (analog vehicleText oben), Zusammenfassungen/Admin lassen ihn
+  // dann weg statt eines leeren Feldes (lib/inquiry/summary.ts,
+  // lib/mail/templates/inbox.ts, components/admin/CustomerCard.tsx/
+  // InquiriesTable.tsx filtern bereits konsequent über Boolean(city)).
+  city: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .default("")
+    .transform((v) => (v.length > 0 ? v : null)),
+  // Telefon ist ebenfalls kein generelles Pflichtfeld mehr (dieselbe
+  // Rückmeldung, Punkt 2) - bei Kanal "phone"/"whatsapp" bleibt es Pflicht,
+  // siehe die Cross-Field-Regel auf InquiryPayloadSchema unten (NICHT auf
+  // withInquiryPayloadRefinements(), die auch der Schnellweg nutzt, siehe
+  // lib/ai/to-payload.ts QuickInquiryPayloadSchema: dort bleibt "Telefon
+  // ODER E-Mail" die einzige Pflicht, unabhängig vom Kanal).
+  phone: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .default("")
+    .transform((v) => (v.length > 0 ? v : null)),
   email: z.string().trim().max(120).email({ message: "Bitte eine gültige E-Mail-Adresse angeben." }),
   channel: z.enum(CHANNEL_VALUES),
   message: z.string().max(2000).optional().default(""),
@@ -127,6 +163,22 @@ export function withInquiryPayloadRefinements<
     });
 }
 
-export const InquiryPayloadSchema = withInquiryPayloadRefinements(InquiryPayloadObjectSchema);
+// Nur auf InquiryPayloadSchema (Kundenflow), NICHT auf
+// withInquiryPayloadRefinements() selbst, damit QuickInquiryPayloadSchema
+// (lib/ai/to-payload.ts) davon unberührt bleibt (dort bleibt "Telefon ODER
+// E-Mail" die einzige Kontakt-Pflicht, unabhängig vom Kanal, siehe Befund
+// #1 dort). Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
+// Punkt 2): dieselben Pflichtfelder wie viewContact()/canNext() in
+// docs/vorschau.html (Vorname, Name, E-Mail) - Telefon zusätzlich nur bei
+// Kanal "phone"/"whatsapp" (Validierungstext siehe lib/i18n de.ts/en.ts
+// errors.phoneRequiredForChannel, hier bewusst fest Deutsch wie die
+// übrigen Feld-Meldungen oben).
+export const InquiryPayloadSchema = withInquiryPayloadRefinements(InquiryPayloadObjectSchema).refine(
+  (v) => !(v.channel === "phone" || v.channel === "whatsapp") || (v.phone != null && v.phone.length > 0),
+  {
+    message: "Telefon ist bei Kontakt per Telefon oder WhatsApp ein Pflichtfeld.",
+    path: ["phone"],
+  },
+);
 
 export type InquiryPayload = z.infer<typeof InquiryPayloadSchema>;

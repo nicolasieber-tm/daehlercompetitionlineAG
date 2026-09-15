@@ -24,4 +24,6 @@ export type { SummaryProps, SummaryLine } from "./Summary";
 export { BeforeAfter } from "./BeforeAfter";
 export type { BeforeAfterProps, BeforeAfterRow } from "./BeforeAfter";
 
+export { PowerBeforeValue, PowerAfterValue } from "./PowerValue";
+
 export { LanguageSwitch } from "./LanguageSwitch";

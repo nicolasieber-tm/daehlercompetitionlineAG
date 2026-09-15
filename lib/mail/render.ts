@@ -12,6 +12,7 @@ import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { chf, chfFrom } from "@/lib/i18n/format";
 import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
+import { buildPowerBeforeAfter, formatPowerLine } from "@/lib/catalog/power-before-after";
 import type { Model, ModelFamily } from "@/lib/supabase/rows";
 import type { MailInquiryItem } from "./types";
 
@@ -196,6 +197,27 @@ export function itemLineText(item: MailInquiryItem, locale: Locale): string {
       ? tf(dict.draft.itemDescription, { description: descriptionLines.join(", ") })
       : "";
   return tf(dict.draft.itemLine, { category, name, description, price });
+}
+
+/**
+ * Klartext-Zeile "460 PS → 620 PS / 740 Nm (+160 PS)" für die Bestätigungs-/
+ * Zusammenfassungsmail (Rückmeldung zweiter Klicktest, CLAUDE.md Abschnitt
+ * "AUFGABE", Punkt 3, siehe lib/catalog/power-before-after.ts und
+ * components/flow/beforeAfter.ts, dieselbe Herleitung für Abschluss-Screen/
+ * Teilen-Seite). null, wenn keine Leistungsstufe gewählt wurde oder die
+ * Serienleistung nicht bekannt ist - dann bleibt die Zeile ganz weg, wie
+ * beim Text-Fallback der Vorher/Nachher-Tabelle ohne gewählte Stufe.
+ */
+export function motorPowerLine(params: {
+  seriesPs: number | null;
+  seriesNm: number | null;
+  items: MailInquiryItem[];
+}): string | null {
+  const stage = params.items.find(
+    (i) => i.category === "motor" && i.variant_group === "leistung" && i.ps_to != null,
+  );
+  const power = buildPowerBeforeAfter(params.seriesPs, params.seriesNm, stage?.ps_to, stage?.nm_to);
+  return power ? formatPowerLine(power) : null;
 }
 
 // --- Bausteine ---------------------------------------------------------------

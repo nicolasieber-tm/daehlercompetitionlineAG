@@ -170,6 +170,7 @@ export type Database = {
           raw_text: string | null
           replied_at: string | null
           selections: Json
+          series_ps: number | null
           share_token: string
           source: string
           status: string
@@ -207,6 +208,7 @@ export type Database = {
           raw_text?: string | null
           replied_at?: string | null
           selections?: Json
+          series_ps?: number | null
           share_token: string
           source?: string
           status?: string
@@ -244,6 +246,7 @@ export type Database = {
           raw_text?: string | null
           replied_at?: string | null
           selections?: Json
+          series_ps?: number | null
           share_token?: string
           source?: string
           status?: string

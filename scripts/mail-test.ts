@@ -70,6 +70,7 @@ const ctx: MailInquiryContext = {
     raw_text: null,
     replied_at: null,
     selections: [],
+    series_ps: null,
     share_token: "mail-test-fixture-share-token",
     source: "web",
     status: "neu",

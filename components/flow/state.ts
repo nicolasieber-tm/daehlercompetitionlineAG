@@ -13,6 +13,7 @@
 // auf einem ANDEREN Kategorie-Schritt als dem vorgeschlagenen).
 import type { CatalogProduct, CategoryNote, ProductGroup } from "@/lib/catalog/queries";
 import { gearboxProductVisible } from "@/lib/catalog/gearbox";
+import { hasVmaxLift, isStageProduct } from "@/lib/catalog/product-display";
 import type { Brand, Channel, Character, FlowCategory, InquiryGearbox, Timing } from "@/lib/supabase/rows";
 
 export type StepId = "car" | "wish" | `cat:${FlowCategory}` | "character" | "contact" | "done";
@@ -194,6 +195,41 @@ export function gearboxSelectionVisible(product: CatalogProduct, gearboxChoice: 
 }
 
 // ---------------------------------------------------------------------------
+// V/max-Doppelung (Rückmeldung zweiter Klicktest, CLAUDE.md Abschnitt
+// "AUFGABE", Punkt 1). Wählt der Kunde eine Motor-Leistungsstufe, deren
+// Name die V/max-Aufhebung bereits enthält, ist jedes andere Motor-Produkt,
+// das keine Leistungsstufe ist und V/max im Namen trägt (das eigenständige
+// V/max-Produkt, z.B. M2 G87 "Aufhebung der serienmässigen V/max
+// Begrenzung"), überflüssig: Kachel gesperrt (CategoryStep.tsx), bereits
+// gewählt -> wird hier beim Wählen der Stufe automatisch entfernt.
+// Umgekehrte Reihenfolge (Einzel-V/max zuerst gewählt, danach die Stufe)
+// führt über denselben Weg zum selben Ergebnis (siehe PICK_PRODUCT unten).
+// ---------------------------------------------------------------------------
+
+/** Ein Motor-Zusatzprodukt mit V/max im Namen, das selbst KEINE Leistungsstufe ist (Sperr-Kandidat). */
+function isVmaxAddonProduct(product: Pick<CatalogProduct, "category" | "variantGroup" | "name">): boolean {
+  return product.category === "motor" && !isStageProduct(product) && hasVmaxLift(product.name);
+}
+
+/** Die aktuell gewählte Motor-Leistungsstufe mit V/max-Aufhebung im Namen, falls vorhanden. */
+export function vmaxLiftStage(selections: FlowState["selections"]): CatalogProduct | null {
+  const motorSelections = selections.motor ?? [];
+  return motorSelections.find((p) => isStageProduct(p) && hasVmaxLift(p.name)) ?? null;
+}
+
+/**
+ * true, wenn `product` wegen einer bereits gewählten Leistungsstufe mit
+ * V/max-Aufhebung gesperrt ist (Kachel ausgegraut, nicht wählbar, Hinweis
+ * "In {stage} enthalten"). Nur für Motor-Zusatzprodukte mit V/max im Namen,
+ * die selbst keine Leistungsstufe sind - die Stufen-Kachel selbst (und
+ * jedes andere Motor-Produkt) bleibt unberührt.
+ */
+export function isVmaxLocked(product: CatalogProduct, selections: FlowState["selections"]): boolean {
+  if (!isVmaxAddonProduct(product)) return false;
+  return vmaxLiftStage(selections) !== null;
+}
+
+// ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
 
@@ -342,6 +378,16 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
       const { category, product } = action;
       const current = state.selections[category] ?? [];
       const isSelected = current.some((p) => p.id === product.id);
+
+      // V/max-Doppelung (siehe isVmaxLocked() oben): ein gesperrtes
+      // Zusatzprodukt lässt sich nicht neu wählen. Die Kachel ist im UI
+      // zusätzlich ausgegraut/deaktiviert (CategoryStep.tsx); dieser Check
+      // greift zusätzlich, falls PICK_PRODUCT direkt angesprochen wird
+      // (z.B. in einem Test).
+      if (!isSelected && category === "motor" && isVmaxLocked(product, state.selections)) {
+        return state;
+      }
+
       let next: CatalogProduct[];
       if (isSelected) {
         next = current.filter((p) => p.id !== product.id);
@@ -350,7 +396,19 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
       } else {
         next = [...current, product];
       }
-      return { ...state, selections: { ...state.selections, [category]: next } };
+      let selections: FlowState["selections"] = { ...state.selections, [category]: next };
+
+      // Wählt der Kunde eine Leistungsstufe mit V/max-Aufhebung im Namen,
+      // wird ein bereits gewähltes, jetzt gesperrtes V/max-Zusatzprodukt
+      // automatisch entfernt (umgekehrte Reihenfolge: Einzel-V/max zuerst
+      // gewählt, danach die Stufe - der obige Sperr-Check verhindert die
+      // Neuauswahl in der anderen Reihenfolge bereits von vornherein).
+      if (category === "motor" && !isSelected && isStageProduct(product) && hasVmaxLift(product.name)) {
+        const motorNext = (selections.motor ?? []).filter((p) => !isVmaxAddonProduct(p));
+        selections = { ...selections, motor: motorNext };
+      }
+
+      return { ...state, selections };
     }
 
     case "SET_FOLLOW_UP":

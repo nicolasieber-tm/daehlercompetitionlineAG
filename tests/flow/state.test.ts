@@ -7,7 +7,7 @@
 // state.selections ohnehin bereits vollständig - hier zur Vollständigkeit
 // als Regressionstest mitgeprüft.
 import { describe, expect, it } from "vitest";
-import { flowReducer, gearboxSelectionVisible, initialFlowState } from "@/components/flow/state";
+import { flowReducer, gearboxSelectionVisible, initialFlowState, isVmaxLocked, vmaxLiftStage } from "@/components/flow/state";
 import type { FlowState } from "@/components/flow/state";
 import type { CatalogProduct } from "@/lib/catalog/queries";
 
@@ -146,5 +146,106 @@ describe("gearboxSelectionVisible", () => {
     const manualProduct = product({ id: "p", category: "motor", gearbox: "manual" });
     expect(gearboxSelectionVisible(manualProduct, "manual")).toBe(true);
     expect(gearboxSelectionVisible(manualProduct, "automatic")).toBe(false);
+  });
+});
+
+// Rückmeldung zweiter Klicktest (Kundenflow M2 G87), siehe CLAUDE.md
+// Abschnitt "AUFGABE", Punkt 1: echte M2 G87 Basis-460-Produkte (siehe
+// docs/db.md) - eine Stufe 1 ohne V/max-Zusatz, eine mit ("inkl. Anhebung
+// der V/max Begrenzung"), und das eigenständige V/max-Produkt ("Aufhebung
+// der serienmässigen V/max Begrenzung", variant_group null, KEINE
+// Leistungsstufe, anders als isStandaloneVmaxProduct()/"... ohne
+// Leistungssteigerung").
+const stage1NoVmax = product({
+  id: "stage1-no-vmax",
+  category: "motor",
+  name: "Stufe 1: (Basis 460 PS)  590PS / 720Nm (M6 & A8-Getriebe)",
+  variantGroup: "leistung",
+  psTo: 590,
+  nmTo: 720,
+});
+const stage1WithVmax = product({
+  id: "stage1-with-vmax",
+  category: "motor",
+  name: "Stufe 1: (Basis 460 PS)  610PS / 750Nm (M6 & A8-Getriebe) inkl. Anhebung der V/max Begrenzung",
+  variantGroup: "leistung",
+  psTo: 610,
+  nmTo: 750,
+});
+const standaloneVmax = product({
+  id: "standalone-vmax",
+  category: "motor",
+  name: "Aufhebung der serienmässigen V/max Begrenzung",
+  variantGroup: null,
+});
+
+describe("flowReducer PICK_PRODUCT: V/max-Doppelung (beide Reihenfolgen)", () => {
+  it("Stufe mit V/max zuerst, dann Einzel-V/max: die Kachel ist gesperrt, PICK_PRODUCT bleibt wirkungslos", () => {
+    const state = withSelections({});
+    const afterStage = flowReducer(state, { type: "PICK_PRODUCT", category: "motor", product: stage1WithVmax });
+    expect(afterStage.selections.motor).toEqual([stage1WithVmax]);
+
+    const afterStandalone = flowReducer(afterStage, {
+      type: "PICK_PRODUCT",
+      category: "motor",
+      product: standaloneVmax,
+    });
+    // Gesperrt: die Kachel bleibt unwählbar, die Auswahl bleibt unverändert.
+    expect(afterStandalone.selections.motor).toEqual([stage1WithVmax]);
+  });
+
+  it("Einzel-V/max zuerst, dann Stufe mit V/max: dasselbe Ergebnis, das Einzelprodukt wird automatisch entfernt", () => {
+    const state = withSelections({});
+    const afterStandalone = flowReducer(state, {
+      type: "PICK_PRODUCT",
+      category: "motor",
+      product: standaloneVmax,
+    });
+    expect(afterStandalone.selections.motor).toEqual([standaloneVmax]);
+
+    const afterStage = flowReducer(afterStandalone, {
+      type: "PICK_PRODUCT",
+      category: "motor",
+      product: stage1WithVmax,
+    });
+    expect(afterStage.selections.motor).toEqual([stage1WithVmax]);
+  });
+
+  it("Stufe OHNE V/max-Zusatz sperrt das Einzel-V/max-Produkt nicht", () => {
+    const state = withSelections({});
+    const afterStandalone = flowReducer(state, {
+      type: "PICK_PRODUCT",
+      category: "motor",
+      product: standaloneVmax,
+    });
+    const afterStage = flowReducer(afterStandalone, {
+      type: "PICK_PRODUCT",
+      category: "motor",
+      product: stage1NoVmax,
+    });
+    // Beide bleiben gewählt: unterschiedliche variant_group (leistung vs.
+    // null), keine V/max-Aufhebung in der gewählten Stufe.
+    expect(afterStage.selections.motor).toEqual([standaloneVmax, stage1NoVmax]);
+  });
+
+  it("Abwählen der Stufe hebt die Sperre wieder auf", () => {
+    const state = withSelections({ motor: [stage1WithVmax] });
+    const afterUnpick = flowReducer(state, { type: "PICK_PRODUCT", category: "motor", product: stage1WithVmax });
+    expect(afterUnpick.selections.motor).toEqual([]);
+    expect(isVmaxLocked(standaloneVmax, afterUnpick.selections)).toBe(false);
+  });
+});
+
+describe("isVmaxLocked / vmaxLiftStage", () => {
+  it("ohne gewählte V/max-Stufe ist nichts gesperrt", () => {
+    expect(vmaxLiftStage({})).toBeNull();
+    expect(isVmaxLocked(standaloneVmax, { motor: [stage1NoVmax] })).toBe(false);
+  });
+
+  it("mit gewählter V/max-Stufe ist nur das eigenständige V/max-Produkt gesperrt, nicht die Stufe selbst", () => {
+    const selections = { motor: [stage1WithVmax] };
+    expect(vmaxLiftStage(selections)).toEqual(stage1WithVmax);
+    expect(isVmaxLocked(standaloneVmax, selections)).toBe(true);
+    expect(isVmaxLocked(stage1WithVmax, selections)).toBe(false);
   });
 });

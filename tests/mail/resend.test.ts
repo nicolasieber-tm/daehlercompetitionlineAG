@@ -109,6 +109,11 @@ describe("sendMail", () => {
 
   it("ohne Override: bcc kommt aus settings.mail_bcc, ausser to === bcc", async () => {
     delete process.env.MAIL_TO_OVERRIDE;
+    // RESEND_FROM_OVERRIDE: lokal in .env gesetzt, solange die Domain
+    // daehler.com bei Resend nicht verifiziert ist (siehe lib/mail/resend.ts).
+    // Dieser Test prüft aber gezielt den DB-Fallback settings.mail_from, muss
+    // also unabhängig von dieser lokalen Override-Variable laufen.
+    delete process.env.RESEND_FROM_OVERRIDE;
     sendMock.mockResolvedValueOnce({ data: { id: "re_bcc_1" }, error: null });
 
     const result = await sendMail({

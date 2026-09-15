@@ -508,6 +508,12 @@ export const admin = {
         year: "Baujahr",
         beenHere: "Schon einmal bei uns gewesen",
         gearbox: "Getriebe",
+        // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
+        // Punkt 3): seriesPs ist in InquiryPayloadObjectSchema optional
+        // (siehe lib/inquiry/schema.ts), zod meldet es deshalb nie als
+        // fehlend - der Eintrag deckt trotzdem das Schema vollständig ab
+        // (Test tests/admin/quick-missing-labels.test.ts).
+        seriesPs: "Serienleistung",
         categories: "Kategorien",
         consulting: "Komplettpaket, Beratung gewünscht",
         selections: "Produktauswahl",

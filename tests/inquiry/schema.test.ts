@@ -89,3 +89,49 @@ describe("InquiryPayloadSchema: Maximallängen", () => {
     expect(typed.firstName).toBe("Nadia");
   });
 });
+
+// Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 2):
+// Ort ist kein Pflichtfeld mehr (viewContact()/canNext() in
+// docs/vorschau.html verlangen ihn nie), Telefon nur bei Kanal
+// "phone"/"whatsapp".
+describe("InquiryPayloadSchema: Ort optional", () => {
+  it("leerer Ort ist gültig und wird zu null", () => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload({ city: "" }));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.city).toBeNull();
+  });
+
+  it("fehlender Ort (Feld nicht im Payload) ist gültig und wird zu null", () => {
+    const payload = basePayload({ city: undefined });
+    const parsed = InquiryPayloadSchema.safeParse(payload);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.city).toBeNull();
+  });
+
+  it("ein gesetzter Ort bleibt erhalten", () => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload({ city: "Belp" }));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.city).toBe("Belp");
+  });
+});
+
+describe("InquiryPayloadSchema: Telefon nur bei Kanal phone/whatsapp Pflicht", () => {
+  it.each(["phone", "whatsapp"] as const)("Kanal %s ohne Telefon ist ungültig", (channel) => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload({ channel, phone: "" }));
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues.some((i) => i.path.join(".") === "phone")).toBe(true);
+    }
+  });
+
+  it.each(["phone", "whatsapp"] as const)("Kanal %s mit Telefon ist gültig", (channel) => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload({ channel, phone: "079 000 00 00" }));
+    expect(parsed.success).toBe(true);
+  });
+
+  it("Kanal email ohne Telefon ist gültig, Telefon wird zu null", () => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload({ channel: "email", phone: "" }));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.phone).toBeNull();
+  });
+});

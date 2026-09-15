@@ -110,6 +110,13 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
       year: state.year,
       beenHere: state.beenHere,
       gearbox: state.gearboxChoice,
+      // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
+      // Punkt 3): effektiv wirksame Serienleistung (siehe seriesPs oben,
+      // effectiveSeriesPs()) - wird für die Vorher/Nachher-Leistungszeile
+      // nach dem Absenden gebraucht (Teilen-Seite, Bestätigungs-/
+      // Zusammenfassungsmail), da models.series_ps bei mehreren
+      // series_ps_suggested-Werten null bleibt.
+      seriesPs,
       categories: state.categories,
       consulting: state.consulting,
       selections: allSelectedProducts(state).map((p) => ({ productId: p.id })),

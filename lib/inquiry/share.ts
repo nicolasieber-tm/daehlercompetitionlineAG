@@ -41,6 +41,16 @@ export interface SharedInquiryView {
   character: string | null;
   categories: string[];
   consulting: boolean;
+  /**
+   * Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
+   * die effektiv wirksame Serienleistung zum Zeitpunkt der Anfrage
+   * (inquiries.series_ps, siehe lib/inquiry/create.ts) - für die Vorher-
+   * Zahl der Vorher/Nachher-Leistungszeile (components/flow/beforeAfter.ts
+   * buildBeforeAfterRows()).
+   */
+  seriesPs: number | null;
+  /** models.series_nm des gewählten Modells, nur wenn bekannt (statisch je Modell, deshalb hier per Join statt eigener inquiries-Spalte). */
+  seriesNm: number | null;
   items: Array<{
     category: string;
     // Nachzug Prüfung Phase D, Punkt 1: name/description sind hier bewusst
@@ -80,7 +90,7 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
   const { data: inquiry, error } = await admin
     .from("inquiries")
     .select(
-      "number, first_name, vehicle_text, year, character, categories, consulting, selections, estimated_total, locale, created_at, family_id, model_id",
+      "number, first_name, vehicle_text, year, character, categories, consulting, selections, estimated_total, locale, created_at, family_id, model_id, series_ps",
     )
     .eq("share_token", token)
     .maybeSingle();
@@ -88,7 +98,7 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
   if (!inquiry) return null;
 
   let family: { brand: string; name: string } | null = null;
-  let model: { name: string } | null = null;
+  let model: { name: string; series_nm: number | null } | null = null;
   if (inquiry.family_id) {
     const { data, error: familyError } = await admin
       .from("model_families")
@@ -99,9 +109,13 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
     family = data;
   }
   if (inquiry.model_id) {
+    // series_nm zusätzlich zu name (Rückmeldung zweiter Klicktest, CLAUDE.md
+    // Abschnitt "AUFGABE", Punkt 3): statisch je Modell, deshalb per Join
+    // statt einer eigenen inquiries-Spalte (anders als series_ps, das die
+    // ambivalente Chip-Auswahl im Fahrzeug-Schritt festhält).
     const { data, error: modelError } = await admin
       .from("models")
-      .select("name")
+      .select("name, series_nm")
       .eq("id", inquiry.model_id)
       .maybeSingle();
     if (modelError) throw new Error(`getInquiryByShareToken (Modell) fehlgeschlagen: ${modelError.message}`);
@@ -147,6 +161,8 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
     character: inquiry.character,
     categories: inquiry.categories,
     consulting: inquiry.consulting,
+    seriesPs: inquiry.series_ps,
+    seriesNm: model?.series_nm ?? null,
     items,
     estimatedTotal: inquiry.estimated_total,
     locale: inquiry.locale,

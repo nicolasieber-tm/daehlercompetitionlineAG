@@ -298,3 +298,88 @@ test.describe("Getriebefrage filtert Kraftübertragung-Optionen (Rückmeldung er
     await expect(page.getByRole("button", { name: /Schaltwegverkürzung/ })).toHaveCount(0);
   });
 });
+
+// Rückmeldung zweiter Klicktest (Kundenflow M2 G87), siehe CLAUDE.md
+// Abschnitt "AUFGABE", Punkte 1-3. Werte aus der echten lokalen DB (nicht
+// geraten, siehe Aufgabenstellung): M2 G87 "M2" Basis 460 PS hat zwei
+// Stufe-1-Varianten, "... 590PS / 720Nm ..." (ohne V/max) und "... 610PS /
+// 750Nm ... inkl. Anhebung der V/max Begrenzung" (mit V/max) - die gewählte
+// Stufe hat ps_to 610/nm_to 750, models.series_nm ist für "M2" nicht
+// gesetzt (null), Differenz zur Serienleistung 460 PS ist somit +150 PS
+// ohne Nm-Angabe (siehe lib/catalog/power-before-after.ts).
+test.describe("V/max-Doppelung und Vorher/Nachher-Leistung (Rückmeldung zweiter Klicktest)", () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test("Stufe 1 mit V/max-Aufhebung sperrt das eigenständige V/max-Produkt; Abschluss zeigt 460/610 gross und +150 PS; Kontakt ohne Ort absendbar", async ({
+    page,
+  }) => {
+    await openFlow(page);
+    await page.getByRole("button", { name: "BMW", exact: true }).click();
+    await page.getByRole("button", { name: /^M2 G87/ }).click();
+    await page.getByRole("button", { name: "M2", exact: true }).click();
+    await page.getByRole("button", { name: "460 PS", exact: true }).click();
+    await page.getByRole("button", { name: "Handschalter", exact: true }).click();
+    await page.getByRole("button", { name: "Weiter →" }).click();
+
+    await page.getByRole("button", { name: /^Motor/ }).click();
+    await page.getByRole("button", { name: "Weiter →" }).click();
+
+    await expect(page.getByRole("heading", { name: "Wie viel darf es sein?" })).toBeVisible();
+    // Stufe 1 MIT V/max-Aufhebung wählen (610 PS, unterscheidet sie von der
+    // benachbarten Stufe-1-Kachel ohne V/max-Zusatz, 590 PS).
+    await page.getByRole("button", { name: /^Stufe 1.*610/ }).click();
+
+    // Das eigenständige V/max-Produkt ist jetzt gesperrt: ausgegraut, nicht
+    // wählbar, mit Hinweis "In Stufe 1 enthalten".
+    const standaloneVmaxTile = page.getByRole("button", { name: /Aufhebung der serienmässigen V\/max Begrenzung/ });
+    await expect(standaloneVmaxTile).toBeDisabled();
+    await expect(standaloneVmaxTile.getByText("In Stufe 1 enthalten")).toBeVisible();
+
+    // Zusätzlich eine Motor-Option NEBEN der Stufe wählen (Befund Prüfer,
+    // Beleg Anfrage 2026-0293: "Sportluftfilter Satz", 320 CHF, unter
+    // "Weitere Optionen" derselben Motor-Seite) - die Vorher/Nachher-Zeile
+    // "Leistung" muss sie trotz gewählter Stufe (grosse Zahlen-Darstellung)
+    // weiterhin zeigen, siehe components/flow/beforeAfter.ts row.extras.
+    await page.getByRole("button", { name: "Sportluftfilter Satz" }).click();
+
+    await page.getByRole("button", { name: "Weiter →" }).click();
+
+    await expect(page.getByRole("heading", { name: /wirken/ })).toBeVisible();
+    await page.getByRole("button", { name: "Sportlich" }).click();
+    await page.getByRole("button", { name: "Weiter →" }).click();
+
+    // Kontakt: Vorname, Name, Telefon, E-Mail ausfüllen, Ort bewusst leer
+    // lassen (Rückmeldung zweiter Klicktest, Punkt 2: Ort ist optional).
+    await expect(page.getByRole("heading", { name: "Wann passt es Ihnen?" })).toBeVisible();
+    await page.getByLabel("Vorname").fill("Lea");
+    await page.getByLabel("Name", { exact: true }).fill("Vmax");
+    await page.getByLabel("Telefon").fill("079 555 66 77");
+    await page.getByLabel("E-Mail").fill(uniqueEmail("vmax-lock"));
+    await page.getByRole("checkbox").check();
+    await page.getByRole("button", { name: "Anfrage senden →" }).click();
+
+    await expect(page.getByText(/Nr\. \d{4}-\d{4}/)).toBeVisible({ timeout: 15000 });
+
+    // Vorher/Nachher-Leistung: 460 (Serie) und 610 (Zielleistung der
+    // gewählten Stufe) gross in der Display-Schrift (components/ui/
+    // PowerValue.tsx), dazu das grüne Plus "+150 PS". Beide Layout-
+    // Varianten (mobil gestapelt/Desktop-Grid) liegen im DOM, nur eine ist
+    // bei 1280px sichtbar - auf sichtbare Elemente filtern.
+    const bigNumbers = await page
+      .locator("b.font-display.text-2xl.font-bold")
+      .evaluateAll((els) => els.filter((el) => (el as HTMLElement).offsetParent !== null).map((el) => el.textContent?.trim()));
+    expect(bigNumbers).toContain("460");
+    expect(bigNumbers).toContain("610");
+    const plusTexts = await page
+      .locator("span.font-mono.text-\\[13px\\].text-ok")
+      .evaluateAll((els) => els.filter((el) => (el as HTMLElement).offsetParent !== null).map((el) => el.textContent?.trim()));
+    expect(plusTexts).toContain("+150 PS");
+
+    // Befund Prüfer (major, Beleg Anfrage 2026-0293): die zusätzlich
+    // gewählte Motor-Option ("Sportluftfilter Satz") muss trotz gewählter
+    // Stufe (grosse Zahlen-Darstellung statt Text-Fallback) in der
+    // "Leistung"-Zeile stehen bleiben, nicht nur im "Ihr Paket"-Summary.
+    const leistungRow = page.locator("div.border-b.border-line.px-4.py-\\[11px\\]", { hasText: "Leistung" });
+    await expect(leistungRow).toContainText("Sportluftfilter Satz");
+  });
+});
