@@ -19,6 +19,7 @@ import {
   renderMail,
   sectionHeading,
   vehicleLabel,
+  stepsList,
 } from "../render";
 
 /**
@@ -93,7 +94,7 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
     itemList(customerItems(ctx.items, ctx.locale), ctx.locale),
     estimateBox({ estimatedTotal: ctx.estimatedTotal, hasOnRequest, locale: ctx.locale }),
     buttonLink(dict.mail.shared.viewPackageButton, ctx.shareUrl),
-    definitionList([
+    stepsList([
       { label: dict.steps.done.next.now.title, value: dict.mail.confirmation.nowText },
       { label: dict.steps.done.next.day1.title, value: dict.steps.done.next.day1.text },
       { label: dict.steps.done.next.then.title, value: dict.steps.done.next.then.text },

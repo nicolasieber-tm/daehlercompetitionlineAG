@@ -250,6 +250,30 @@ export function definitionList(rows: DefinitionRow[]): MailBlock {
 }
 
 /**
+ * Schritte untereinander (Kundenwunsch, Bestätigungsmail «nächste Schritte»):
+ * je Eintrag die Beschriftung («Jetzt», «Innert 1 Arbeitstag», «Dann») als
+ * eigene Zeile, der Text darunter - nicht nebeneinander wie definitionList().
+ */
+export function stepsList(rows: DefinitionRow[]): MailBlock {
+  const visible = rows.filter((r) => r.value);
+  if (visible.length === 0) return { html: "", text: "" };
+  const html =
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;font-size:14px;">` +
+    visible
+      .map(
+        (r) =>
+          `<tr><td style="padding:0 0 10px;vertical-align:top;">` +
+          `<div style="font-family:${DISPLAY_FONT};font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:bold;color:${BRAND_RED};margin:0 0 2px;">${escapeHtml(r.label)}</div>` +
+          `<div style="color:${TEXT};line-height:1.5;">${nl2br(r.value)}</div>` +
+          `</td></tr>`,
+      )
+      .join("") +
+    `</table>`;
+  const text = visible.map((r) => `${r.label}\n  ${r.value}`).join("\n");
+  return { html, text };
+}
+
+/**
  * Positionsliste für die Mailvorlagen (inbox, confirmation, summary; nicht
  * für den Antwortentwurf, der itemLineText() direkt verwendet). Leer ->
  * Fallback-Absatz. Prüfung Phase B, Punkt 2: eine EINZEILIGE Beschreibung
