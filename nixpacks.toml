@@ -1,7 +1,0 @@
-# Railway-Build (siehe docs/umbau-railway.md, Zeile "Hosting", und
-# docs/deploy-railway.md). Pinnt die Node-Version explizit auf 24 (wie die
-# lokale Entwicklungsumgebung) statt Nixpacks' Auto-Erkennung zu überlassen.
-providers = ["node"]
-
-[variables]
-NIXPACKS_NODE_VERSION = "24"

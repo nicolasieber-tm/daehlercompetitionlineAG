@@ -55,7 +55,7 @@ Hinweise:
 - `DATABASE_URL` als Referenz auf das Plugin setzen (`${{Postgres.DATABASE_URL}}`), nicht als fester Wert, damit ein Wechsel des Plugins/Credentials automatisch durchgereicht wird.
 - `PGSSLMODE=require` ist Pflicht: Railway-Postgres verlangt TLS, `lib/db/client.ts` liest diese Variable (siehe `docs/db.md`).
 - `BETTER_AUTH_URL`/`NEXT_PUBLIC_APP_URL` erst final setzen, wenn die Domain aus Schritt 8 feststeht; für einen ersten Smoke-Test reicht vorübergehend die von Railway vergebene `*.up.railway.app`-URL.
-- Build/Start: `railway.json` (Nixpacks, `startCommand: npm start`, Healthcheck `/api/health`) und `nixpacks.toml` (Node 24) liegen im Repo, keine weitere Konfiguration nötig.
+- Build/Start: `railway.json` (Railpack, `startCommand: npm start`, Healthcheck `/api/health`) und `nixpacks.toml` (Node 24) liegen im Repo, keine weitere Konfiguration nötig.
 
 ## 4. Deploy auslösen
 
@@ -63,7 +63,7 @@ Hinweise:
 railway up
 ```
 
-Railway baut über Nixpacks (`npm run build`) und startet `npm start`. Der Healthcheck
+Railway baut über Railpack (`npm run build`) und startet `npm start`. Der Healthcheck
 (`/api/health`, siehe `railway.json`) muss `{ ok: true, db: true }` liefern, sonst
 markiert Railway den Deploy als fehlgeschlagen und startet neu
 (`restartPolicyType: ON_FAILURE`).
@@ -115,7 +115,7 @@ Einen dritten Service anlegen, ebenfalls aus demselben Repo:
 - Variablen: `DATABASE_URL` (`${{Postgres.DATABASE_URL}}`, wie beim App-Service),
   `PGSSLMODE=require`, `BACKUP_DIR=/backups`, optional `RETENTION_DAYS` (Standard 14,
   siehe `scripts/backup.sh`)
-- `pg_dump` muss im Image verfügbar sein: Nixpacks installiert es nicht automatisch für
+- `pg_dump` muss im Image verfügbar sein: Railpack installiert es nicht automatisch für
   einen reinen Node-Service. Falls `pg_dump: command not found` auftritt, im Service ein
   `nixpacks.toml` mit `nixPkgs = ["postgresql"]` ergänzen (nur für diesen Service, nicht
   für den App-Service nötig).

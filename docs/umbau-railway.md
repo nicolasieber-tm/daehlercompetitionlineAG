@@ -15,7 +15,7 @@ Entscheid des Auftraggebers am 16.09.2026: kein Supabase (Projektkontingent der 
 | DB-Funktionen | `next_inquiry_number()`, `claim_follow_up()`, `schedule_follow_ups()`, `set_updated_at()` | unverändert übernommen, `generate_share_token()` entfällt (Token entsteht in der App) |
 | Lokale Entwicklung | `supabase start` (Docker, 10 Container) | `docker compose up -d` mit einem `postgres:17`-Container (Port 5433), `npm run db:migrate`, `npm run db:seed`, `npm run import -- --apply`, `npm run db:admins` |
 | Tests | gegen lokale Supabase | gegen den lokalen Postgres (`DATABASE_URL`), Aufräumen wie bisher |
-| Hosting | Railway (App) + Supabase Cloud | Railway: Service `app` (Nixpacks, `npm run build`/`npm start`), Plugin `postgres`, Service `cron` (täglich 07:00 Europe/Zurich = 05:00 UTC, `npx tsx scripts/cron-followups.ts`), Service `backup` (täglich `pg_dump | gzip` auf ein Railway-Volume, 14 Tage) |
+| Hosting | Railway (App) + Supabase Cloud | Railway: Service `app` (Railpack, `npm run build`/`npm start`), Plugin `postgres`, Service `cron` (täglich 07:00 Europe/Zurich = 05:00 UTC, `npx tsx scripts/cron-followups.ts`), Service `backup` (täglich `pg_dump | gzip` auf ein Railway-Volume, 14 Tage) |
 | Env | Supabase-Keys | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `RESEND_API_KEY`, `RESEND_FROM_OVERRIDE`, `MAIL_TO_OVERRIDE`, `ANTHROPIC_API_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_APP_URL` |
 
 ## Was sich im Code ändert (Inventar 16.09.2026)
@@ -49,7 +49,7 @@ Entscheid des Auftraggebers am 16.09.2026: kein Supabase (Projektkontingent der 
 
 **Phase E2, Login.** better-auth einbauen, Middleware, `requireAdmin`, Login-Seite, Admin-User-Skript, Tests (ohne Session → 401/Redirect, Login → Session, Rate-Limit). Gate.
 
-**Phase E3, Aufräumen und Deploy-Vorbereitung.** `@supabase/*` und `supabase`-CLI aus `package.json`, Ordner `supabase/` entfernen (Historie bleibt in Git), `.env.example`, README, `docs/db.md`, `docs/architektur.md` (Stack), CLAUDE.md-Hinweis (Architektur-Abschnitt: Entscheid 16.09.2026), `railway.json`/Nixpacks-Konfiguration, Cron- und Backup-Skripte, Healthcheck `/api/health` prüft die DB. Gate.
+**Phase E3, Aufräumen und Deploy-Vorbereitung.** `@supabase/*` und `supabase`-CLI aus `package.json`, Ordner `supabase/` entfernen (Historie bleibt in Git), `.env.example`, README, `docs/db.md`, `docs/architektur.md` (Stack), CLAUDE.md-Hinweis (Architektur-Abschnitt: Entscheid 16.09.2026), `railway.json`/Railpack-Konfiguration, Cron- und Backup-Skripte, Healthcheck `/api/health` prüft die DB. Gate.
 
 **Phase F, Railway.** Voraussetzung: `railway login` durch den Auftraggeber. Projekt und Services anlegen, Postgres-Plugin, Variablen setzen, erstes Deploy, Migrationen und Import ausführen, Admin-Konten anlegen, Cron/Backup einrichten, Smoke-Test auf der Railway-URL. Danach Staging-Adresse an den Auftraggeber.
 
