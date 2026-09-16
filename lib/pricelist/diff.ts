@@ -29,15 +29,9 @@
 // wurden), wird zusätzlich die Kandidatin mit gleichem source_row bevorzugt,
 // sonst die mit identischem Fitment.
 //
-// Railway-Umbau (docs/umbau-railway.md): Zugriff über den Postgres-Pool
-// (lib/db/client.ts, sql) statt supabase-js. Alle Aufrufer dieses Moduls
-// liegen im selben Umbau-Umfang (lib/pricelist/apply.ts, lib/admin/
-// pricelists.ts, scripts/import-pricelists.ts, tests/pricelist/*), daher
-// entfällt der bisherige `db`-Parameter ersatzlos statt ihn nur zu ignorieren
-// (anders als bei lib/catalog/queries.ts, dessen Aufrufer teils noch nicht
-// umgestellt sind). .in()-Ketten mit Chunking (CHUNK_SIZE, vormals wegen
-// PostgREST-URL-Längenlimits) entfallen zugunsten von `= any($1)` mit dem
-// vollständigen Array in einem parametrisierten Query.
+// Zugriff über den Postgres-Pool (lib/db/client.ts, sql), ein einzelnes
+// `= any($1)` mit dem vollständigen Array in einem parametrisierten Query
+// statt gechunkter .in()-Ketten.
 import type { Product } from "@/lib/db/rows";
 import { sql } from "@/lib/db/client";
 import type {

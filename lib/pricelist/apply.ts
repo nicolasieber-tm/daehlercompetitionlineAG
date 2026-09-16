@@ -9,9 +9,9 @@
 // dadurch bleiben sie unangetastet (explizite update-Statements nennen nur
 // die Excel-Felder, keine "update *").
 //
-// Railway-Umbau (docs/umbau-railway.md): Zugriff über den Postgres-Pool
-// (lib/db/client.ts, sql) statt supabase-js. Jede Familie läuft in einer
-// eigenen Transaktion (sql.begin(), "Updates per Transaktion je Familie" -
+// Zugriff über den Postgres-Pool (lib/db/client.ts, sql). Jede Familie
+// läuft in einer eigenen Transaktion (sql.begin(), "Updates per Transaktion
+// je Familie" -
 // schlägt eine Familie fehl, bleibt der DB-Zustand für sie unverändert,
 // andere Familien sind davon unabhängig, wie schon bisher: applyImport()
 // sammelt Fehler pro Familie statt beim ersten Fehler ganz abzubrechen).

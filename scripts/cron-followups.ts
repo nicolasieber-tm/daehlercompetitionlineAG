@@ -40,4 +40,12 @@ async function main() {
   }
 }
 
-main();
+main().catch((error) => {
+  // Netzwerkfehler (App nicht erreichbar, DNS, ...) sollen denselben
+  // Exit-Code auslösen wie eine Fehlerantwort (siehe oben), statt sich auf
+  // Node's Default-Verhalten bei unhandled rejections zu verlassen -
+  // Railway Cron wertet den Exit-Code aus, um einen fehlgeschlagenen Lauf
+  // zu erkennen (siehe docs/deploy-railway.md).
+  console.error("cron-followups: Aufruf fehlgeschlagen.", error);
+  process.exitCode = 1;
+});

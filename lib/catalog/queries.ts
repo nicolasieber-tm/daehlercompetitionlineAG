@@ -2,19 +2,10 @@
 // Schnellweg (Posten 3). Quelle: docs/architektur.md, Abschnitte
 // "Kundenflow", "Excel-Import im Admin" (Kategorie-Mapping), "Posten 3".
 //
-// Railway-Umbau (docs/umbau-railway.md, Abschnitt "Datenzugriffsschicht"):
-// Zugriff läuft jetzt über den einzigen, serverseitigen Postgres-Pool
-// (lib/db/client.ts, sql), nicht mehr über einen supabase-js-Client. Der
-// `db`-Parameter bleibt aus Rückwärtskompatibilität in der Signatur
-// erhalten (viele Aufrufer - lib/admin/*, lib/ai/*, lib/inquiry/create.ts -
-// übergeben noch einen alten Supabase-Client und werden erst in einer
-// späteren Phase umgestellt), wird aber ignoriert: sql ist ein
-// Singleton-Pool, ein zusätzlicher Client wird nicht mehr gebraucht.
+// Zugriff über den einzigen, serverseitigen Postgres-Pool (lib/db/client.ts,
+// sql).
 import { sql } from "@/lib/db/client";
 import { FLOW_CATEGORIES, type Brand, type FlowCategory, type Fuel, type Gearbox, type PriceStatus } from "@/lib/db/rows";
-
-/** Rückwärtskompatibler, ignorierter Client-Parameter (siehe Kommentar oben). */
-type LegacyDbArg = unknown;
 
 // ---------------------------------------------------------------------------
 // Typen (Flow-Sicht, camelCase statt DB-Spaltennamen)
@@ -273,7 +264,7 @@ async function loadGearboxSpecificModelIds(familyIds: string[]): Promise<Gearbox
 }
 
 /** Aktive Familien mit aktiven Modellen, sortiert BMW/MINI/Toyota/Wiesmann, dann sort, dann name. */
-export async function getFamilies(_db?: LegacyDbArg): Promise<CatalogFamily[]> {
+export async function getFamilies(): Promise<CatalogFamily[]> {
   const rows = await sql<FamilyModelRow[]>`
     select
       mf.id as family_id, mf.brand, mf.name as family_name, mf.slug as family_slug,
@@ -290,7 +281,7 @@ export async function getFamilies(_db?: LegacyDbArg): Promise<CatalogFamily[]> {
   return sortFamilies(groupFamilyRows(rows, gearboxCoverage));
 }
 
-export async function getFamilyBySlug(slug: string, _db?: LegacyDbArg): Promise<CatalogFamily | null> {
+export async function getFamilyBySlug(slug: string): Promise<CatalogFamily | null> {
   const rows = await sql<FamilyModelRow[]>`
     select
       mf.id as family_id, mf.brand, mf.name as family_name, mf.slug as family_slug,
@@ -434,7 +425,7 @@ function groupProducts(products: ProductRow[]): ProductGroup[] {
  * Flow-Reihenfolge, plus die Hinweise (pricelist_notes) je Excel-Kategorie
  * der Familie. null, wenn das Modell nicht existiert oder inaktiv ist.
  */
-export async function getProductsForModel(modelId: string, _db?: LegacyDbArg): Promise<ProductsForModelResult | null> {
+export async function getProductsForModel(modelId: string): Promise<ProductsForModelResult | null> {
   const modelRows = await sql<
     { id: string; name: string; slug: string; family_id: string; family_slug: string; family_name: string; family_brand: string }[]
   >`
@@ -473,7 +464,7 @@ export async function getProductsForModel(modelId: string, _db?: LegacyDbArg): P
 // Client übernehmen, siehe docs/architektur.md "Anfrage anlegen")
 // ---------------------------------------------------------------------------
 
-export async function getProductsByIds(ids: string[], _db?: LegacyDbArg): Promise<CatalogProduct[]> {
+export async function getProductsByIds(ids: string[]): Promise<CatalogProduct[]> {
   if (ids.length === 0) return [];
   const rows = await sql<ProductRow[]>`
     select ${sql(PRODUCT_COLUMNS)} from products
@@ -486,8 +477,8 @@ export async function getProductsByIds(ids: string[], _db?: LegacyDbArg): Promis
 // getCatalogCompact (Posten 3: kompakter Katalog fürs Sprachmodell)
 // ---------------------------------------------------------------------------
 
-export async function getCatalogCompact(db?: LegacyDbArg): Promise<CompactFamily[]> {
-  const families = await getFamilies(db);
+export async function getCatalogCompact(): Promise<CompactFamily[]> {
+  const families = await getFamilies();
   const familyIds = families.map((f) => f.id);
   if (familyIds.length === 0) return [];
 

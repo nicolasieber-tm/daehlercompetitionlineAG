@@ -2,7 +2,7 @@
 // Anthropic-Client (vi.mock("@anthropic-ai/sdk")) und einen gemockten
 // Katalog (vi.mock("@/lib/catalog/queries") - getCatalogCompact()/
 // getFamilyBySlug() brauchen sonst next/headers bzw. eine laufende
-// Supabase-Instanz). Deckt: die Katalog-Kompaktierung schickt Slugs/IDs
+// Postgres-Verbindung). Deckt: die Katalog-Kompaktierung schickt Slugs/IDs
 // mit, die Validierung setzt ungültige Produkt-IDs bzw. Familie/Modell-
 // Slugs auf null und meldet sie in open_questions, Produkte fremder
 // Familien werden abgelehnt (Prüfbericht Befund #2), ein zu grosser Katalog

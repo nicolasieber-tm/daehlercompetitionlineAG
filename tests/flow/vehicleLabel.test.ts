@@ -232,7 +232,7 @@ describe("vehicleDisplayLabel: weitere Fälle", () => {
     expect(vehicleDisplayLabel(f("Toyota", "Anderes Toyota-Modell", []), null, null)).toBe("Toyota Anderes Modell");
   });
 
-  it("Platzhalter-Familien nach der Umbenennung (supabase/seed.sql, Feinschliff-Prüfung 15.09.2026): kein Markenwort mehr im Namen, unverändert korrekt", () => {
+  it("Platzhalter-Familien nach der Umbenennung (db/seed.sql, Feinschliff-Prüfung 15.09.2026): kein Markenwort mehr im Namen, unverändert korrekt", () => {
     expect(vehicleDisplayLabel(f("BMW", "Älteres Modell", []), null, null)).toBe("BMW Älteres Modell");
     expect(vehicleDisplayLabel(f("MINI", "Älteres Modell", []), null, null)).toBe("MINI Älteres Modell");
     expect(vehicleDisplayLabel(f("Toyota", "Anderes Modell", []), null, null)).toBe("Toyota Anderes Modell");

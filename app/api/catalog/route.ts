@@ -2,9 +2,8 @@
 // Modellen) für den Kundenflow. Siehe docs/architektur.md, Abschnitt
 // "Kundenflow", und lib/catalog/queries.ts.
 //
-// Railway-Umbau (docs/umbau-railway.md): getFamilies() greift direkt über
-// den Postgres-Pool zu (lib/db/client.ts), ein Supabase-Client wird hier
-// nicht mehr gebraucht.
+// getFamilies() greift direkt über den Postgres-Pool zu
+// (lib/db/client.ts).
 import { NextResponse } from "next/server";
 import { getFamilies } from "@/lib/catalog/queries";
 

@@ -1,6 +1,6 @@
 // Diff/Apply gegen den lokalen Postgres (docs/db.md, docs/umbau-railway.md).
 //
-// Befund #1 (Bericht, aus der Supabase-Zeit): frühere Fassung testete gegen
+// Befund #1 (Bericht): frühere Fassung testete gegen
 // die echte Familie M2 G87 und hinterliess bei jedem Lauf Rückstände in der
 // gemeinsam genutzten Katalog-DB (Admin-Feld short_text überschrieben und
 // nie zurückgesetzt; deaktivierte Testzeilen, die beim "Wiederherstellen"
@@ -13,8 +13,8 @@
 // product_fitment/pricelist_notes cascaded per on delete cascade
 // (db/migrations/0001_init.sql), ein einzelnes DELETE genügt.
 //
-// Railway-Umbau: läuft direkt gegen den lokalen Postgres (lib/db/client.ts,
-// DATABASE_URL aus .env, siehe tests/setup.ts), kein Supabase-Client mehr.
+// Läuft direkt gegen den lokalen Postgres (lib/db/client.ts,
+// DATABASE_URL aus .env, siehe tests/setup.ts).
 //
 // Die präzise Reproduktion von Befund #2 (Schwester-Produkte, DB-Reihenfolge
 // ohne ORDER BY unbestimmt) liegt bewusst in tests/pricelist/match.test.ts:

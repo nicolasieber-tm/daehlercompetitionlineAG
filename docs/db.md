@@ -6,13 +6,10 @@ Ergänzt `docs/architektur.md` (Abschnitt "Datenmodell") und `docs/umbau-railway
 `scripts/migrate.ts`.
 
 Seit dem Entscheid vom 16.09.2026 (`docs/umbau-railway.md`) läuft die App auf einem
-gewöhnlichen Postgres (lokal: Docker, produktiv: Railway-Plugin) statt auf Supabase.
-Kein PostgREST, kein RLS, kein Supabase Auth, kein Storage-Bucket: jeder Zugriff läuft
-serverseitig über `lib/db/client.ts` (`postgres`-Paket, siehe unten). Der Ordner
-`supabase/` (Migrationen, `seed.sql`) bleibt bis Phase E3 im Repo, wird aber nicht mehr
-verwendet; sein Inhalt ist 1:1 die Grundlage von `db/migrations/0001_init.sql` /
-`db/seed.sql`, nur ohne Supabase-Spezifika (siehe Abschnitt "Was sich gegenüber
-Supabase geändert hat" unten).
+gewöhnlichen Postgres (lokal: Docker, produktiv: Railway-Plugin). Kein PostgREST,
+keine Row Level Security, kein separater Auth- oder Storage-Dienst: jeder Zugriff
+läuft serverseitig über `lib/db/client.ts` (`postgres`-Paket, siehe unten). Siehe
+Abschnitt "Historie" unten für die frühere Supabase-Basis dieses Schemas.
 
 ## Lokal starten
 
@@ -57,24 +54,25 @@ Admin-Login (better-auth) ist angebunden (siehe Abschnitt "Admin-Konten" unten):
   `PGSSLMODE=require` gesetzt ist, wie auf Railway). Ein `globalThis`-Guard verhindert,
   dass Next.js' Dev-Server bei jedem Hot-Reload einen weiteren Pool aufbaut.
   `closeDb()` schliesst den Pool, für Skripte, die danach beenden sollen.
-- Spaltennamen bleiben snake_case (kein `transform.column`), Zeitspalten
-  (`created_at`, `timestamptz`/`date`-Spalten allgemein) werden bewusst als Rohtext
-  (`string`, ISO-artig) statt als JS-`Date` geparst, `numeric` und `bigint` als
-  `number` statt `string`/`BigInt` — damit entsprechen die Rückgabetypen genau dem, was
-  die bisherigen, aus Supabase generierten Row-Typen (`string` für Zeit- und
-  `number` für numeric-Spalten) vorgaben. Siehe Kommentare in `lib/db/client.ts`.
+- Spaltennamen bleiben snake_case (kein `transform.column`). `numeric` und `bigint`
+  werden als `number` statt `string`/`BigInt` geparst (Row-Typen tippen sie als
+  `number`). `timestamp`/`timestamptz`-Spalten (`created_at`, `updated_at`,
+  `sent_at`, ...) liefert `sql` als echten ISO-8601-String (UTC, z.B.
+  `"2026-09-16T12:34:56.123Z"`), über `new Date(value).toISOString()` aus Postgres'
+  Rohtext umgewandelt, statt als JS-`Date`-Objekt. `date`-Spalten (aktuell nur
+  `follow_ups.scheduled_for`) bleiben bewusst reiner `"YYYY-MM-DD"`-Text ohne
+  Zeitanteil (ein Kalendertag hat keine Zeitzone, ein Umweg über `Date` könnte ihn je
+  nach Serverzeitzone auf den Vor-/Folgetag verschieben). Siehe Kommentare in
+  `lib/db/client.ts`.
 - `lib/db/rows.ts` enthält die handgepflegten Row-/Insert-/Update-Typen und
-  Enum-Union-Typen (vormals aus `database.types.ts` generiert). `lib/supabase/rows.ts`
-  ist bis Phase E3 ein reiner Re-Export von `lib/db/rows.ts` (`export * from
-  "@/lib/db/rows"`), damit noch nicht umgestellte Module unverändert weiterlaufen.
+  Enum-Union-Typen.
 - `lib/db/helpers.ts`: `chunk()` für Batch-Inserts/-Updates in Häppchen,
   `toJson()` zum Serialisieren eines Werts für eine jsonb-Spalte ausserhalb eines
   `sql`-Tags.
 - Query-Module (`lib/catalog/queries.ts`, `lib/pricelist/*`, `lib/inquiry/*`,
-  `lib/followups/*`, `lib/admin/*`, `lib/mail/*`) laufen zum jetzigen Zeitpunkt noch über
-  `supabase-js`/PostgREST gegen die lokale Supabase-Instanz; ihre Umstellung auf
-  parametrisierte `sql`-Tagged-Templates ist der nächste Schritt (siehe
-  `docs/umbau-railway.md`, Phase E1, "Was sich im Code ändert").
+  `lib/followups/*`, `lib/admin/*`, `lib/mail/*`) greifen über parametrisierte
+  `sql`-Tagged-Templates auf `lib/db/client.ts` zu, nie über String-Konkatenation von
+  Werten.
 
 ## Tabellen
 
@@ -105,8 +103,8 @@ Admin-Login (better-auth) ist angebunden (siehe Abschnitt "Admin-Konten" unten):
   einer Familie fehlgeschlagen, Fehler zusätzlich als `errors` im `summary`-jsonb).
   `diff`/`summary` als `jsonb`. `payload jsonb` ist der Import-Zwischenspeicher (vom Parser
   gelieferte Rohdaten, `ParsedFamily[]`), den `applyPendingImport()` beim Übernehmen erneut
-  lädt; ersetzt den Supabase-Storage-Bucket "imports" aus der Vor-Railway-Version. Wird nach
-  Übernehmen/Verwerfen auf `null` gesetzt. `created_by` verweist auf einen better-auth-User
+  lädt. Wird nach Übernehmen/Verwerfen auf `null` gesetzt. `created_by` verweist auf einen
+  better-auth-User
   (Tabelle `user`, kommt mit Phase E2), ohne Fremdschlüssel-Constraint, damit diese Migration
   unabhängig von der Auth-Migration bleibt.
 
@@ -147,7 +145,7 @@ Admin-Login (better-auth) ist angebunden (siehe Abschnitt "Admin-Konten" unten):
   immutable`, `304` bei passendem `If-None-Match`). Hochgeladen über
   `app/api/admin/models/photo/route.ts` (POST: Magic-Bytes-Prüfung, Insert, altes Foto der
   Familie löschen, `photo_url` setzen, `revalidateTag('catalog')`; DELETE: Zeile löschen,
-  `photo_url` auf `null`). Ersetzt den Supabase-Storage-Bucket "model-photos". Seed-Startfotos
+  `photo_url` auf `null`). Seed-Startfotos
   (`/img/models/...`, `db/seed.sql`) bleiben statische Dateien, keine `photos`-Zeilen.
 
 ## Funktionen
@@ -173,14 +171,14 @@ Admin-Login (better-auth) ist angebunden (siehe Abschnitt "Admin-Konten" unten):
   Sperrt die Anfrage für die Dauer der Transaktion (`pg_advisory_xact_lock`), damit zwei
   gleichzeitige Aufrufe für dieselbe Anfrage nacheinander statt parallel laufen.
 
-Gegenüber der Supabase-Version entfallen `security definer`/Execute-Grants an
-`service_role` (es gibt keine PostgREST-Rollen mehr, jeder Aufruf läuft ohnehin
-serverseitig durch die App mit vollen Rechten) sowie `generate_share_token()` (der Token
-entsteht ausschliesslich in der App, `lib/inquiry/share.ts`).
+Kein `security definer`/Execute-Grants an eine `service_role` nötig (es gibt keine
+PostgREST-Rollen, jeder Aufruf läuft ohnehin serverseitig durch die App mit vollen
+Rechten); `generate_share_token()` entfällt, der Token entsteht ausschliesslich in der
+App (`lib/inquiry/share.ts`).
 
 ## Admin-Konten (Login über better-auth)
 
-`better-auth` (E-Mail/Passwort) ersetzt Supabase Auth vollständig, siehe
+`better-auth` (E-Mail/Passwort) übernimmt den Admin-Login vollständig, siehe
 `docs/umbau-railway.md`, Abschnitt "Login". Eigene Tabellen `user`, `session`, `account`,
 `verification` in `db/migrations/0002_auth.sql` (per `npx @better-auth/cli generate --config
 lib/auth/server.ts` erzeugt und unverändert übernommen; better-auth erkennt an
@@ -214,19 +212,19 @@ selbst).
   `ADMIN_TRENDINGMEDIA_PASSWORD`, lokaler Fallback (`daehler-admin-2026!`) nur wenn
   `NODE_ENV !== "production"`.
 
-## Was sich gegenüber Supabase geändert hat
+## Aktueller Stand (Details)
 
 - Keine Row Level Security, keine Policies, keine PostgREST-Rollen (`anon`,
   `authenticated`, `service_role`): jeder Zugriff läuft serverseitig durch die App.
-- Kein Storage: Fotos in der Tabelle `photos` (siehe oben), Import-Zwischenspeicher in
-  `pricelist_imports.payload`.
-- Kein `auth.users`: `pricelist_imports.created_by` ist eine plain `text`-Spalte (Migration
+- Kein separater Storage-Dienst: Fotos in der Tabelle `photos` (siehe oben),
+  Import-Zwischenspeicher in `pricelist_imports.payload`.
+- `pricelist_imports.created_by` ist eine plain `text`-Spalte (Migration
   `0003_pricelist_imports_created_by_text.sql`; ursprünglich `uuid` in `0001_init.sql`,
-  aber better-auth-User-Ids sind keine UUIDs) ohne Fremdschlüssel-Constraint (bewusst, siehe
-  Kommentar in `db/migrations/0001_init.sql`), referenziert auf Anwendungsebene die
-  better-auth-Tabelle `user` (`db/migrations/0002_auth.sql`).
-- `create extension pgcrypto` läuft ohne `with schema extensions` (das war eine
-  Supabase-Eigenheit); `gen_random_uuid()`/`gen_random_bytes()` landen im Schema `public`.
+  angepasst weil better-auth-User-Ids keine UUIDs sind) ohne Fremdschlüssel-Constraint
+  (bewusst, siehe Kommentar in `db/migrations/0001_init.sql`), referenziert auf
+  Anwendungsebene die better-auth-Tabelle `user` (`db/migrations/0002_auth.sql`).
+- `create extension pgcrypto` läuft ohne `with schema extensions`;
+  `gen_random_uuid()`/`gen_random_bytes()` landen im Schema `public`.
 
 ## Railway (Produktion, Phase F)
 
@@ -234,6 +232,17 @@ Siehe `docs/umbau-railway.md`, Abschnitt "Phasen" und Zeile "Hosting" in der
 Architektur-Tabelle: Railway-Postgres-Plugin liefert `DATABASE_URL` automatisch als
 Service-Variable, `PGSSLMODE=require` setzen. `npm run db:migrate -- --seed` einmalig nach
 dem ersten Deploy laufen lassen (z.B. über die Railway-CLI oder einen einmaligen Job),
-danach den Excel-Import ausführen und die Admin-Konten anlegen (`scripts/create-admin-users.ts`,
-sobald Phase E2 steht). Backups: täglicher `pg_dump | gzip` auf ein Railway-Volume (eigener
-Service, siehe `docs/umbau-railway.md`).
+danach den Excel-Import ausführen und die Admin-Konten anlegen
+(`scripts/create-admin-users.ts`). Backups: täglicher `pg_dump | gzip` auf ein
+Railway-Volume (eigener Service, siehe `docs/umbau-railway.md` und
+`docs/deploy-railway.md`).
+
+## Historie
+
+Bis zum Entscheid vom 16.09.2026 lief die App auf Supabase (Postgres über
+supabase-js/PostgREST, Supabase Auth, Storage-Buckets `model-photos`/`imports`). Der
+Umbau (`docs/umbau-railway.md`) hat diese Bausteine 1:1 durch die oben beschriebenen
+ersetzt: `supabase-js`/PostgREST durch `lib/db/client.ts` (`postgres`-Paket), Supabase
+Auth durch `better-auth`, die Storage-Buckets durch die Tabelle `photos` bzw.
+`pricelist_imports.payload`. Der Ordner `supabase/` und die Pakete `@supabase/*` sind
+aus dem Repo entfernt (Phase E3).

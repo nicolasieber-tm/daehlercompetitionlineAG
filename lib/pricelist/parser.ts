@@ -347,9 +347,9 @@ function computeContentHash(p: {
  * Nabenkappen", einmal pro Radsatz mit identischem Namen/Preis/Fitment
  * wiederholt) denselben Hash erhalten - das ist laut docs/excel-import.md
  * ("content_hash ... ist NICHT eindeutig je Familie ... er dient dem Diff,
- * nicht als Schlüssel") und der Migration (`supabase/migrations/
- * 20260911000000_init.sql`, Kommentar an products.content_hash: "bewusst
- * nicht unique ... Index statt Constraint") ausdrücklich SO VORGESEHEN,
+ * nicht als Schlüssel") und der Migration (`db/migrations/0001_init.sql`,
+ * Kommentar an products.content_hash: "bewusst nicht unique ... Index statt
+ * Constraint") ausdrücklich SO VORGESEHEN,
  * keine Constraint-Verletzung: ein früherer Kommentar hier behauptete
  * fälschlich einen `unique(family_id, content_hash)`-Constraint, den es
  * nicht gibt und der den Import angeblich abbrechen würde. Der tatsächliche

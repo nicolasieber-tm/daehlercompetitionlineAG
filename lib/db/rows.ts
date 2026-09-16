@@ -1,25 +1,18 @@
-// Row-Typen und Enums für das Schema aus db/migrations/0001_init.sql.
-// Ersetzt die aus Supabase generierten Typen (vormals lib/supabase/
-// database.types.ts + lib/supabase/rows.ts): siehe docs/umbau-railway.md,
-// Abschnitt "Datenzugriffsschicht" ("handgepflegte Row-Typen in
-// lib/db/rows.ts"). lib/supabase/rows.ts re-exportiert ab jetzt nur noch
-// diese Datei (Übergang, bis die einzelnen Module ihre Importe umstellen).
+// Row-Typen und Enums für das Schema aus db/migrations/0001_init.sql,
+// handgepflegt (siehe docs/umbau-railway.md, Abschnitt
+// "Datenzugriffsschicht").
 //
-// Zeitspalten (created_at, updated_at, sent_at, ...) bleiben `string`
-// (ISO 8601), weil lib/db/client.ts date/timestamp/timestamptz bewusst als
-// Rohtext statt als JS-Date parst (siehe dortiger Kommentar) — damit
-// entspricht das exakt dem, was Supabase über PostgREST/JSON lieferte.
+// Zeitspalten (created_at, updated_at, sent_at, ...) sind `string`, echte
+// ISO-8601-Strings (UTC, z.B. "2026-09-16T12:34:56.123Z"): lib/db/client.ts
+// wandelt Postgres' timestamp/timestamptz-Rohtext beim Lesen über
+// `new Date(value).toISOString()` um (siehe dortiger Kommentar). `date`-
+// Spalten (aktuell nur follow_ups.scheduled_for) bleiben bewusst als reiner
+// "YYYY-MM-DD"-Text ohne Zeitanteil.
 //
 // FlowCategory muss mit lib/pricelist/types.ts kompatibel bleiben
 // (dort: FlowCategory = 'motor'|'auspuff'|'fahrwerk'|'raeder'|'exterieur'|'interieur').
 
-/** Struktureller Nachbau von lib/supabase/database.types.ts' `Json`-Typ
- * (bewusst dupliziert, nicht von dort importiert: database.types.ts entfällt
- * mit Supabase, siehe docs/umbau-railway.md). Für jsonb-Spalten, damit
- * bestehender, noch nicht umgestellter Code (supabase-js-Aufrufe, deren
- * Insert/Update-Typen weiterhin gegen database.types.ts geprüft werden)
- * beim Zusammenspiel mit diesen Row-Typen (z.B. Partial<InquiryInsert> als
- * Overrides in Tests) kompatibel bleibt, statt mit `unknown` zu kollidieren. */
+/** Für jsonb-Spalten (payload, diff, summary, selections, ...). */
 export type Json =
   | string
   | number
@@ -135,9 +128,9 @@ export interface PricelistImport {
   status: string;
   diff: Json;
   summary: Json;
-  /** Vom Parser gelieferte Rohdaten (ParsedFamily[]), ersetzt den
-   * Supabase-Storage-Bucket "imports". Wird nach Übernehmen/Verwerfen auf
-   * null gesetzt (siehe lib/pricelist/imports.ts). */
+  /** Vom Parser gelieferte Rohdaten (ParsedFamily[]), Import-Zwischenspeicher.
+   * Wird nach Übernehmen/Verwerfen auf null gesetzt (siehe
+   * lib/pricelist/imports.ts). */
   payload: Json;
   applied_at: string | null;
   created_by: string | null;
@@ -258,8 +251,7 @@ export interface Setting {
 export type SettingInsert = Partial<Setting> & Pick<Setting, "key">;
 export type SettingUpdate = Partial<Setting>;
 
-/** Fotos für model_families/models (Tabelle `photos`), ersetzt den
- * Supabase-Storage-Bucket "model-photos". Ausgeliefert über
+/** Fotos für model_families/models (Tabelle `photos`), ausgeliefert über
  * GET /api/photos/[id] (siehe docs/umbau-railway.md). */
 export interface Photo {
   id: string;

@@ -4,8 +4,7 @@
 // lib/pricelist/{parser,diff,imports,apply,types}.ts, die hier ausschliesslich
 // wiederverwendet werden (kein eigener Parser-/Diff-/Apply-Code).
 //
-// Railway-Umbau (docs/umbau-railway.md): Zugriff über den Postgres-Pool
-// (lib/db/client.ts, sql) statt supabase-js/Service-Role-Client.
+// Zugriff über den Postgres-Pool (lib/db/client.ts, sql).
 import { sql } from "@/lib/db/client";
 import { buildDiff } from "@/lib/pricelist/diff";
 import { parseWorkbook } from "@/lib/pricelist/parser";
@@ -39,18 +38,11 @@ export type CreatePricelistImportResult =
  * DB-Bestand und legt einen pending-Import mitsamt den geparsten Rohdaten
  * an (createPendingImport, siehe lib/pricelist/imports.ts - das Payload
  * landet direkt in pricelist_imports.payload, kein separater Upload-Schritt
- * mehr wie zu Supabase-Storage-Zeiten). Liefert ok:false, wenn keine
- * einzige Datei geparst werden konnte.
- *
- * `_legacyDb` bleibt als ignorierter, optionaler dritter Parameter stehen:
- * tests/admin/pricelists.test.ts (ausserhalb des Umbau-Umfangs dieser
- * Aufgabe) ruft createPricelistImport() noch mit einem dritten (Supabase-)
- * Argument auf.
+ * nötig). Liefert ok:false, wenn keine einzige Datei geparst werden konnte.
  */
 export async function createPricelistImport(
   files: UploadFileInput[],
   userId?: string,
-  _legacyDb?: unknown,
 ): Promise<CreatePricelistImportResult> {
   const parsed: ParsedFamily[] = [];
   const fileErrors: FileParseError[] = [];

@@ -1,20 +1,18 @@
 // Postgres-Client für den Railway-Umbau (siehe docs/umbau-railway.md,
-// Abschnitt "Datenzugriffsschicht"). Ersetzt lib/supabase/{client,server,
-// admin}.ts: ein einziger, serverseitiger Pool über postgres.js, Zugriff
-// ausschliesslich per DATABASE_URL, keine RLS mehr (jede Abfrage läuft
-// serverseitig durch die App, siehe CLAUDE.md "Architektur").
+// Abschnitt "Datenzugriffsschicht"): ein einziger, serverseitiger Pool über
+// postgres.js, Zugriff ausschliesslich per DATABASE_URL, keine RLS mehr
+// (jede Abfrage läuft serverseitig durch die App, siehe CLAUDE.md
+// "Architektur").
 //
-// Spaltennamen bleiben snake_case wie bisher (kein `transform.column`),
-// damit die Row-Typen in lib/db/rows.ts unverändert zu den bestehenden
-// Supabase-Row-Typen bleiben.
+// Spaltennamen bleiben snake_case (kein `transform.column`), damit die
+// Row-Typen in lib/db/rows.ts unverändert bleiben.
 import postgres from "postgres";
 
 // numeric/decimal-Spalten (price_from, price_parts, estimated_total, ...)
 // liefert postgres.js standardmässig als string (Präzisionsverlust bei
 // Number wäre sonst still möglich). Für unsere Preisspalten ist das nicht
-// relevant (Beträge in ganzen/halben Franken), Number ist hier gewollt statt
-// string, damit die Row-Typen mit den bisherigen (aus Supabase generierten)
-// Typen kompatibel bleiben.
+// relevant (Beträge in ganzen/halben Franken), Number ist hier gewollt, damit
+// die Row-Typen (lib/db/rows.ts) mit `number` typisieren können.
 const numeric: postgres.PostgresType<number> = {
   to: 1700,
   from: [1700],
@@ -34,17 +32,35 @@ const bigint: postgres.PostgresType<number> = {
   serialize: (value: number) => String(value),
 };
 
-// date/timestamp/timestamptz: postgres.js parst diese standardmässig zu
-// JS-Date-Objekten. Die bestehenden Row-Typen (lib/db/rows.ts, vormals aus
-// Supabase generiert) tippen jede Zeitspalte als `string` (ISO 8601), weil
-// PostgREST/Supabase JSON über HTTP liefert. Damit die Rückgabetypen der
-// Query-Module beim Umstieg auf sql-Tagged-Templates unverändert bleiben
-// (siehe docs/umbau-railway.md "Datenzugriffsschicht"), wird hier bewusst
-// beim rohen Text-Wert geblieben statt ihn in ein Date zu parsen.
+// date (Kalenderdatum ohne Uhrzeit, z.B. follow_ups.scheduled_for): Rohtext
+// "YYYY-MM-DD" bleibt unverändert. postgres.js parst date standardmässig zu
+// einem JS-Date-Objekt (in Server-Lokalzeit um Mitternacht), das wäre für
+// einen reinen Kalendertag falsch (Zeitzonen-Verschiebung könnte auf den
+// Vor-/Folgetag rutschen) und bräche den String-Vergleich in
+// lib/followups/run.ts (`scheduled_for <= today`, beides "YYYY-MM-DD"-Text).
+const date: postgres.PostgresType<string> = {
+  to: 1082,
+  from: [1082],
+  parse: (value: string) => value,
+  serialize: (value: string | Date) =>
+    value instanceof Date ? value.toISOString().slice(0, 10) : value,
+};
+
+// timestamp/timestamptz: postgres.js liefert hier standardmässig ein
+// JS-Date-Objekt; die Row-Typen (lib/db/rows.ts) tippen jede Zeitspalte
+// aber als `string` (ISO 8601, wie es der bisherige PostgREST/JSON-Output
+// lieferte). Befund aus Phase E1 (Bericht): der frühere eigene Typ gab statt
+// eines echten ISO-8601-Strings Postgres' rohes Textformat zurück ("YYYY-MM-DD
+// HH:mm:ss.sss+ZZ", Leerzeichen statt "T", Offset ohne Doppelpunkt) - hier
+// deshalb über `new Date(value).toISOString()` in einen echten, UTC-
+// normalisierten ISO-8601-String ("...T...Z") umgewandelt. Für timestamptz
+// ist das verlustfrei (derselbe Zeitpunkt, nur andere Schreibweise); für
+// timestamp ohne Zeitzone (aktuell keine Spalte im Schema) interpretiert
+// `new Date()` den Text mangels Offset in der Zeitzone des Node-Prozesses.
 const timestamp: postgres.PostgresType<string> = {
   to: 1184,
-  from: [1082, 1114, 1184],
-  parse: (value: string) => value,
+  from: [1114, 1184],
+  parse: (value: string) => new Date(value).toISOString(),
   serialize: (value: string | Date) =>
     value instanceof Date ? value.toISOString() : value,
 };
@@ -61,7 +77,7 @@ function createSqlClient() {
   return postgres(connectionString, {
     max: 5,
     ssl: process.env.PGSSLMODE === "require" ? "require" : undefined,
-    types: { numeric, bigint, timestamp },
+    types: { numeric, bigint, date, timestamp },
   });
 }
 

@@ -1,8 +1,7 @@
-// Startfotos für bereits bekannte Modellfamilien. Wird von
-// supabase/seed.sql (per UPDATE, wirkungslos solange die Familie noch nicht
-// importiert ist) und später von scripts/import-pricelists.ts oder einem
-// eigenen Re-Seed-Skript verwendet, damit die Zuordnung nur an einer Stelle
-// gepflegt werden muss.
+// Startfotos für bereits bekannte Modellfamilien. Wird von db/seed.sql (per
+// UPDATE, wirkungslos solange die Familie noch nicht importiert ist) und
+// später von scripts/import-pricelists.ts oder einem eigenen Re-Seed-Skript
+// verwendet, damit die Zuordnung nur an einer Stelle gepflegt werden muss.
 //
 // slug = model_families.slug (aus dem Excel-Baureihennamen abgeleitet),
 // photoUrl = public/img/models/<datei> (Bilder liegen bereits im Repo).

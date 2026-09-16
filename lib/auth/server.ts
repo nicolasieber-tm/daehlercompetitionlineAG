@@ -1,6 +1,6 @@
 // Admin-Login über better-auth (siehe docs/umbau-railway.md, Abschnitt
 // "Login", Phase E2, und AUFGABE "Admin-Datenzugriff, Login und Fotos").
-// Ersetzt Supabase Auth: E-Mail/Passwort, Sessions in Postgres (eigene
+// E-Mail/Passwort, Sessions in Postgres (eigene
 // Tabellen user/session/account/verification, Migration
 // db/migrations/0002_auth.sql, per `npx @better-auth/cli generate` erzeugt).
 //

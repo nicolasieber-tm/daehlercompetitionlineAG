@@ -5,11 +5,9 @@
 //
 //   AI_LIVE_TEST=1 npx vitest run tests/ai/live.test.ts
 //
-// getCatalogCompact() (lib/catalog/queries.ts) läuft seit dem Railway-Umbau
-// über den serverseitigen Postgres-Pool (lib/db/client.ts), ohne
-// Next.js-Request-Kontext - extractInquiry() braucht deshalb keinen eigenen
-// Client-Parameter mehr (anders als zuvor mit dem RLS-gebundenen
-// Supabase-Client).
+// getCatalogCompact() (lib/catalog/queries.ts) läuft über den
+// serverseitigen Postgres-Pool (lib/db/client.ts), ohne
+// Next.js-Request-Kontext.
 //
 // .env selbst laden wie tests/mail/resend.test.ts (kein dotenv-Paket in
 // der freigegebenen Paketliste): vitest lädt .env nicht automatisch.

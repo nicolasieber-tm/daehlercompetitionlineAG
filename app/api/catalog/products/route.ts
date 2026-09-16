@@ -3,9 +3,8 @@
 // Kundenflows, plus Hinweise. Siehe docs/architektur.md, Abschnitt
 // "Kundenflow", und lib/catalog/queries.ts (getProductsForModel).
 //
-// Railway-Umbau (docs/umbau-railway.md): getProductsForModel() greift
-// direkt über den Postgres-Pool zu (lib/db/client.ts), ein Supabase-Client
-// wird hier nicht mehr gebraucht.
+// getProductsForModel() greift direkt über den Postgres-Pool zu
+// (lib/db/client.ts).
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { getProductsForModel } from "@/lib/catalog/queries";

@@ -403,6 +403,43 @@ describe("runDueFollowUps", () => {
     }
   });
 
+  // Befund (Bericht, Phase E3): ein Eintrag, der schon einmal fehlgeschlagen
+  // war (last_error gesetzt), behielt den alten Fehlertext auch nach einem
+  // erfolgreichen späteren Versand, weil der Erfolgspfad nur
+  // outbound_email_id verknüpfte, last_error aber nie zurücksetzte.
+  it("last_error wird nach einem erfolgreichen Versand zurückgesetzt (vorher fehlgeschlagen)", async () => {
+    const rule = await createTestRule({ days_after_reply: 0, active: true, max_count: 1 });
+    ruleIds.push(rule.id);
+    const inquiry = await createTestInquiry();
+    inquiryIds.push(inquiry.id);
+
+    await markReplied(inquiry.id);
+
+    const originalApiKey = process.env.RESEND_API_KEY;
+    delete process.env.RESEND_API_KEY;
+    try {
+      const failedResult = await runDueFollowUps();
+      const failedDetail = failedResult.details.find((d) => d.inquiryId === inquiry.id);
+      expect(failedDetail?.outcome).toBe("failed");
+
+      const rowAfterFailure = await singleFollowUpFor(inquiry.id);
+      expect(rowAfterFailure.last_error).toContain("RESEND_API_KEY");
+      expect(rowAfterFailure.failed_at).toBeNull(); // erst Versuch 1 von MAX_FOLLOW_UP_ATTEMPTS, noch nicht final
+    } finally {
+      if (originalApiKey === undefined) delete process.env.RESEND_API_KEY;
+      else process.env.RESEND_API_KEY = originalApiKey;
+    }
+
+    const successResult = await runDueFollowUps();
+    const successDetail = successResult.details.find((d) => d.inquiryId === inquiry.id);
+    expect(successDetail?.outcome).toBe("sent");
+
+    const rowAfterSuccess = await singleFollowUpFor(inquiry.id);
+    expect(rowAfterSuccess.last_error).toBeNull();
+    expect(rowAfterSuccess.sent_at).not.toBeNull();
+    expect(rowAfterSuccess.outbound_email_id).not.toBeNull();
+  });
+
   // Prüfer-Befund: eine Anfrage ohne E-Mail-Adresse kann nie erfolgreich
   // sein, wurde vorher aber trotzdem bei jedem Lauf erneut als "failed"
   // gemeldet. Erwartung: sofortiges Stornieren statt Wiederholung.

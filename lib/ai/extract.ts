@@ -465,11 +465,9 @@ function validateExtraction(raw: unknown, catalog: CompactFamily[]): Extraction 
 
 /**
  * Extrahiert eine strukturierte Anfrage aus Freitext (Mail/Telefonnotiz).
- * Lädt den Katalog kompakt (lib/catalog/queries.ts getCatalogCompact(), seit
- * dem Railway-Umbau ein direkter, serverseitiger Postgres-Zugriff ohne
- * Next.js-Request-Kontext, siehe docs/umbau-railway.md - ein eigener
- * Client-Parameter ist deshalb nicht mehr nötig, anders als zuvor mit dem
- * RLS-gebundenen Supabase-Client), zählt dessen Token
+ * Lädt den Katalog kompakt (lib/catalog/queries.ts getCatalogCompact(), ein
+ * direkter, serverseitiger Postgres-Zugriff ohne Next.js-Request-Kontext),
+ * zählt dessen Token
  * (client.messages.countTokens, "Tokens zählen und im Bericht nennen") und
  * schickt ihn entweder komplett mit (< MAX_CATALOG_TOKENS) oder grenzt
  * vorher per separatem, günstigem Aufruf (Tool "pick_family") auf eine

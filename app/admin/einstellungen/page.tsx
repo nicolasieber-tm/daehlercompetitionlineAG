@@ -2,7 +2,7 @@
 // MAIL_TO_OVERRIDE/RESEND_FROM_OVERRIDE (Aufgabenstellung). Siehe
 // docs/architektur.md, Abschnitt "Umgebungsvariablen": beide Variablen sind
 // Testmodus-Adressen, keine Zugangsschlüssel, daher ohne Bedenken anzeigbar
-// (nur die Adresse, nie RESEND_API_KEY/SUPABASE_SERVICE_ROLE_KEY o.ä.).
+// (nur die Adresse, nie RESEND_API_KEY o.ä.).
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getSettings } from "@/lib/mail";

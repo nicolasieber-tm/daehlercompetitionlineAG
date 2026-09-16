@@ -1,8 +1,7 @@
 // GET /api/photos/[id]: liefert ein in der Tabelle `photos` gespeichertes
-// Foto aus (bytea statt Supabase-Storage-Bucket, siehe
-// docs/umbau-railway.md, Abschnitt "Fotos und Import-Zwischenspeicher").
-// Kein Login nötig: photo_url zeigt öffentlich auf diese Route, genau wie
-// die vorher öffentliche Storage-URL. ETag = sha1 (inhaltsadressiert, ändert
+// Foto aus (bytea, siehe docs/umbau-railway.md, Abschnitt "Fotos und
+// Import-Zwischenspeicher"). Kein Login nötig: photo_url zeigt öffentlich
+// auf diese Route. ETag = sha1 (inhaltsadressiert, ändert
 // sich nur, wenn sich der Bildinhalt ändert), Cache-Control
 // "public, max-age=31536000, immutable" (ein Jahr, wie ein Datei-Asset unter
 // /img/models/...) - ein Foto-Wechsel bekommt ohnehin eine neue id (siehe

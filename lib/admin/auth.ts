@@ -1,5 +1,5 @@
 // Admin-Session prüfen, für Pages und Server Actions. Siehe
-// docs/umbau-railway.md, Abschnitt "Login": better-auth statt Supabase Auth,
+// docs/umbau-railway.md, Abschnitt "Login": better-auth,
 // zwei feste Konten (dÄHLer, Trending Media), kein Rollenmodell - jeder
 // eingeloggte User ist Admin.
 //

@@ -1,8 +1,7 @@
 # Lokaler Postgres für den Railway-Umbau (siehe docs/umbau-railway.md,
-# Abschnitt "Zielarchitektur"). Ersetzt den lokalen Supabase-Stack
-# (`npx supabase start`) für die Datenzugriffsschicht; Auth/Storage folgen
-# in Phase E2 innerhalb derselben Datenbank (better-auth-Tabellen, Tabelle
-# `photos`), kein eigener Container dafür.
+# Abschnitt "Zielarchitektur"). Auth/Storage laufen innerhalb derselben
+# Datenbank (better-auth-Tabellen, Tabelle `photos`), kein eigener
+# Container dafür.
 services:
   postgres:
     image: postgres:17-alpine

@@ -1,17 +1,12 @@
 // Verwaltung von Preislisten-Imports (Tabelle pricelist_imports). Quelle:
 // docs/architektur.md, Abschnitt "Excel-Import im Admin".
 //
-// Railway-Umbau (docs/umbau-railway.md, Abschnitt "Fotos und Import-
-// Zwischenspeicher"): die vom Parser gelieferten Rohdaten (ParsedFamily[])
-// waren vormals zu gross für das jsonb-Feld und lagen separat unter
-// imports/<importId>.json im Supabase-Storage-Bucket "imports"
-// (uploadParsedFamilies()/downloadParsedFamilies()). Diese Bucket-Zugriffe
-// entfallen ersatzlos: pricelist_imports.payload (jsonb) nimmt die
-// Rohdaten jetzt direkt auf. createPendingImport() legt Diff UND Payload in
-// einem Insert an, applyPendingImport() liest das Payload zurück und setzt
-// es nach dem Übernehmen (erfolgreich oder nicht) auf null, discardImport()
-// ebenso beim Verwerfen - der Import-Zwischenspeicher wird also in jedem
-// Fall geleert, sobald der pending-Zustand verlassen wird.
+// Die vom Parser gelieferten Rohdaten (ParsedFamily[]) liegen direkt in
+// pricelist_imports.payload (jsonb). createPendingImport() legt Diff UND
+// Payload in einem Insert an, applyPendingImport() liest das Payload zurück
+// und setzt es nach dem Übernehmen (erfolgreich oder nicht) auf null,
+// discardImport() ebenso beim Verwerfen - der Import-Zwischenspeicher wird
+// also in jedem Fall geleert, sobald der pending-Zustand verlassen wird.
 import type postgres from "postgres";
 import { sql } from "@/lib/db/client";
 import { applyImport, type ApplyResult } from "./apply";
@@ -127,13 +122,7 @@ export async function applyPendingImport(importId: string): Promise<ApplyPending
 // Pending-Import verwerfen
 // ---------------------------------------------------------------------------
 
-/**
- * `_legacyDb` bleibt als ignorierter, optionaler zweiter Parameter stehen:
- * tests/admin/pricelists.test.ts (ausserhalb des Umbau-Umfangs dieser
- * Aufgabe) ruft discardImport() noch mit einem zweiten (Supabase-)Argument
- * auf; das Argument wird hier einfach nicht mehr verwendet.
- */
-export async function discardImport(importId: string, _legacyDb?: unknown): Promise<void> {
+export async function discardImport(importId: string): Promise<void> {
   await sql`
     update pricelist_imports
     set status = 'discarded', payload = null

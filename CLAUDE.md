@@ -48,8 +48,8 @@ Dieses Dokument ist verbindlich. Es hält die Entscheidungen aus den Kundengespr
 ## Architektur
 
 - Eigenständige App unter einer Subdomain, Vorschlag `anfrage.daehler.com`. Kein WordPress-Plugin, kein Embed. WordPress bekommt nur zwei Buttons (Navigation, Hero) und der Google-Unternehmensprofil-Button verlinkt auf dieselbe URL.
-- Stack: Next.js (App Router), Tailwind, Supabase (Postgres, Auth, Storage für Fotos), Resend, Railway. Optional Anthropic API für Posten 3.
-- Admin unter `/admin`, geschützt via Supabase Auth. Ein Benutzer für dÄHLer, einer für Trending Media.
+- Stack: Next.js (App Router), Tailwind, Supabase (Postgres, Auth, Storage für Fotos), Resend, Railway. Optional Anthropic API für Posten 3. Entscheid 16.09.2026: Supabase durch Railway Postgres, better-auth und Fotos in Postgres ersetzt, siehe docs/umbau-railway.md.
+- Admin unter `/admin`, geschützt via Login (seit 16.09.2026 better-auth mit E-Mail und Passwort statt Supabase Auth). Ein Benutzer für dÄHLer, einer für Trending Media.
 - Mobile first. Die meisten Kunden kommen vom Handy.
 
 ## Datenmodell (Richtung, Details aus der Excel ableiten)

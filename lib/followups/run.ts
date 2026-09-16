@@ -153,6 +153,26 @@ async function linkOutboundEmail(followUpId: string, outboundEmailId: string): P
 }
 
 /**
+ * Verknüpft die outbound_emails-Zeile eines ERFOLGREICHEN Versands und
+ * setzt last_error zurück auf null. Befund (Bericht, Phase E3): ein
+ * Eintrag, der zuvor mindestens einmal über recordFollowUpFailure()
+ * fehlgeschlagen war (last_error gesetzt), zeigte im Admin auch nach einem
+ * erfolgreichen späteren Versand weiterhin den alten Fehlertext, weil nur
+ * linkOutboundEmail() (ohne last_error) aufgerufen wurde.
+ */
+async function recordFollowUpSuccess(followUpId: string, outboundEmailId: string): Promise<void> {
+  try {
+    await sql`
+      update follow_ups
+      set outbound_email_id = ${outboundEmailId}, last_error = null
+      where id = ${followUpId}
+    `;
+  } catch (error) {
+    console.error(`runDueFollowUps: Erfolgsprotokoll für ${followUpId} fehlgeschlagen.`, error);
+  }
+}
+
+/**
  * Lädt fällige Follow-ups (scheduled_for <= today, sent_at null,
  * cancelled_at null, failed_at null) mit Anfrage und Regel, sendet sie über
  * sendInquiryMail("follow_up", ...) und protokolliert das Ergebnis.
@@ -396,7 +416,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
         continue;
       }
 
-      await linkOutboundEmail(row.id, mailResult.outboundEmailId);
+      await recordFollowUpSuccess(row.id, mailResult.outboundEmailId);
       result.sent += 1;
       result.details.push({
         followUpId: row.id,

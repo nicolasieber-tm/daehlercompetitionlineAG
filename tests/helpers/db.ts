@@ -1,8 +1,6 @@
 // Gemeinsame Test-Hilfen für DB-Tests gegen den lokalen Postgres (siehe
-// docs/db.md, docs/umbau-railway.md). Analog zu tests/followups/support.ts
-// (das noch gegen die Supabase-Testinstanz läuft und in einer späteren
-// Phase auf diese Datei umgestellt wird), aber auf lib/db/client statt
-// lib/supabase/admin. Absichtlich KEINE *.test.ts-Datei (siehe
+// docs/db.md, docs/umbau-railway.md), analog zu tests/followups/support.ts,
+// beide auf lib/db/client. Absichtlich KEINE *.test.ts-Datei (siehe
 // vitest.config.ts: include nur "tests/**/*.test.ts" und
 // "lib/**/*.test.ts"), wird also selbst nicht als Testsuite ausgeführt.
 //

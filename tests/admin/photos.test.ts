@@ -1,6 +1,5 @@
-// Fotos in Postgres (Tabelle `photos`, ersetzt den Supabase-Storage-Bucket
-// "model-photos", siehe docs/umbau-railway.md, Abschnitt "Fotos und
-// Import-Zwischenspeicher"): GET /api/photos/[id] liefert Bytes mit
+// Fotos in Postgres (Tabelle `photos`, siehe docs/umbau-railway.md,
+// Abschnitt "Fotos und Import-Zwischenspeicher"): GET /api/photos/[id] liefert Bytes mit
 // Content-Type und ETag=sha1 aus, 304 bei passendem If-None-Match, 404
 // sonst. Der Upload-Weg selbst (app/api/admin/models/photo/route.ts POST)
 // ruft revalidateTag()/revalidatePath() auf, die ausserhalb eines laufenden

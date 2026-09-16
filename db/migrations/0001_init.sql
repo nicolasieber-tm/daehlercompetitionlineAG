@@ -1,23 +1,16 @@
 -- dÄHLer Anfrage-Erlebnis: Datenbank-Grundschema, Railway-only.
--- Konsolidiert aus den sechs Supabase-Migrationen (supabase/migrations/
--- 20260911000000_init.sql bis 20260916010000_inquiries_series_ps.sql) plus
--- den Strukturen aus supabase/seed.sql. Siehe docs/umbau-railway.md,
--- Abschnitt "Zielarchitektur", und CLAUDE.md, Abschnitt "Datenmodell".
+-- Konsolidiertes Schema (siehe docs/umbau-railway.md, Abschnitt
+-- "Zielarchitektur", und CLAUDE.md, Abschnitt "Datenmodell"), ohne
+-- RLS, Policies oder Storage: jeder Zugriff läuft ausschliesslich
+-- serverseitig durch die App über den Postgres-Pool (lib/db/client.ts).
+-- generate_share_token() entfällt, der Token entsteht in der App (siehe
+-- lib/inquiry/share.ts). pricelist_imports.created_by referenziert die
+-- better-auth-Tabelle "user" (Migration 0002_auth.sql, Phase E2) erst ab
+-- dieser Phase, ohne Fremdschlüssel-Zwang in dieser Migration.
 --
--- Gegenüber Supabase entfernt: RLS, Policies, Grants/Revokes auf
--- next_inquiry_number()/claim_follow_up()/schedule_follow_ups() (es gibt
--- keine PostgREST-Rollen anon/authenticated/service_role mehr, jeder
--- Zugriff läuft ausschliesslich serverseitig durch die App), storage.*
--- (Buckets model-photos/imports), generate_share_token() (der Token
--- entsteht in der App, siehe lib/inquiry/share.ts), auth.users-Verweis bei
--- pricelist_imports.created_by (kein Supabase Auth mehr; better-auth-
--- Tabellen kommen in einer eigenen Migration 0002, created_by referenziert
--- diese ab Phase E2 wieder).
---
--- Neu gegenüber Supabase: Tabelle `photos` (Fotos liegen als bytea in der
--- DB statt in einem Storage-Bucket, siehe docs/umbau-railway.md Abschnitt
--- "Fotos und Import-Zwischenspeicher"), pricelist_imports.payload jsonb
--- (Import-Zwischenspeicher statt Bucket "imports").
+-- Tabelle `photos` (Fotos liegen als bytea in der DB), siehe
+-- docs/umbau-railway.md Abschnitt "Fotos und Import-Zwischenspeicher"),
+-- pricelist_imports.payload jsonb (Import-Zwischenspeicher).
 --
 -- Reihenfolge: Erweiterungen, Trigger-Funktion, Tabellen (Abhängigkeiten
 -- zuerst), Indizes, Trigger, Funktionen next_inquiry_number()/
@@ -186,7 +179,7 @@ create table pricelist_imports (
 comment on table pricelist_imports is
   'Ein Excel-Upload im Admin. pending = Diff angezeigt, applied = übernommen, discarded = verworfen, failed = beim Übernehmen sind Fehler aufgetreten (siehe summary.errors).';
 comment on column pricelist_imports.payload is
-  'Vom Parser gelieferte Rohdaten (ParsedFamily[] als JSON), die applyPendingImport() beim Übernehmen erneut lädt. Ersetzt den Supabase-Storage-Bucket "imports"; wird nach Übernehmen/Verwerfen auf null gesetzt.';
+  'Vom Parser gelieferte Rohdaten (ParsedFamily[] als JSON), die applyPendingImport() beim Übernehmen erneut lädt; wird nach Übernehmen/Verwerfen auf null gesetzt.';
 comment on column pricelist_imports.created_by is
   'Better-auth-User-Id (Tabelle "user", Migration 0002_auth.sql, Phase E2). Keine Fremdschlüssel-Referenz hier, damit diese Migration unabhängig von der Auth-Migration bleibt; auf Anwendungsebene geprüft.';
 
@@ -342,8 +335,7 @@ comment on table inquiry_counters is
 
 -- ---------------------------------------------------------------------------
 -- Tabelle: photos (siehe docs/umbau-railway.md, Abschnitt "Fotos und
--- Import-Zwischenspeicher"). Ersetzt den Supabase-Storage-Bucket
--- "model-photos"; Auslieferung über GET /api/photos/[id].
+-- Import-Zwischenspeicher"). Auslieferung über GET /api/photos/[id].
 -- ---------------------------------------------------------------------------
 
 create table photos (

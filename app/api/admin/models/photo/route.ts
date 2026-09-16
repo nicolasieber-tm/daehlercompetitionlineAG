@@ -2,8 +2,8 @@
 // (POST, multipart/form-data mit "familyId" + "file") bzw. entfernen
 // (DELETE, JSON-Body { familyId }). Siehe docs/umbau-railway.md, Abschnitt
 // "Fotos und Import-Zwischenspeicher": Fotos liegen als bytea in der Tabelle
-// `photos` statt in einem Supabase-Storage-Bucket, ausgeliefert über
-// GET /api/photos/[id] (Content-Type, ETag=sha1). Serverseitig max. 8 MB,
+// `photos`, ausgeliefert über GET /api/photos/[id] (Content-Type,
+// ETag=sha1). Serverseitig max. 8 MB,
 // jpg/png/webp, photo_url zeigt danach auf /api/photos/<id>,
 // revalidateTag('catalog'). Nur für angemeldete Admins, sonst 401
 // (middleware.ts deckt /api/admin/* bereits über das Session-Cookie ab,

@@ -6,12 +6,14 @@ Ergänzt `CLAUDE.md`. Bei Widerspruch gilt `CLAUDE.md`. Dieses Dokument legt fes
 
 - Next.js 15, App Router, TypeScript strict, React 19. Paketmanager: npm.
 - Tailwind CSS v4 (CSS-first `@theme`), keine UI-Bibliothek. Design-Tokens aus `docs/vorschau.html` übernehmen (siehe Abschnitt Design).
-- Supabase: Postgres, Auth (E-Mail + Passwort), Storage (Bucket `model-photos`, public read). Lokal via `npx supabase start` (Docker). Migrationen in `supabase/migrations/`, Typen via `npm run db:types` nach `lib/supabase/database.types.ts`.
-- `@supabase/ssr` für Server/Client-Clients. Drei Clients in `lib/supabase/`: `server.ts` (Cookies, RLS), `client.ts` (Browser), `admin.ts` (Service-Role, nur serverseitig).
+- Postgres (lokal: Docker-Container `docker-compose.yml`, Port 5433; produktiv: Railway-Plugin). Zugriff ausschliesslich serverseitig über `lib/db/client.ts` (Paket `postgres`, kein PostgREST, keine RLS). Migrationen in `db/migrations/*.sql`, Runner `scripts/migrate.ts`, Row-Typen handgepflegt in `lib/db/rows.ts`.
+- Admin-Login über `better-auth` (`lib/auth/`): E-Mail + Passwort, Sessions in Postgres, zwei feste Konten (`scripts/create-admin-users.ts`).
+- Fotos (Baureihen/Modelle) als `bytea` in der Tabelle `photos`, ausgeliefert über `GET /api/photos/[id]` (ETag, `Cache-Control: immutable`).
 - Resend (`resend` npm) für Mail. Anthropic SDK (`@anthropic-ai/sdk`) für Posten 3 und optionales Polieren des Antwortentwurfs.
 - SheetJS (`xlsx`, Build von cdn.sheetjs.com 0.20.x) für `.xls` (BIFF8) und `.xlsx`.
 - Validierung: `zod`. Tests: `vitest`. E2E: `@playwright/test` (nur Smoke).
-- Hosting: Railway (Node, `npm run build` / `npm start`), Cron via Railway Cron auf `/api/cron/follow-ups`.
+- Hosting: Railway (Node, `npm run build` / `npm start`, `railway.json`/`nixpacks.toml`), Cron-Service via Railway Cron auf `/api/cron/follow-ups` (`scripts/cron-followups.ts`), Backup-Service via `scripts/backup.sh`. Details: `docs/deploy-railway.md`.
+- **Entscheid 16.09.2026** (`docs/umbau-railway.md`): bis zu diesem Datum lief die App auf Supabase (Postgres über supabase-js/PostgREST, Supabase Auth, Storage-Buckets `model-photos`/`imports`, lokal `npx supabase start`). Supabase entfiel vollständig (Projektkontingent der Organisation erschöpft, zweiter Anbieter unerwünscht) und wurde durch die oben beschriebene Railway-only-Lösung ersetzt (`@supabase/*` und der Ordner `supabase/` sind aus dem Repo entfernt); aktueller Stand und Details: `docs/db.md`.
 
 ## Ordnerstruktur
 
@@ -33,13 +35,16 @@ app/
     inquiries/route.ts                  POST: Anfrage aus dem Flow
     inquiries/[id]/summary-mail/route.ts POST: «Zusammenfassung an mich senden»
     admin/...                           Admin-APIs (Auth-geschützt)
+    auth/[...all]/route.ts              better-auth-Handler (Login/Logout/Session)
     cron/follow-ups/route.ts            GET/POST, Header `Authorization: Bearer $CRON_SECRET`
+    health/route.ts                     Railway-Healthcheck (`select 1`)
 components/
   flow/        Schritte des Kundenflows (Client Components)
   admin/       Admin-UI
   ui/          Basisbausteine (Tile, Chip, Button, Field, Progress, Summary)
 lib/
-  supabase/    Clients, database.types.ts
+  db/          client.ts (`postgres`-Pool), rows.ts (Row-Typen), helpers.ts
+  auth/        server.ts (better-auth-Instanz, `requireAdmin`), client.ts (Login-Formular)
   pricelist/   parser.ts, diff.ts, apply.ts, types.ts  (siehe docs/excel-import.md)
   catalog/     queries.ts (Familien, Modelle, Produkte), categories.ts (Mapping, Reihenfolge, Texte), variant-groups.ts, upsell.ts
   inquiry/     create.ts, number.ts, summary.ts (Textzusammenfassung), share.ts
@@ -49,11 +54,15 @@ lib/
   followups/   schedule.ts, run.ts
   ai/          extract.ts (Posten 3), client.ts
   i18n/        de.ts, en.ts, index.ts (t(), Locale-Context), format.ts (CHF, Datum)
-supabase/
-  config.toml, migrations/*.sql, seed.sql
+db/
+  migrations/*.sql (Runner: scripts/migrate.ts), seed.sql
 scripts/
-  parse-pricelists.ts   CLI: alle Dateien in docs/preislisten parsen, JSON + Statistik ausgeben
-  import-pricelists.ts  CLI: Erstbefüllung in die DB (nutzt lib/pricelist/apply.ts)
+  parse-pricelists.ts     CLI: alle Dateien in docs/preislisten parsen, JSON + Statistik ausgeben
+  import-pricelists.ts    CLI: Erstbefüllung in die DB (nutzt lib/pricelist/apply.ts)
+  migrate.ts               Migrationsrunner (`--seed`, `--status`)
+  create-admin-users.ts    Legt die zwei Admin-Konten an (better-auth)
+  cron-followups.ts        Ruft `/api/cron/follow-ups` auf (lokal bzw. Railway Cron)
+  backup.sh                Täglicher `pg_dump | gzip` (Railway Backup-Service)
 docs/
   vorschau.html, preislisten/*.xls, architektur.md, excel-import.md
 public/img/models/*.jpg, public/img/flow/*.jpg   Startfotos aus der Vorschau
@@ -106,7 +115,7 @@ Alle Tabellen mit `id uuid default gen_random_uuid()`, `created_at timestamptz d
 - `gearbox text` (manual | automatic | unknown | null; Ergänzung 15.09.2026, Rückmeldung erster Klicktest) - Antwort auf die Getriebefrage im Fahrzeug-Schritt (nur gestellt, wenn das Modell mindestens ein getriebespezifisches Produkt hat); `unknown` ist ein eigener, gespeicherter Wert («Weiss ich nicht»), `null` bedeutet: Frage nicht gestellt
 - `categories text[]`, `consulting bool` (Komplettpaket), `selections jsonb` (Array `{product_id, category, name, description, price_total, price_status, ps_to, nm_to, variant_group}`; `ps_to`/`nm_to`/`variant_group` seit **Korrektur 15.09.2026** (Prüfung Modul Produkte, Befund 2/4) mitgespeichert - ohne sie kennt `lib/inquiry/context.ts` `parseItems()` beim späteren Mailversand weder die Zielleistung noch, ob eine Position eine Leistungsstufe ist, siehe unten), `follow_up_answers jsonb` (`{motor: '...', auspuff: '...'}`)
 - `character text` (dezent | sportlich | maximum), `timing text` (asap | m1_2 | m3_6 | flexible)
-- `series_ps int` (nullable; Rückmeldung zweiter Klicktest, `supabase/migrations/20260916010000_inquiries_series_ps.sql`) - effektiv wirksame Serienleistung zum Zeitpunkt der Anfrage (`models.series_ps`, sonst die im Fahrzeug-Schritt gewählte Serienleistungs-Chip-Auswahl, `effectiveSeriesPs()`). `models.series_ps` allein reicht nach dem Absenden nicht mehr: bei mehreren `series_ps_suggested`-Werten (z. B. M2 G87 «M2»: 460/480 PS) bleibt es dauerhaft `null`, die tatsächliche Wahl wäre sonst verloren. Für die Vorher/Nachher-Leistungszeile auf Abschluss-Screen, Teilen-Seite und Bestätigungs-/Zusammenfassungsmail (siehe unten); `models.series_nm` bleibt unverändert per Join gelesen (statisch je Modell, keine eigene Spalte nötig).
+- `series_ps int` (nullable; Rückmeldung zweiter Klicktest, ursprünglich `supabase/migrations/20260916010000_inquiries_series_ps.sql`, inzwischen konsolidiert in `db/migrations/0001_init.sql`) - effektiv wirksame Serienleistung zum Zeitpunkt der Anfrage (`models.series_ps`, sonst die im Fahrzeug-Schritt gewählte Serienleistungs-Chip-Auswahl, `effectiveSeriesPs()`). `models.series_ps` allein reicht nach dem Absenden nicht mehr: bei mehreren `series_ps_suggested`-Werten (z. B. M2 G87 «M2»: 460/480 PS) bleibt es dauerhaft `null`, die tatsächliche Wahl wäre sonst verloren. Für die Vorher/Nachher-Leistungszeile auf Abschluss-Screen, Teilen-Seite und Bestätigungs-/Zusammenfassungsmail (siehe unten); `models.series_nm` bleibt unverändert per Join gelesen (statisch je Modell, keine eigene Spalte nötig).
 - `first_name, last_name, email, channel (phone | email | whatsapp), message` (Pflicht wie bisher, siehe `viewContact()`/`canNext()` in `docs/vorschau.html`)
 - `city, phone` (beide nullable, Rückmeldung zweiter Klicktest: leerer String zählt als `null`). Ort ist nie Pflicht. Telefon ist optional, ausser bei `channel` «phone» oder «whatsapp» - dann Pflicht (Validierung in `lib/inquiry/schema.ts` `InquiryPayloadSchema`, nicht im geteilten `withInquiryPayloadRefinements()`: der Schnellweg, `lib/ai/to-payload.ts` `QuickInquiryPayloadSchema`, verlangt unverändert nur «Telefon ODER E-Mail», unabhängig vom Kanal). Zusammenfassungen und Admin lassen den Ort weg, wenn `null` (kein leeres Feld, kein «, »-Rest, z. B. `lib/inquiry/summary.ts`, `lib/mail/templates/inbox.ts`, `components/admin/InquiriesTable.tsx`).
 - Alle Auswahlwerte (timing, channel, character, follow_up_answers) werden als sprachneutrale IDs gespeichert; die Dictionaries liefern `{ id, label }`-Optionen, Anzeige und Mails lösen über die ID auf.
@@ -124,9 +133,10 @@ Alle Tabellen mit `id uuid default gen_random_uuid()`, `created_at timestamptz d
 
 ### Sicherheit
 
-- RLS auf allen Tabellen. Katalogtabellen: `select` für `anon` nur auf `active = true`; `authenticated` (Admin) hat auf allen Tabellen alle Operationen und sieht auch inaktive Zeilen. `next_inquiry_number()` explizit für `service_role` ausführbar, Jahr nach `Europe/Zurich`. Schreibzugriffe aus öffentlichen APIs laufen serverseitig über den Service-Role-Client.
-- Admin = jeder authentifizierte Supabase-User (zwei Konten: dÄHLer, Trending Media). Kein Rollenmodell.
-- `/admin/*` durch `middleware.ts` geschützt (Redirect auf `/admin/login`).
+- Keine Row Level Security, keine PostgREST-Rollen (`anon`/`authenticated`/`service_role`): jeder Zugriff läuft ausnahmslos serverseitig durch die App über den einen Postgres-Pool (`lib/db/client.ts`), der Browser spricht nie direkt mit der DB. `next_inquiry_number()` und die übrigen DB-Funktionen laufen mit den vollen Rechten dieser einen Verbindung.
+- Admin = jeder authentifizierte `better-auth`-User (zwei Konten: dÄHLer, Trending Media). Kein Rollenmodell. Login/Session siehe `lib/auth/`, `docs/db.md` Abschnitt "Admin-Konten".
+- `/admin/*` und `/api/admin/*` durch `middleware.ts` geschützt (Redirect auf `/admin/login`), `requireAdmin()`/`getAdminUser()` (`lib/admin/auth.ts`) prüfen serverseitig zusätzlich die Session.
+- **Entscheid 16.09.2026** (`docs/umbau-railway.md`): bis zu diesem Datum lief die Absicherung über Supabase (RLS auf allen Tabellen, Katalogtabellen mit `select` für `anon` nur auf `active = true`, PostgREST-Rollen `anon`/`authenticated`/`service_role`, Supabase Auth). Mit dem Wegfall von Supabase entfielen RLS und die PostgREST-Rollen ersatzlos; an ihre Stelle traten die oben beschriebene rein serverseitige Zugriffskontrolle und `better-auth`.
 
 ## Kundenflow (Details zur Vorschau)
 
@@ -153,7 +163,7 @@ Eine reine Funktion `vehicleDisplayLabel({ brand, name, codes, has_pricelist }, 
 1. **Linie** = Familienname ohne die Codes (`codes[]` aus dem Import, Tokens wie `G20`, `F87`, `NA5`) und ohne Trennzeichen-Reste; Markenwort am Anfang der Linie (MINI, TOYOTA) wird nicht doppelt ausgegeben. Enthält die Linie Alternativen (`/` oder `,`), z. B. `M3 / M4`, `M2 / M2 Competition / M2 CS`, `X3M, X4M`, `8er / M8`, wird die Alternative gewählt, die die meisten Wörter mit der Motorisierung teilt (Vergleich ohne Leerzeichen und Gross/Klein: `X3M` = `X3 M`); teilt keine ein Wort, gilt die erste Alternative. **Ausnahme 8er/M8 (Ergänzung 15.09.2026, Feinschliff-Prüfung):** eine Alternative, die selbst ein M-Modell bezeichnet (Segmentname passt auf `/^M\d(?:$|[\s/])/`, also „M“ + genau eine Ziffer, danach Wortende, Leerzeichen oder `/` - `M8`, `M5`, `M3`, `M2`, `M3 CS`, `M2 Competition`, `M3/Comp.`), zählt nicht als Alternative, wenn die Motorisierung selbst kein M-Modell ist (dieselbe Prüfung auf die Motorisierung angewendet - bewusst NICHT „beginnt mit M + Ziffer“, sonst erfasste das auch M-Performance-Motorisierungen wie `M35i`, `M40i`, `M40d`, `M50`, `M50i`, `M50d`, `M60i`, `M135i`, `M235i`, `M550d`, `M760i`, die keine M-Modelle sind - Stichprobe `X3 G45 M50` in den aktiven Daten). `BMW 8er 40i (G14, G15, G16)` ist damit eindeutig: `M8` scheidet für `40i` von vornherein aus, unabhängig vom Wortvergleich. Ist die Motorisierung selbst ein M-Modell (`M8`, `M5`, `M6`, ...), gilt die Ausnahme nicht, alle Alternativen bleiben im Rennen. Siehe `isMModelName()`/`applicableSegments()` in `lib/catalog/vehicle-label.ts`.
 2. **Motorisierung**: Wörter der Motorisierung, die schon in der gewählten Linie stehen, werden weggelassen; der Rest wird angehängt (`M2` + `M2` → `M2`; `M2` + `M2 CS` → `M2 CS`; `3er` + `M40i` → `3er M40i`; `M3` + `M3 Touring` → `M3 Touring`; `MINI Countryman` + `Cooper S` → `MINI Countryman Cooper S`).
 3. **Codes** in Klammern, wenn vorhanden. **Präzisierung 15.09.2026** (Feinschliff-Prüfung): besteht der Familienname aus Alternativ-Segmenten, die im Text jeweils ihre EIGENEN Codes tragen (ein Code-Token folgt direkt auf das Alternativ-Wort, getrennt durch Leerzeichen, `,` oder `/`, z. B. `X1 U11 / X2 U10`, `8er G14, G15, G16 / M8 F91, F92, F93`, `M5 F10, M6 F06, F12, F13`, `X3M F97, X4M F98`, `X5M F95/LCI, X6M F96/LCI`), kommen in die Klammer nur die Codes der GEWÄHLTEN Alternative: `BMW M8 (F91, F92, F93)`, `BMW 8er 40i (G14, G15, G16)`, `BMW M6 (F06, F12, F13)`, `BMW M5 (F10)`, `BMW X3 M (F97)`, `BMW X5M (F95)`. Hat die gewählte Alternative keine eigenen Codes (kein Code-Token folgt ihr direkt, bevor die nächste Alternative beginnt, z. B. `M3` in `M3 / M4 G80, G81, G82, G83`), gelten ersatzweise alle Codes der Familie: `BMW M3 Touring (G80, G81, G82, G83)`. Generisch über die Reihenfolge der Tokens hergeleitet (`analyzeFamily()`), keine Namenslisten. Einfache Fälle ohne Alternativen bleiben unverändert: `BMW M2 (G87)`, `BMW 3er M40i (G20, G21)`, `MINI Countryman Cooper S (F60)`, `Toyota GR Supra 3.0i` (keine Codes → keine Klammer). Enthält die Motorisierung selbst schon eine Klammer (Kraftstoffart aus dem Excel-Namen, z. B. `Countryman One (Benzin)`, `Cooper SE (Electric)`), werden ihr Inhalt und die Codes zu EINER Klammer verschmolzen statt zwei Klammern hintereinander zu setzen: `MINI Countryman One (Benzin, F60)`, `MINI Clubman Cooper SE (Electric, F54)`.
-4. **Ohne Motorisierung** (Kurzablauf, Platzhalter): `Marke + vehicleText` (`Wiesmann MF4`, `BMW E46 M3`); ohne vehicleText: `Marke + Linie` (`BMW Älteres Modell`). Ein Markenwort, das mitten im (von Hand gepflegten) Familiennamen steht statt am Anfang (z. B. „Älteres MINI-Modell“), wird in der Linie ebenfalls entfernt, bevor die Marke sauber davorgesetzt wird - sonst „MINI Älteres MINI-Modell“ (Feinschliff-Prüfung 15.09.2026). Die ausgelieferten Platzhalter-Familien (`supabase/seed.sql`) heissen deshalb einheitlich `Älteres Modell` (BMW, MINI), `Anderes Modell` (Toyota) und `Wiesmann` (Wiesmann), ohne Markenwort im Namen.
+4. **Ohne Motorisierung** (Kurzablauf, Platzhalter): `Marke + vehicleText` (`Wiesmann MF4`, `BMW E46 M3`); ohne vehicleText: `Marke + Linie` (`BMW Älteres Modell`). Ein Markenwort, das mitten im (von Hand gepflegten) Familiennamen steht statt am Anfang (z. B. „Älteres MINI-Modell“), wird in der Linie ebenfalls entfernt, bevor die Marke sauber davorgesetzt wird - sonst „MINI Älteres MINI-Modell“ (Feinschliff-Prüfung 15.09.2026). Die ausgelieferten Platzhalter-Familien (`db/seed.sql`) heissen deshalb einheitlich `Älteres Modell` (BMW, MINI), `Anderes Modell` (Toyota) und `Wiesmann` (Wiesmann), ohne Markenwort im Namen.
 5. Intern (Anfrage-Mail, Admin-Detail, Zusammenfassung) steht zusätzlich die Zeile **Baureihe: `<Familienname>` · Motorisierung: `<Modellname>`**, damit dÄHLer die Preisliste sofort zuordnen kann.
 
 Betreff-Beispiel: «Ihre Anfrage für den BMW M2 (G87), Nr. 2026-0012». Dank-Absatz mit Baujahr: «Danke für Ihre Anfrage für Ihren BMW M2 (G87), Jahrgang 2026.» (Komma statt einer zweiten Klammer hinter den Codes, siehe `draft.yearSuffix` in `lib/i18n/de.ts`/`en.ts` - Feinschliff-Prüfung 15.09.2026, Befund „Doppelklammer“).
@@ -212,19 +222,25 @@ Tokens aus `docs/vorschau.html` in `app/globals.css` als Tailwind `@theme`: Hint
 ## Umgebungsvariablen (`.env.example`)
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+DATABASE_URL=              # lokal: postgres://postgres:postgres@localhost:5433/daehler (docker-compose.yml)
+PGSSLMODE=                 # auf Railway: require, lokal leer lassen
+BETTER_AUTH_SECRET=        # openssl rand -hex 32
+BETTER_AUTH_URL=           # lokal: http://localhost:3000, produktiv: die App-URL
 RESEND_API_KEY=
 MAIL_TO_OVERRIDE=          # Test: alle Mails hierhin
+RESEND_FROM_OVERRIDE=      # Test: ersetzt die Absenderadresse, solange daehler.com bei Resend nicht verifiziert ist
 ANTHROPIC_API_KEY=         # optional, Posten 3 und Entwurf-Polish
 CRON_SECRET=
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+ADMIN_DAEHLER_PASSWORD=          # scripts/create-admin-users.ts, Pflicht ausserhalb der lokalen Entwicklung
+ADMIN_TRENDINGMEDIA_PASSWORD=    # dito
 ```
+
+Vollständige, kommentierte Liste inkl. optionaler Variablen (`AI_MODEL`, `AI_LIVE_TEST`, `DRAFT_POLISH`): `.env.example`.
 
 ## Konventionen
 
 - Sprache im Code: Englisch für Bezeichner, Deutsch für Kommentare erlaubt. UI-Texte nur über i18n.
-- Keine Preise oder Produkte im Code. Startfotos und Familienreihenfolge dürfen in `supabase/seed.sql` stehen.
+- Keine Preise oder Produkte im Code. Startfotos und Familienreihenfolge dürfen in `db/seed.sql` stehen.
 - Jede Route-Handler-Datei validiert mit zod und antwortet JSON `{ ok: true, ... }` oder `{ ok: false, error }`.
 - `npm run lint`, `npm run typecheck`, `npm test` müssen grün sein, `npm run build` muss durchlaufen.

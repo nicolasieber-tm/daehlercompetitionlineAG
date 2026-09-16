@@ -1,8 +1,7 @@
 #!/usr/bin/env tsx
 // Migrationsrunner für den lokalen/Railway-Postgres (siehe
-// docs/umbau-railway.md, Abschnitt "Zielarchitektur", Phase E1). Ersetzt
-// `npx supabase db reset`: wendet db/migrations/*.sql in Namensreihenfolge
-// an (je Datei eine Transaktion), merkt sich den Stand in
+// docs/umbau-railway.md, Abschnitt "Zielarchitektur", Phase E1). Wendet
+// db/migrations/*.sql in Namensreihenfolge an (je Datei eine Transaktion), merkt sich den Stand in
 // schema_migrations, --seed spielt danach db/seed.sql erneut ein
 // (idempotent, siehe dortige on-conflict-Klauseln), --status zeigt nur an,
 // welche Migrationen bereits angewendet sind.

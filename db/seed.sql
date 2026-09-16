@@ -1,6 +1,5 @@
 -- Seed-Daten für den lokalen Postgres (npm run db:seed bzw.
--- scripts/migrate.ts --seed). Inhalt von supabase/seed.sql, ohne
--- Supabase-Spezifika. Nur Konfiguration und Platzhalter, keine Preise oder
+-- scripts/migrate.ts --seed). Nur Konfiguration und Platzhalter, keine Preise oder
 -- Produkte (die kommen ausschliesslich per Excel-Import, siehe CLAUDE.md,
 -- Abschnitt "Arbeitsweise"). Alle insert-Statements sind idempotent (on
 -- conflict do nothing / do update), damit ein wiederholter Lauf nicht
