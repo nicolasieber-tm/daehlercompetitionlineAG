@@ -2,9 +2,12 @@
 
 Ergänzt `docs/umbau-railway.md` (Zielarchitektur, Abschnitt "Phasen") und `docs/db.md`.
 Voraussetzung: `railway login` wurde vom Auftraggeber bereits ausgeführt (eigenes
-Railway-Konto). Dieses Dokument ist die Schritt-für-Schritt-Anleitung für den
-erstmaligen Aufbau: ein App-Service, ein Postgres-Plugin, ein Cron-Service, ein
-Backup-Service.
+Railway-Konto, Plan Pro). Dieses Dokument ist die Schritt-für-Schritt-Anleitung für den
+erstmaligen Aufbau: ein App-Service, ein Postgres-Plugin, Volume-Backups im Dashboard.
+Kein eigener Cron-Service und kein eigener Backup-Service (siehe
+`docs/umbau-railway.md`, Ergänzung 16.09.2026): Follow-ups (Posten 6) löst die
+App-Instanz selbst über einen internen Timer aus (`lib/followups/scheduler.ts`),
+Backups übernimmt Railway Pro.
 
 ## 0. Voraussetzungen
 
@@ -47,15 +50,21 @@ railway variables --set "RESEND_FROM_OVERRIDE="           # leer, sobald daehler
 railway variables --set "MAIL_TO_OVERRIDE="                # leer in Produktion, alle Mails gehen an echte Empfänger
 railway variables --set "ANTHROPIC_API_KEY=sk-ant-..."
 railway variables --set "CRON_SECRET=$(openssl rand -hex 32)"
+railway variables --set "FOLLOWUP_SCHEDULER=1"
 railway variables --set "ADMIN_DAEHLER_PASSWORD=..."
 railway variables --set "ADMIN_TRENDINGMEDIA_PASSWORD=..."
 ```
+
+`FOLLOWUP_SCHEDULER=1` ist auf Railway eigentlich nicht nötig (der Scheduler ist bei
+`NODE_ENV=production`, was Railway automatisch setzt, ohnehin aktiv, siehe
+`lib/followups/scheduler.ts`), macht die Absicht in den Dashboard-Variablen aber
+sichtbar und schützt vor einem versehentlichen `FOLLOWUP_SCHEDULER=0`.
 
 Hinweise:
 - `DATABASE_URL` als Referenz auf das Plugin setzen (`${{Postgres.DATABASE_URL}}`), nicht als fester Wert, damit ein Wechsel des Plugins/Credentials automatisch durchgereicht wird.
 - `PGSSLMODE=require` ist Pflicht: Railway-Postgres verlangt TLS, `lib/db/client.ts` liest diese Variable (siehe `docs/db.md`).
 - `BETTER_AUTH_URL`/`NEXT_PUBLIC_APP_URL` erst final setzen, wenn die Domain aus Schritt 8 feststeht; für einen ersten Smoke-Test reicht vorübergehend die von Railway vergebene `*.up.railway.app`-URL.
-- Build/Start: `railway.json` (Railpack, `startCommand: npm start`, Healthcheck `/api/health`) und `nixpacks.toml` (Node 24) liegen im Repo, keine weitere Konfiguration nötig.
+- Build/Start: `railway.json` (Railpack, `startCommand: bash scripts/start.sh (Migration, Seed, Admin-Konten, optional Import bei IMPORT_ON_START=1, dann next start)`, Healthcheck `/api/health`) und `nixpacks.toml` (Node 24) liegen im Repo, keine weitere Konfiguration nötig.
 
 ## 4. Deploy auslösen
 
@@ -90,35 +99,53 @@ railway run npm run db:admins
 `railway run <cmd>` führt den Befehl mit den Variablen des verknüpften Service aus,
 ohne einen dauerhaften zweiten Service zu starten.
 
-## 6. Cron-Service (Follow-ups, Posten 6)
+## 6. Follow-ups (kein separater Cron-Service)
 
-Einen zweiten Service im selben Projekt anlegen ("New Service" → "Empty Service" oder
-aus demselben Repo), der App-Code wird wiederverwendet:
+Nichts einzurichten: `lib/followups/scheduler.ts` startet beim Hochfahren des
+App-Service automatisch einen internen Timer (`instrumentation.ts`, `register()`),
+der alle 60 Minuten prüft, ob Follow-ups fällig sind (erster Lauf 5 Minuten nach dem
+Start). Aktiv ist er, sobald `NODE_ENV=production` gesetzt ist (Railway setzt das
+automatisch) und `FOLLOWUP_SCHEDULER` nicht auf `0` steht. Mehrere Instanzen oder ein
+Neustart mitten im Lauf sind unkritisch: der Scheduler sperrt jeden Lauf über einen
+Postgres-Advisory-Lock, eine zweite Instanz überspringt den Lauf statt doppelt zu
+senden.
 
-- Start-Befehl: `npm run cron:followups`
-- Schedule (Railway "Cron Schedule" am Service): `0 5 * * *` (05:00 UTC = 07:00 Europe/Zurich)
-- Variablen: mindestens `NEXT_PUBLIC_APP_URL` (Ziel-URL des App-Service) und `CRON_SECRET`
-  (derselbe Wert wie beim App-Service, siehe Schritt 3) - `scripts/cron-followups.ts`
-  ruft `$NEXT_PUBLIC_APP_URL/api/cron/follow-ups` mit `Authorization: Bearer $CRON_SECRET`
-  auf und beendet sich mit Exit-Code ungleich 0 bei einem Fehler (siehe Skript-Kommentar),
-  Railway markiert einen solchen Lauf entsprechend als fehlgeschlagen.
-- Kein eigener `DATABASE_URL`-Zugriff nötig: der Cron-Service ruft nur die HTTP-Route
-  des App-Service auf.
+**Sendefenster 07:00-18:00 Europe/Zurich.** Ein einzelner Tick versendet nur
+innerhalb dieses Fensters (`isWithinSendWindow()` in `lib/followups/scheduler.ts`);
+ausserhalb davon protokolliert der Tick nur "ausserhalb des Sendefensters,
+Lauf übersprungen" und fasst den Advisory-Lock erst gar nicht an. Ohne dieses
+Fenster hätte der reine 60-Minuten-Timer automatische Mails an Kunden zu
+beliebiger Uhrzeit verschickt, u.a. nachts kurz nach Mitternacht oder 5 Minuten
+nach einem Deploy - der frühere separate Cron-Service lief bewusst nur einmal
+täglich um `0 5 * * *` (07:00 Europe/Zurich). Ein fälliges Follow-up geht dadurch
+nicht verloren, sondern wird beim nächsten Tick innerhalb des Fensters gesendet.
 
-## 7. Backup-Service
+`app/api/cron/follow-ups/route.ts` bleibt als manueller Auslöser bestehen (Admin
+"Fällige jetzt senden", oder lokal `npm run cron:followups` gegen einen laufenden
+Server) und verwendet denselben Lock: läuft der automatische Scheduler gerade,
+liefert die Route `{ "ok": true, "skipped": "locked" }` statt doppelt zu senden.
+`CRON_SECRET` bleibt deshalb weiterhin als Variable gesetzt (Schritt 3), auch ohne
+externen Cron-Dienst.
 
-Einen dritten Service anlegen, ebenfalls aus demselben Repo:
+## 7. Backups (Railway Pro Volume-Backups)
 
-- Start-Befehl: `npm run backup` (`scripts/backup.sh`)
-- Schedule: `0 3 * * *` (03:00 UTC)
-- Volume anlegen und unter `/backups` mounten (Railway Dashboard: Service → "Volumes")
-- Variablen: `DATABASE_URL` (`${{Postgres.DATABASE_URL}}`, wie beim App-Service),
-  `PGSSLMODE=require`, `BACKUP_DIR=/backups`, optional `RETENTION_DAYS` (Standard 14,
-  siehe `scripts/backup.sh`)
-- `pg_dump` muss im Image verfügbar sein: Railpack installiert es nicht automatisch für
-  einen reinen Node-Service. Falls `pg_dump: command not found` auftritt, im Service ein
-  `nixpacks.toml` mit `nixPkgs = ["postgresql"]` ergänzen (nur für diesen Service, nicht
-  für den App-Service nötig).
+Kein eigener Backup-Service. Railway Pro sichert das Volume der Postgres-Instanz
+selbst:
+
+1. Im Dashboard das Postgres-Plugin öffnen → Tab "Backups".
+2. Automatische Backups aktivieren (Railway Pro: tägliche Backups, konfigurierbare
+   Aufbewahrung; Details je nach aktuellem Railway-Angebot im Dashboard prüfen).
+3. Nach der Ersteinrichtung einmal einen manuellen Backup-Lauf im Dashboard auslösen
+   und danach eine Wiederherstellung in eine Testumgebung prüfen (Railway unterstützt
+   "Restore" aus einem Backup heraus) - ein ungetestetes Backup ist kein Backup.
+
+`scripts/backup.sh` (`pg_dump | gzip` nach `$BACKUP_DIR`) bleibt im Repo als manuelles
+Werkzeug für einen Ad-hoc-Dump (z. B. vor einer riskanten Migration), läuft aber nicht
+mehr als eigener, dauerhaft geplanter Service:
+
+```bash
+DATABASE_URL="$(railway variables get DATABASE_URL)" PGSSLMODE=require BACKUP_DIR=./tmp-backup npm run backup
+```
 
 ## 8. Custom Domain
 
@@ -139,13 +166,22 @@ setzen und neu deployen.
   (Session-Cookie muss tatsächlich gelöscht werden, siehe `app/admin/actions/auth.ts`).
 - Preislisten-Upload mit einer echten Datei aus `docs/preislisten` testen (Diff-Anzeige,
   Übernehmen).
-- Follow-up-Cron einmal manuell auslösen: `railway run --service <cron-service> npm run cron:followups`.
+- Follow-up-Versand einmal manuell auslösen und dabei den Scheduler-Log im Railway-Dashboard
+  prüfen ("Deployments" → aktueller Deploy → "Logs", Zeile `followUpScheduler: gestartet ...`
+  kurz nach dem Start, danach stündlich entweder `followUpScheduler: Lauf abgeschlossen ...`
+  (07:00-18:00 Europe/Zurich) oder `followUpScheduler: ausserhalb des Sendefensters ...,
+  Lauf übersprungen` (ausserhalb davon - kein Fehler, siehe Abschnitt 6):
+  `railway run npm run cron:followups` (ruft `/api/cron/follow-ups` mit `CRON_SECRET` auf,
+  liefert `{"ok":true,"skipped":"locked"}`, falls der interne Scheduler gerade selbst läuft -
+  in dem Fall kurz warten und erneut versuchen; die manuelle Route hat KEIN Sendefenster
+  und funktioniert deshalb auch nachts für diesen Smoke-Test).
 - Testanfrage danach im Admin löschen bzw. auf `abgeschlossen` setzen, keine
   Test-Mails an echte Kundenadressen offen lassen.
 
 ## Rollback
 
 Railway behält frühere Deploys pro Service; im Dashboard unter "Deployments" lässt sich
-ein vorheriger Deploy erneut aktivieren. Datenbank-Rollback: das letzte Backup aus dem
-Backup-Service-Volume einspielen (`gunzip -c daehler-<datum>.sql.gz | psql "$DATABASE_URL"`),
-vorher mit dem Auftraggeber abstimmen (Datenverlust seit dem Backup-Zeitpunkt).
+ein vorheriger Deploy erneut aktivieren. Datenbank-Rollback: im Postgres-Plugin unter
+"Backups" das gewünschte Railway-Pro-Backup wiederherstellen (Dashboard, "Restore"),
+vorher mit dem Auftraggeber abstimmen (Datenverlust seit dem Backup-Zeitpunkt). Für einen
+Dump aus einem eigenen `scripts/backup.sh`-Lauf: `gunzip -c daehler-<datum>.sql.gz | psql "$DATABASE_URL"`.

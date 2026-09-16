@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tägliches Backup für den Railway-Postgres (siehe docs/umbau-railway.md,
-# Zeile "Hosting", und docs/deploy-railway.md, Abschnitt "Backup-Service").
+# Zeile "Hosting", und docs/deploy-railway.md, Abschnitt "manuelles Backup (Railway Pro sichert die Datenbank per Point-in-Time-Recovery)").
 # pg_dump gegen DATABASE_URL, gzip, Ablage unter $BACKUP_DIR (auf Railway ein
 # angehängtes Volume, z.B. /backups), Rotation: Dateien älter als
 # RETENTION_DAYS (Standard 14) werden gelöscht. Bricht bei jedem Fehler

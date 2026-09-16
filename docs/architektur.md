@@ -12,8 +12,8 @@ Ergänzt `CLAUDE.md`. Bei Widerspruch gilt `CLAUDE.md`. Dieses Dokument legt fes
 - Resend (`resend` npm) für Mail. Anthropic SDK (`@anthropic-ai/sdk`) für Posten 3 und optionales Polieren des Antwortentwurfs.
 - SheetJS (`xlsx`, Build von cdn.sheetjs.com 0.20.x) für `.xls` (BIFF8) und `.xlsx`.
 - Validierung: `zod`. Tests: `vitest`. E2E: `@playwright/test` (nur Smoke).
-- Hosting: Railway (Node, `npm run build` / `npm start`, `railway.json`/`nixpacks.toml`), Cron-Service via Railway Cron auf `/api/cron/follow-ups` (`scripts/cron-followups.ts`), Backup-Service via `scripts/backup.sh`. Details: `docs/deploy-railway.md`.
-- **Entscheid 16.09.2026** (`docs/umbau-railway.md`): bis zu diesem Datum lief die App auf Supabase (Postgres über supabase-js/PostgREST, Supabase Auth, Storage-Buckets `model-photos`/`imports`, lokal `npx supabase start`). Supabase entfiel vollständig (Projektkontingent der Organisation erschöpft, zweiter Anbieter unerwünscht) und wurde durch die oben beschriebene Railway-only-Lösung ersetzt (`@supabase/*` und der Ordner `supabase/` sind aus dem Repo entfernt); aktueller Stand und Details: `docs/db.md`.
+- Hosting: Railway, ein App-Service (`npm run build` / `npm start`, `railway.json`/Railpack). Follow-ups (Posten 6) laufen als interner Timer im selben Prozess (`lib/followups/scheduler.ts`, `instrumentation.ts`), kein separater Cron-Service; `/api/cron/follow-ups` bleibt als manueller Auslöser (`scripts/cron-followups.ts`). Backups über Railway Pro Volume-Backups, `scripts/backup.sh` nur noch manuell. Details: `docs/deploy-railway.md`.
+- **Entscheid 16.09.2026** (`docs/umbau-railway.md`): bis zu diesem Datum lief die App auf Supabase (Postgres über supabase-js/PostgREST, Supabase Auth, Storage-Buckets `model-photos`/`imports`, lokal `npx supabase start`). Supabase entfiel vollständig (Projektkontingent der Organisation erschöpft, zweiter Anbieter unerwünscht) und wurde durch die oben beschriebene Railway-only-Lösung ersetzt (`@supabase/*` und der Ordner `supabase/` sind aus dem Repo entfernt); aktueller Stand und Details: `docs/db.md`. **Ergänzung 16.09.2026:** kein eigener Cron-/Backup-Service mehr, siehe oben und `docs/umbau-railway.md`.
 
 ## Ordnerstruktur
 
@@ -61,8 +61,8 @@ scripts/
   import-pricelists.ts    CLI: Erstbefüllung in die DB (nutzt lib/pricelist/apply.ts)
   migrate.ts               Migrationsrunner (`--seed`, `--status`)
   create-admin-users.ts    Legt die zwei Admin-Konten an (better-auth)
-  cron-followups.ts        Ruft `/api/cron/follow-ups` auf (lokal bzw. Railway Cron)
-  backup.sh                Täglicher `pg_dump | gzip` (Railway Backup-Service)
+  cron-followups.ts        Ruft `/api/cron/follow-ups` auf (manueller Auslöser, lokal bzw. Admin "Fällige jetzt senden"; der automatische Versand läuft über lib/followups/scheduler.ts)
+  backup.sh                Manueller `pg_dump | gzip` Ad-hoc-Dump (Backups laufen sonst über Railway Pro Volume-Backups)
 docs/
   vorschau.html, preislisten/*.xls, architektur.md, excel-import.md
 public/img/models/*.jpg, public/img/flow/*.jpg   Startfotos aus der Vorschau
@@ -203,7 +203,7 @@ Deterministische Vorlage, Sie-Form, Struktur aus `CLAUDE.md`, Referenz `draft()`
 ## Follow-ups (Posten 6)
 
 - Beim Senden einer Antwort (`reply`) wird `replied_at` gesetzt, `status = beantwortet`, und pro aktiver Regel ein `follow_ups`-Eintrag mit `scheduled_for = replied_at + days_after_reply` angelegt (max. `max_count` je Regel und Anfrage).
-- Cron (`/api/cron/follow-ups`, täglich): sendet fällige, nicht gesendete, nicht stornierte Follow-ups, wenn `answer_received_at` null und Status nicht `abgeschlossen`. «Antwort erhalten» im Admin setzt `answer_received_at` und storniert offene Follow-ups.
+- Der Scheduler im App-Prozess (`lib/followups/scheduler.ts`, stündlich, erster Lauf 5 Minuten nach dem Start) sendet fällige, nicht gesendete, nicht stornierte Follow-ups, wenn `answer_received_at` null und Status nicht `abgeschlossen`. **Sendefenster (Korrektur 16.09.2026, Prüfer-Befund):** ein einzelner Tick sendet nur zwischen 07:00 und 18:00 Europe/Zurich (`isWithinSendWindow()`); ausserhalb davon überspringt der Tick den Lauf komplett, ohne den Advisory-Lock anzufragen, und loggt das. Ohne dieses Fenster hätte der reine 60-Minuten-Timer Follow-up-Mails an Kunden zu jeder Uhrzeit verschickt, u.a. nachts zwischen 00:00 und 01:00 Uhr oder 5 Minuten nach einem Deploy zu beliebiger Zeit (der frühere separate Cron-Dienst lief bewusst nur einmal täglich um 07:00 Europe/Zurich, siehe Git-Historie von `docs/deploy-railway.md`). Ein fälliges Follow-up geht dadurch nicht verloren, sondern wird beim nächsten Tick innerhalb des Fensters gesendet. `/api/cron/follow-ups` bleibt als manueller Auslöser mit derselben Lock-Logik, aber bewusst OHNE Sendefenster (Admin «Fällige jetzt senden» soll jederzeit funktionieren). «Antwort erhalten» im Admin setzt `answer_received_at` und storniert offene Follow-ups.
 
 ## Posten 3, Schnellweg (`lib/ai/extract.ts`)
 

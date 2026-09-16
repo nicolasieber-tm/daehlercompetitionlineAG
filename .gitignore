@@ -48,3 +48,6 @@ Icon
 
 # Mail-Vorschauen aus scripts/preview-inquiry-mail.ts
 /.mail-preview
+
+# Vorlage darf ins Repo (Ausnahme von .env*)
+!.env.example

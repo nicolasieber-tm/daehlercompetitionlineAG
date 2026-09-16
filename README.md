@@ -14,7 +14,7 @@ Verbindliche Dokumentation: [`CLAUDE.md`](./CLAUDE.md) (Entscheidungen aus den K
 - [Resend](https://resend.com) für Mail, [Anthropic SDK](https://docs.anthropic.com) für den Schnellweg (Posten 3) und optionales Polieren des Antwortentwurfs
 - [SheetJS (`xlsx`)](https://sheetjs.com) für den Excel-Import
 - Validierung mit `zod`, Unit-Tests mit `vitest`, E2E-Smoke-Tests mit `@playwright/test`
-- Hosting: Railway (App-Service via Nixpacks, `npm run build` / `npm start`; eigener Cron-Service für `scripts/cron-followups.ts`; eigener Backup-Service für `scripts/backup.sh`), siehe `docs/deploy-railway.md`
+- Hosting: Railway (ein App-Service via Railpack, `npm run build` / `npm start`). Follow-ups (Posten 6) laufen als interner Timer im selben Prozess (`lib/followups/scheduler.ts`, `instrumentation.ts`), kein separater Cron-Service; Backups über Railway Pro Volume-Backups, `scripts/backup.sh` nur noch als manuelles Werkzeug. Details: `docs/deploy-railway.md`
 
 ## Lokale Entwicklung
 
@@ -66,7 +66,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 CRON_SECRET=
 ```
 
-`ANTHROPIC_API_KEY` ist optional (Schnellweg Posten 3, Entwurf-Polish). `MAIL_TO_OVERRIDE`/`RESEND_FROM_OVERRIDE` lenken im Testbetrieb alle Mails auf eine Adresse bzw. ersetzen den Absender, solange `daehler.com` bei Resend nicht verifiziert ist. `.env` wird nie committet (siehe `.gitignore`).
+`ANTHROPIC_API_KEY` ist optional (Schnellweg Posten 3, Entwurf-Polish). `MAIL_TO_OVERRIDE`/`RESEND_FROM_OVERRIDE` lenken im Testbetrieb alle Mails auf eine Adresse bzw. ersetzen den Absender, solange `daehler.com` bei Resend nicht verifiziert ist. `FOLLOWUP_SCHEDULER` ist ausserhalb von Produktion optional (Standard: aus), siehe `lib/followups/scheduler.ts`. `.env` wird nie committet (siehe `.gitignore`).
 
 ## Projektstruktur
 

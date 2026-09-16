@@ -1,6 +1,8 @@
 # Umbau auf Railway-only (Plan, Stand 16.09.2026)
 
-Entscheid des Auftraggebers am 16.09.2026: kein Supabase (Projektkontingent der Organisation erschöpft, zweiter Anbieter unerwünscht). Die App läuft vollständig auf Railway: ein Next.js-Service, ein Railway-Postgres, ein Cron-Service. Login, Fotos und Import-Zwischenspeicher wandern in die App bzw. in Postgres. Flow, Admin-UI, Parser, Mails, Prüfregeln und Antwortentwurf bleiben unverändert; es ändert sich nur die Schicht darunter.
+Entscheid des Auftraggebers am 16.09.2026: kein Supabase (Projektkontingent der Organisation erschöpft, zweiter Anbieter unerwünscht). Die App läuft vollständig auf Railway: ein Next.js-Service (App-Plan Pro), ein Railway-Postgres. Login, Fotos und Import-Zwischenspeicher wandern in die App bzw. in Postgres. Flow, Admin-UI, Parser, Mails, Prüfregeln und Antwortentwurf bleiben unverändert; es ändert sich nur die Schicht darunter.
+
+**Ergänzung 16.09.2026 (Railway Pro):** kein eigener Cron-Service und kein eigener Backup-Service mehr. Follow-ups (Posten 6) löst die App-Instanz selbst aus (`lib/followups/scheduler.ts`, gestartet über `instrumentation.ts`), Backups laufen über die Volume-Backups von Railway Pro (im Dashboard aktiviert, siehe `docs/deploy-railway.md`). `app/api/cron/follow-ups/route.ts` und `scripts/cron-followups.ts` bleiben als manueller Auslöser bestehen (Admin «Fällige jetzt senden», lokales Testen), `scripts/backup.sh` bleibt als manuelles Werkzeug für einen Ad-hoc-Dump. Grund: zwei Dauerdienste nur für einen täglichen HTTP-Aufruf bzw. einen `pg_dump` sind unnötiger Betriebsaufwand, wenn die App selbst einen Timer führen kann und Railway Pro Volume-Backups von Haus aus anbietet.
 
 ## Zielarchitektur
 
@@ -15,7 +17,7 @@ Entscheid des Auftraggebers am 16.09.2026: kein Supabase (Projektkontingent der 
 | DB-Funktionen | `next_inquiry_number()`, `claim_follow_up()`, `schedule_follow_ups()`, `set_updated_at()` | unverändert übernommen, `generate_share_token()` entfällt (Token entsteht in der App) |
 | Lokale Entwicklung | `supabase start` (Docker, 10 Container) | `docker compose up -d` mit einem `postgres:17`-Container (Port 5433), `npm run db:migrate`, `npm run db:seed`, `npm run import -- --apply`, `npm run db:admins` |
 | Tests | gegen lokale Supabase | gegen den lokalen Postgres (`DATABASE_URL`), Aufräumen wie bisher |
-| Hosting | Railway (App) + Supabase Cloud | Railway: Service `app` (Railpack, `npm run build`/`npm start`), Plugin `postgres`, Service `cron` (täglich 07:00 Europe/Zurich = 05:00 UTC, `npx tsx scripts/cron-followups.ts`), Service `backup` (täglich `pg_dump | gzip` auf ein Railway-Volume, 14 Tage) |
+| Hosting | Railway (App) + Supabase Cloud | Railway: Service `app` (Railpack, `npm run build`/`npm start`, Plugin `postgres`). Follow-ups laufen als Timer im `app`-Prozess selbst (`lib/followups/scheduler.ts`), kein separater Cron-Service. Backups über Railway Pro Volume-Backups (Dashboard), kein separater Backup-Service; `scripts/backup.sh` nur noch manuell bei Bedarf |
 | Env | Supabase-Keys | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `RESEND_API_KEY`, `RESEND_FROM_OVERRIDE`, `MAIL_TO_OVERRIDE`, `ANTHROPIC_API_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_APP_URL` |
 
 ## Was sich im Code ändert (Inventar 16.09.2026)
@@ -51,7 +53,9 @@ Entscheid des Auftraggebers am 16.09.2026: kein Supabase (Projektkontingent der 
 
 **Phase E3, Aufräumen und Deploy-Vorbereitung.** `@supabase/*` und `supabase`-CLI aus `package.json`, Ordner `supabase/` entfernen (Historie bleibt in Git), `.env.example`, README, `docs/db.md`, `docs/architektur.md` (Stack), CLAUDE.md-Hinweis (Architektur-Abschnitt: Entscheid 16.09.2026), `railway.json`/Railpack-Konfiguration, Cron- und Backup-Skripte, Healthcheck `/api/health` prüft die DB. Gate.
 
-**Phase F, Railway.** Voraussetzung: `railway login` durch den Auftraggeber. Projekt und Services anlegen, Postgres-Plugin, Variablen setzen, erstes Deploy, Migrationen und Import ausführen, Admin-Konten anlegen, Cron/Backup einrichten, Smoke-Test auf der Railway-URL. Danach Staging-Adresse an den Auftraggeber.
+**Ergänzung Phase E3, 16.09.2026: Follow-up-Scheduler statt Cron-Service.** `lib/followups/scheduler.ts`, `instrumentation.ts`, `.env.example` (`FOLLOWUP_SCHEDULER`), Route und Skript bleiben als manueller Auslöser. Gate: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, Playwright, plus ein eigener Produktions-Start mit verkürztem `FOLLOWUP_SCHEDULER_INITIAL_DELAY_MS` zur Kontrolle, dass der Scheduler tatsächlich einen Lauf meldet.
+
+**Phase F, Railway.** Voraussetzung: `railway login` durch den Auftraggeber. Projekt und Service anlegen, Postgres-Plugin, Variablen setzen (inkl. `FOLLOWUP_SCHEDULER=1`), erstes Deploy, Migrationen und Import ausführen, Admin-Konten anlegen, Volume-Backups im Railway-Pro-Dashboard aktivieren, Smoke-Test auf der Railway-URL. Danach Staging-Adresse an den Auftraggeber.
 
 ## Risiken und Entscheide
 

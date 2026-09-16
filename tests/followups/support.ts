@@ -52,3 +52,34 @@ export async function deleteTestRule(ruleId: string): Promise<void> {
   await sql`delete from follow_ups where rule_id = ${ruleId}`;
   await sql`delete from follow_up_rules where id = ${ruleId}`;
 }
+
+/**
+ * Reiner Test-Mutex-Schlüssel (FOLLOW_UP_LOCK_KEY + 1, siehe
+ * lib/followups/scheduler.ts), NICHT der geprüfte Produktions-Lock selbst.
+ * scheduler.test.ts und cron-route.test.ts greifen beide bewusst auf den
+ * ECHTEN Produktions-Lock (FOLLOW_UP_LOCK_KEY) zu, um runFollowUpsWithLock()
+ * bzw. die Cron-Route gegen den echten Postgres-Advisory-Lock zu prüfen.
+ * Vitest führt Testdateien standardmässig parallel in getrennten
+ * Worker-Prozessen aus (vitest.config.ts hat kein `fileParallelism: false`):
+ * ohne Koordination konnte ein Test aus scheduler.test.ts (z.B. der
+ * mehrfache Timer-Tick über 250ms) und der Lock-Test in cron-route.test.ts
+ * gleichzeitig um denselben Produktions-Lock konkurrieren und sich
+ * gegenseitig den erwarteten Ausgang wegschnappen - beobachtet als
+ * flackernder Fehlschlag von cron-route.test.ts ("expected false to be
+ * true" bei `pg_try_advisory_lock`). withLockTestMutex() serialisiert genau
+ * diese Tests über einen zweiten, rein testinternen Lock (blockierend statt
+ * `try`), ohne den geprüften Schlüssel oder Produktionscode anzufassen.
+ */
+const LOCK_TEST_MUTEX_KEY = 72_193_005;
+
+/** Serialisiert Tests, die den echten FOLLOW_UP_LOCK_KEY anfassen (siehe oben). */
+export async function withLockTestMutex<T>(fn: () => Promise<T>): Promise<T> {
+  const reserved = await sql.reserve();
+  try {
+    await reserved`select pg_advisory_lock(${LOCK_TEST_MUTEX_KEY})`;
+    return await fn();
+  } finally {
+    await reserved`select pg_advisory_unlock(${LOCK_TEST_MUTEX_KEY})`;
+    reserved.release();
+  }
+}

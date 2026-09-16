@@ -1,14 +1,21 @@
-// GET/POST /api/cron/follow-ups: sendet fällige Follow-ups (Posten 6).
-// Header `Authorization: Bearer <CRON_SECRET>`, sonst 401 (siehe
-// docs/architektur.md, Abschnitt "Follow-ups", und Ordnerstruktur:
-// "GET/POST, Header Authorization: Bearer $CRON_SECRET"). Aufgerufen von
-// Railway Cron (Produktion) oder scripts/cron-followups.ts (lokal/manuell).
+// GET/POST /api/cron/follow-ups: manueller Auslöser für fällige Follow-ups
+// (Posten 6), z. B. Admin "Fällige jetzt senden" oder
+// scripts/cron-followups.ts. Header `Authorization: Bearer <CRON_SECRET>`,
+// sonst 401 (siehe docs/architektur.md, Abschnitt "Follow-ups"). Der
+// eigentliche automatische Versand läuft über lib/followups/scheduler.ts
+// (siehe instrumentation.ts, docs/umbau-railway.md: "kein Cron-Dienst,
+// Follow-ups in der App") - diese Route verwendet dieselbe
+// Postgres-Advisory-Lock-Logik (runFollowUpsWithLock()), damit ein
+// manueller Aufruf nie parallel zu einem automatischen Lauf sendet. Läuft
+// der Scheduler (oder ein anderer manueller Aufruf) gerade, liefert diese
+// Route `{ ok: true, skipped: "locked" }` statt zu warten oder doppelt zu
+// senden.
 // GET und POST bewusst identisch: manche Cron-Anbieter (u.a. einfache
 // curl-basierte Konfigurationen) senden GET, Railway Cron sowie
 // scripts/cron-followups.ts senden POST.
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
-import { runDueFollowUps } from "@/lib/followups/run";
+import { runFollowUpsWithLock } from "@/lib/followups/scheduler";
 
 /**
  * Prüft den Authorization-Header zeitkonstant gegen `Bearer <CRON_SECRET>`.
@@ -39,8 +46,11 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const result = await runDueFollowUps();
-    return NextResponse.json({ ok: true, ...result });
+    const outcome = await runFollowUpsWithLock();
+    if (!outcome.ran) {
+      return NextResponse.json({ ok: true, skipped: outcome.reason });
+    }
+    return NextResponse.json({ ok: true, ...outcome.result });
   } catch (err) {
     return NextResponse.json(
       {

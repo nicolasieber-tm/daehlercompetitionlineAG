@@ -1,8 +1,13 @@
 "use client";
 
-// «Fällige jetzt senden»: ruft runDueFollowUps() (lib/followups/run.ts) über
-// die Server Action auf und zeigt das Ergebnis (gesendet/übersprungen/
-// fehlgeschlagen).
+// «Fällige jetzt senden»: ruft über die Server Action
+// (app/admin/actions/followups.ts, runDueFollowUpsAction()) denselben
+// Postgres-Advisory-Lock auf wie der interne Scheduler und die Cron-Route
+// (lib/followups/scheduler.ts, runFollowUpsWithLock()) und zeigt das
+// Ergebnis (gesendet/übersprungen/fehlgeschlagen). Läuft gerade ein
+// automatischer Lauf, liefert die Action ok:false mit einer entsprechenden
+// Meldung statt eines leeren Ergebnisses; die zeigt der bestehende
+// Fehler-Zweig unten (showToast(result.error, "error")) unverändert an.
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { admin } from "@/lib/i18n/admin";
