@@ -410,36 +410,30 @@ export function beforeAfterTable(rows: BeforeAfterRow[], locale: Locale): MailBl
   const dict = getDictionary(locale);
   const ba = dict.steps.done.beforeAfter;
 
-  // Einzeilige Legende über die volle Breite (die Zeilen darunter sind
-  // gestapelt, eine zweispaltige Kopfzeile hätte dort keinen Bezug):
-  // "Vorher → Nachher · by dÄHLer", der Nachher-Teil in Rot wie im Flow.
-  const head =
-    `<tr><td colspan="2" style="padding:9px 8px;text-align:left;vertical-align:top;border-bottom:1px solid ${BORDER};font-family:${FONT};font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:bold;">` +
-    `<span style="color:${MUTED};">${escapeHtml(ba.before)}</span>` +
-    ` <span style="color:${DIM};">&#8594;</span> ` +
-    `<span style="color:${BRAND_RED};">${escapeHtml(ba.after)}</span>` +
-    `</td></tr>`;
-
-  // Pro Zeile: Kategorie-Label als eigene Zeile (volle Breite), darunter
-  // "Vorher → Nachher" ebenfalls über die volle Breite als ein
-  // zusammenhängender Fliesstext (nicht in zwei starre Hälften geteilt) -
-  // siehe Doc-Kommentar oben ("Korrektur 2").
+  // Je Kategorie ein Block, untereinander (Wunsch des Kunden): Kategorie-
+  // Label, darunter "Vorher" mit Wert, darunter "Nachher · by dÄHLer" (rot)
+  // mit dem Wert fett bzw. bei der Leistung mit grossen Zahlen und Plus.
+  const subLabel = (text: string, color: string) =>
+    `<div style="font-family:${FONT};font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:bold;color:${color};margin:6px 0 2px;">${escapeHtml(
+      text,
+    )}</div>`;
   const bodyRows = rows
     .map((row) => {
       const { beforeHtml, afterHtml } = rowCellsHtml(row);
-      const labelHtml = `<div style="font-family:${DISPLAY_FONT};font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:${MUTED};font-weight:bold;margin:0 0 4px;">${escapeHtml(
+      const labelHtml = `<div style="font-family:${DISPLAY_FONT};font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:${TEXT};font-weight:bold;">${escapeHtml(
         row.label,
       )}</div>`;
-      const valueHtml =
-        `<div style="font-family:${FONT};font-size:14px;line-height:1.5;">` +
-        `<span style="color:${DIM};">${beforeHtml}</span>` +
-        ` <span style="color:${DIM};">&#8594;</span> ` +
-        `<span style="color:${TEXT};font-weight:bold;">${afterHtml}</span>` +
-        `</div>`;
+      const beforeBlock =
+        subLabel(ba.before, MUTED) +
+        `<div style="font-family:${FONT};font-size:14px;line-height:1.5;color:${DIM};">${beforeHtml}</div>`;
+      const afterBlock =
+        subLabel(ba.after, BRAND_RED) +
+        `<div style="font-family:${FONT};font-size:14px;line-height:1.5;color:${TEXT};font-weight:bold;">${afterHtml}</div>`;
       return (
-        `<tr><td colspan="2" style="padding:9px 8px;text-align:left;vertical-align:top;border-top:1px solid ${BORDER};word-wrap:break-word;overflow-wrap:break-word;">` +
+        `<tr><td colspan="2" style="padding:10px 8px 12px;text-align:left;vertical-align:top;border-top:1px solid ${BORDER};word-wrap:break-word;overflow-wrap:break-word;">` +
         labelHtml +
-        valueHtml +
+        beforeBlock +
+        afterBlock +
         `</td></tr>`
       );
     })
@@ -447,21 +441,21 @@ export function beforeAfterTable(rows: BeforeAfterRow[], locale: Locale): MailBl
 
   const html =
     `<table role="presentation" class="ba-tbl" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;border-collapse:collapse;margin:0 0 16px;table-layout:fixed;">` +
-    `${head}${bodyRows}</table>`;
+    `${bodyRows}</table>`;
 
-  const LABEL_WIDTH = 12;
   const text = rows
     .map((row) => {
+      let beforeText = row.before;
+      let afterText = row.after;
       if (row.power) {
-        const beforeText = powerTextValue(row.power.beforePs, row.power.beforeNm);
-        const afterText = powerTextValue(row.power.afterPs, row.power.afterNm);
-        const plus = formatPowerPlusText(row.power);
-        const extras = row.extras ? ` · ${row.extras}` : "";
-        return `${row.label.padEnd(LABEL_WIDTH)}${beforeText}  →  ${afterText} (${plus})${extras}`;
+        beforeText = powerTextValue(row.power.beforePs, row.power.beforeNm);
+        afterText = `${powerTextValue(row.power.afterPs, row.power.afterNm)} (${formatPowerPlusText(row.power)})${
+          row.extras ? ` · ${row.extras}` : ""
+        }`;
       }
-      return `${row.label.padEnd(LABEL_WIDTH)}${row.before}  →  ${row.after}`;
+      return `${row.label}\n  ${ba.before}: ${beforeText}\n  ${ba.after}: ${afterText}`;
     })
-    .join("\n");
+    .join("\n\n");
 
   return { html, text };
 }

@@ -48,3 +48,6 @@ next-env.d.ts
 # macOS Ordner-Icon-Dateien (Icon\r)
 Icon?
 Icon
+
+# Mail-Vorschauen aus scripts/preview-inquiry-mail.ts
+/.mail-preview

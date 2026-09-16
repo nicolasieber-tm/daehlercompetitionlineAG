@@ -777,14 +777,14 @@ describe("Klicktest-Rückmeldung: Getriebe-Zeile und Positionsdarstellung", () =
     const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
     const result = buildConfirmation({ ...ctx, inquiry: { ...ctx.inquiry, series_ps: 480 } });
     // baseModel() liefert series_nm 650 (siehe Fixture oben).
-    expect(result.text).toContain("480 PS · 650 Nm  →  620 PS · 740 Nm (+140 PS / +90 Nm)");
+    expect(result.text).toMatch(/Leistung\n  Vorher: 480 PS · 650 Nm\n  Nachher · by dÄHLer: 620 PS · 740 Nm \(\+140 PS \/ \+90 Nm\)/);
     expect(result.html).toContain("28px");
   });
 
   it("buildSummary zeigt dieselbe Vorher/Nachher-Leistungszeile in der Tabelle", () => {
     const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
     const result = buildSummary({ ...ctx, inquiry: { ...ctx.inquiry, series_ps: 480 } });
-    expect(result.text).toContain("480 PS · 650 Nm  →  620 PS · 740 Nm (+140 PS / +90 Nm)");
+    expect(result.text).toMatch(/Leistung\n  Vorher: 480 PS · 650 Nm\n  Nachher · by dÄHLer: 620 PS · 740 Nm \(\+140 PS \/ \+90 Nm\)/);
   });
 
   it("ohne gewählte Leistungsstufe (variant_group nicht 'leistung') keine Leistungszeile mit Zahlen/Plus", () => {
@@ -857,8 +857,8 @@ describe("beforeAfterTable in den Kundenmails", () => {
   // Text-Fallback-Zeile für "Leistung" (before/after als Text).
   it("confirmation: Text-Variante enthält je gewählter Kategorie eine ausgerichtete Zeile", () => {
     const result = buildConfirmation(ctx);
-    expect(result.text).toMatch(/Leistung\s+.+\s+→\s+.+/);
-    expect(result.text).toMatch(/Sound\s+Serienanlage\s+→\s+Klappenauspuffanlage/);
+    expect(result.text).toMatch(/Leistung\n  Vorher: .+\n  Nachher · by dÄHLer: .+/);
+    expect(result.text).toMatch(/Sound\n  Vorher: Serienanlage\n  Nachher · by dÄHLer: Klappenauspuffanlage/);
   });
 
   // Mit gewählter Leistungsstufe UND bekannter Serienleistung: grosse
@@ -910,7 +910,7 @@ describe("beforeAfterTable in den Kundenmails", () => {
     const ctxQuick = makeContext({ locale: "en", items: [], withModel: false });
     const result = buildConfirmation(ctxQuick);
     expect(result.html).toContain('class="ba-tbl"');
-    expect(result.text).toMatch(/Power\s+Standard\s+→\s+Advice/);
+    expect(result.text).toMatch(/Power\n  Before: Standard\n  After · by dÄHLer: Advice/);
   });
 
   it("inbox zeigt die Übersicht als kompakten Klartext-Block (Monospace), nach GESCHÄTZTES PAKET", () => {
