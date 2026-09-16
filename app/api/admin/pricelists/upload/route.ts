@@ -6,10 +6,11 @@
 // createPricelistImport() (parseWorkbook -> buildDiff -> pending Import) und
 // liefert den berechneten Diff direkt zurück, damit die Upload-Komponente
 // nicht auf einen zweiten Request warten muss. Nur für angemeldete Admins
-// (Supabase-Session), sonst 401 (zusätzlich zu middleware.ts, Defense in
-// Depth wie bei den übrigen /api/admin/*-Routen).
+// (better-auth-Session über getAdminUser(), wie bei den übrigen
+// /api/admin/*-Routen), sonst 401 (zusätzlich zu middleware.ts, Defense in
+// Depth).
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAdminUser } from "@/lib/admin/auth";
 import { createPricelistImport, type FileParseError } from "@/lib/admin/pricelists";
 
 const MAX_FILES = 50;
@@ -22,10 +23,7 @@ function hasAllowedExtension(filename: string): boolean {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAdminUser();
   if (!user) {
     return NextResponse.json({ ok: false, error: "Nicht angemeldet." }, { status: 401 });
   }

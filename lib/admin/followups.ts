@@ -1,24 +1,15 @@
 // Admin-Datenzugriff für Follow-up-Regeln und die Liste anstehender
 // Follow-ups (Posten 6). Siehe CLAUDE.md, Abschnitt "Follow-ups (Posten 6)",
-// docs/architektur.md, und lib/followups/{placeholders,schedule,run}.ts, die
-// hier wiederverwendet werden (kein eigener Platzhalter-/Planungscode).
+// docs/architektur.md, und lib/followups/placeholders.ts (renderTemplate,
+// reine Funktion ohne DB-Zugriff), das hier wiederverwendet wird.
 //
-// Wie lib/admin/inquiries.ts: liest/schreibt über den Server-Client
-// (Session-Cookies, RLS) - `follow_up_rules_all_authenticated` und
-// `follow_ups_all_authenticated` (siehe supabase/migrations/
-// 20260911000000_init.sql) geben jedem eingeloggten Admin volle Rechte.
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/database.types";
+// Postgres direkt über lib/db/client.ts (sql), siehe docs/umbau-railway.md,
+// Abschnitt "Datenzugriffsschicht": keine RLS mehr, jeder Zugriff läuft
+// ohnehin serverseitig durch die App.
+import { sql } from "@/lib/db/client";
 import { renderTemplate } from "@/lib/followups/placeholders";
 import { vehicleLabel } from "@/lib/mail/render";
-import type { Model, ModelFamily } from "@/lib/supabase/rows";
-
-type Db = SupabaseClient<Database>;
-
-async function resolveClient(db?: Db): Promise<Db> {
-  return db ?? (await createServerClient());
-}
+import type { Model, ModelFamily } from "@/lib/db/rows";
 
 // ---------------------------------------------------------------------------
 // Platzhalter-Validierung (siehe lib/followups/placeholders.ts): unbekannte
@@ -45,14 +36,13 @@ function assertKnownPlaceholders(subject: string, body: string): void {
 
 // ---------------------------------------------------------------------------
 // Bereichs-/Pflichtfeldprüfung (Prüfbefund admin-followups, Punkt 4): weder
-// die follow_up_rules-Tabelle (supabase/migrations/20260911000000_init.sql,
-// nur "not null", keine CHECK-Constraints) noch das bisherige UI verhinderten
-// z.B. 0 oder 4000 Tage, eine leere maxCount oder leeren Betreff/Text - eine
-// solche Regel hätte lib/followups/schedule.ts (Terminberechnung) und
+// die follow_up_rules-Tabelle (db/migrations/0001_init.sql, nur "not null",
+// keine CHECK-Constraints) noch das bisherige UI verhinderten z.B. 0 oder
+// 4000 Tage, eine leere maxCount oder leeren Betreff/Text - eine solche
+// Regel hätte lib/followups/schedule.ts (Terminberechnung) und
 // lib/followups/run.ts (max_count-Vergleich) mit unsinnigen/fehlenden Werten
 // erreicht. Wird in createRule()/updateRule() VOR dem Speichern geprüft,
-// wie assertKnownPlaceholders() oben - Fehler kommt über dieselbe
-// Toast-Anzeige in FollowUpRuleForm.tsx (result.error) an die Admin-UI.
+// wie assertKnownPlaceholders() oben.
 // ---------------------------------------------------------------------------
 
 export class FollowUpRuleValidationError extends Error {
@@ -95,15 +85,24 @@ export interface FollowUpRuleRow {
   sort: number;
 }
 
-export async function listRules(db?: Db): Promise<FollowUpRuleRow[]> {
-  const client = await resolveClient(db);
-  const { data, error } = await client
-    .from("follow_up_rules")
-    .select("id, name, days_after_reply, subject, body, max_count, active, sort")
-    .order("sort", { ascending: true })
-    .order("name", { ascending: true });
-  if (error) throw new Error(`Follow-up-Regeln laden fehlgeschlagen: ${error.message}`);
-  return (data ?? []).map((r) => ({
+interface RuleRow {
+  id: string;
+  name: string;
+  days_after_reply: number;
+  subject: string;
+  body: string;
+  max_count: number;
+  active: boolean;
+  sort: number;
+}
+
+export async function listRules(): Promise<FollowUpRuleRow[]> {
+  const rows = await sql<RuleRow[]>`
+    select id, name, days_after_reply, subject, body, max_count, active, sort
+    from follow_up_rules
+    order by sort asc, name asc
+  `;
+  return rows.map((r) => ({
     id: r.id,
     name: r.name,
     daysAfterReply: r.days_after_reply,
@@ -125,44 +124,33 @@ export interface FollowUpRuleInput {
   sort: number;
 }
 
-export async function createRule(input: FollowUpRuleInput, db?: Db): Promise<string> {
+export async function createRule(input: FollowUpRuleInput): Promise<string> {
   assertValidRuleInput(input);
   assertKnownPlaceholders(input.subject, input.body);
-  const client = await resolveClient(db);
-  const { data, error } = await client
-    .from("follow_up_rules")
-    .insert({
-      name: input.name,
-      days_after_reply: input.daysAfterReply,
-      subject: input.subject,
-      body: input.body,
-      max_count: input.maxCount,
-      active: input.active,
-      sort: input.sort,
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error(`Follow-up-Regel anlegen fehlgeschlagen: ${error.message}`);
-  return data.id;
+
+  const [row] = await sql<{ id: string }[]>`
+    insert into follow_up_rules (name, days_after_reply, subject, body, max_count, active, sort)
+    values (${input.name}, ${input.daysAfterReply}, ${input.subject}, ${input.body}, ${input.maxCount}, ${input.active}, ${input.sort})
+    returning id
+  `;
+  return row.id;
 }
 
-export async function updateRule(id: string, input: FollowUpRuleInput, db?: Db): Promise<void> {
+export async function updateRule(id: string, input: FollowUpRuleInput): Promise<void> {
   assertValidRuleInput(input);
   assertKnownPlaceholders(input.subject, input.body);
-  const client = await resolveClient(db);
-  const { error } = await client
-    .from("follow_up_rules")
-    .update({
-      name: input.name,
-      days_after_reply: input.daysAfterReply,
-      subject: input.subject,
-      body: input.body,
-      max_count: input.maxCount,
-      active: input.active,
-      sort: input.sort,
-    })
-    .eq("id", id);
-  if (error) throw new Error(`Follow-up-Regel speichern fehlgeschlagen: ${error.message}`);
+
+  await sql`
+    update follow_up_rules
+    set name = ${input.name},
+        days_after_reply = ${input.daysAfterReply},
+        subject = ${input.subject},
+        body = ${input.body},
+        max_count = ${input.maxCount},
+        active = ${input.active},
+        sort = ${input.sort}
+    where id = ${id}
+  `;
 }
 
 export interface DeleteRuleResult {
@@ -175,31 +163,24 @@ export interface DeleteRuleResult {
  * lib/followups/run.ts/schedule.ts): dann wird sie stattdessen deaktiviert
  * (Aufgabenstellung "löschen nur ohne offene follow_ups, sonst
  * deaktivieren"). follow_ups.rule_id ist ohnehin "on delete set null"
- * (Migration), ein Löschen würde also nicht scheitern, aber offene
- * follow_ups verlören ihren Regeltext (siehe lib/followups/run.ts: ohne
- * Regel wird ein Eintrag storniert statt gesendet) - Deaktivieren erhält die
- * Regel für die noch ausstehenden Sendungen.
+ * (db/migrations/0001_init.sql), ein Löschen würde also nicht scheitern,
+ * aber offene follow_ups verlören ihren Regeltext (siehe lib/followups/
+ * run.ts: ohne Regel wird ein Eintrag storniert statt gesendet) -
+ * Deaktivieren erhält die Regel für die noch ausstehenden Sendungen.
  */
-export async function deleteOrDeactivateRule(id: string, db?: Db): Promise<DeleteRuleResult> {
-  const client = await resolveClient(db);
+export async function deleteOrDeactivateRule(id: string): Promise<DeleteRuleResult> {
+  const [{ count }] = await sql<{ count: number }[]>`
+    select count(*)::int as count
+    from follow_ups
+    where rule_id = ${id} and sent_at is null and cancelled_at is null and failed_at is null
+  `;
 
-  const { count, error: countError } = await client
-    .from("follow_ups")
-    .select("id", { count: "exact", head: true })
-    .eq("rule_id", id)
-    .is("sent_at", null)
-    .is("cancelled_at", null)
-    .is("failed_at", null);
-  if (countError) throw new Error(`Offene Follow-ups prüfen fehlgeschlagen: ${countError.message}`);
-
-  if ((count ?? 0) > 0) {
-    const { error } = await client.from("follow_up_rules").update({ active: false }).eq("id", id);
-    if (error) throw new Error(`Follow-up-Regel deaktivieren fehlgeschlagen: ${error.message}`);
+  if (count > 0) {
+    await sql`update follow_up_rules set active = false where id = ${id}`;
     return { deleted: false };
   }
 
-  const { error } = await client.from("follow_up_rules").delete().eq("id", id);
-  if (error) throw new Error(`Follow-up-Regel löschen fehlgeschlagen: ${error.message}`);
+  await sql`delete from follow_up_rules where id = ${id}`;
   return { deleted: true };
 }
 
@@ -221,57 +202,50 @@ interface UpcomingRow {
   id: string;
   scheduled_for: string;
   inquiry_id: string;
-  follow_up_rules: { name: string } | null;
-  inquiries: {
-    number: string;
-    first_name: string | null;
-    last_name: string | null;
-    vehicle_text: string | null;
-    model_families: Pick<ModelFamily, "brand" | "name" | "codes"> | null;
-    models: Pick<Model, "name"> | null;
-  } | null;
+  rule_name: string | null;
+  number: string;
+  first_name: string | null;
+  last_name: string | null;
+  vehicle_text: string | null;
+  family: ModelFamily | null;
+  model: Model | null;
 }
 
 const UPCOMING_WINDOW_DAYS = 30;
 
-export async function listUpcomingFollowUps(windowDays: number = UPCOMING_WINDOW_DAYS, db?: Db): Promise<UpcomingFollowUpRow[]> {
-  const client = await resolveClient(db);
-  const today = new Date();
-  const until = new Date(today.getTime() + windowDays * 24 * 60 * 60 * 1000);
+export async function listUpcomingFollowUps(windowDays: number = UPCOMING_WINDOW_DAYS): Promise<UpcomingFollowUpRow[]> {
+  const until = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000);
   const untilStr = until.toISOString().slice(0, 10);
 
-  const { data, error } = await client
-    .from("follow_ups")
-    .select(
-      "id, scheduled_for, inquiry_id, " +
-        "follow_up_rules(name), " +
-        "inquiries(number, first_name, last_name, vehicle_text, model_families(brand, name, codes), models(name))",
-    )
-    .lte("scheduled_for", untilStr)
-    .is("sent_at", null)
-    .is("cancelled_at", null)
-    .is("failed_at", null)
-    .order("scheduled_for", { ascending: true });
-  if (error) throw new Error(`Anstehende Follow-ups laden fehlgeschlagen: ${error.message}`);
+  const rows = await sql<UpcomingRow[]>`
+    select
+      fu.id, fu.scheduled_for, fu.inquiry_id,
+      r.name as rule_name,
+      i.number, i.first_name, i.last_name, i.vehicle_text,
+      case when f.id is null then null else to_jsonb(f.*) end as family,
+      case when m.id is null then null else to_jsonb(m.*) end as model
+    from follow_ups fu
+    join inquiries i on i.id = fu.inquiry_id
+    left join follow_up_rules r on r.id = fu.rule_id
+    left join model_families f on f.id = i.family_id
+    left join models m on m.id = i.model_id
+    where fu.scheduled_for <= ${untilStr}
+      and fu.sent_at is null
+      and fu.cancelled_at is null
+      and fu.failed_at is null
+    order by fu.scheduled_for asc
+  `;
 
-  const rows = (data ?? []) as unknown as UpcomingRow[];
-  return rows
-    .filter((r) => r.inquiries !== null)
-    .map((r) => {
-      const inquiry = r.inquiries!;
-      const customerName = [inquiry.first_name, inquiry.last_name].filter(Boolean).join(" ") || "-";
-      return {
-        id: r.id,
-        scheduledFor: r.scheduled_for,
-        inquiryId: r.inquiry_id,
-        inquiryNumber: inquiry.number,
-        ruleName: r.follow_up_rules?.name ?? null,
-        customerName,
-        vehicleLabel: vehicleLabel({
-          family: inquiry.model_families as ModelFamily | null,
-          model: inquiry.models as Model | null,
-          vehicleText: inquiry.vehicle_text,
-        }),
-      };
-    });
+  return rows.map((r) => {
+    const customerName = [r.first_name, r.last_name].filter(Boolean).join(" ") || "-";
+    return {
+      id: r.id,
+      scheduledFor: r.scheduled_for,
+      inquiryId: r.inquiry_id,
+      inquiryNumber: r.number,
+      ruleName: r.rule_name,
+      customerName,
+      vehicleLabel: vehicleLabel({ family: r.family, model: r.model, vehicleText: r.vehicle_text }),
+    };
+  });
 }

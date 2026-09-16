@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import type { User } from "@supabase/supabase-js";
+import type { AdminUser } from "@/lib/admin/auth";
 import { admin } from "@/lib/i18n/admin";
 import { signOutAction } from "@/app/admin/actions/auth";
 import { Button } from "@/components/ui";
@@ -36,7 +36,7 @@ export function AdminShell({
   newCount,
   children,
 }: {
-  user: User;
+  user: AdminUser;
   newCount: number;
   children: ReactNode;
 }) {

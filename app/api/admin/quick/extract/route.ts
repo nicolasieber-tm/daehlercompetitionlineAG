@@ -1,9 +1,12 @@
 // POST /api/admin/quick/extract: Posten 3, Schnellweg, erster Schritt
 // ("Auswerten", siehe CLAUDE.md "Admin", Abschnitt Schnellweg). Nur für
-// angemeldete Admins (Supabase-Session), sonst 401.
+// angemeldete Admins, sonst 401. Session-Prüfung bleibt requireAdmin()
+// (lib/admin/auth.ts), wie an allen anderen Admin-Stellen - der Umbau auf
+// better-auth (Phase E2, siehe docs/umbau-railway.md) ändert an dieser
+// Aufrufstelle nichts.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { getAdminUser } from "@/lib/admin/auth";
 import { extractInquiry } from "@/lib/ai/extract";
 
 const bodySchema = z.object({
@@ -12,10 +15,11 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getAdminUser() statt requireAdmin(): requireAdmin() leitet ohne Session
+  // per next/navigation redirect() um (für Pages/Server Actions gedacht),
+  // ein Route Handler soll stattdessen 401 JSON liefern (middleware.ts
+  // schützt /api/admin/* bereits am Rand, das hier ist Defense in Depth).
+  const user = await getAdminUser();
   if (!user) {
     return NextResponse.json({ ok: false, error: "Nicht angemeldet." }, { status: 401 });
   }

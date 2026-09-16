@@ -15,13 +15,18 @@ try {
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { chromium } from "@playwright/test";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { buildMailContext } from "@/lib/inquiry/context";
-import { buildConfirmation, buildSummary, buildInbox, buildReply } from "@/lib/mail";
 
 type MailType = "confirmation" | "summary" | "inbox" | "reply";
 
 async function main() {
+  // Dynamischer Import, NACH process.loadEnvFile(): siehe Kommentar in
+  // scripts/send-inquiry-mails.ts (ein statischer Import von lib/db/client
+  // bzw. eines Moduls, das es transitiv importiert, würde vor diesen
+  // try/catch-Block gehoben, DATABASE_URL wäre dann noch nicht gesetzt).
+  const { sql, closeDb } = await import("@/lib/db/client");
+  const { buildMailContext } = await import("@/lib/inquiry/context");
+  const { buildConfirmation, buildSummary, buildInbox, buildReply } = await import("@/lib/mail");
+
   const number = process.argv[2];
   const type = (process.argv[3] || "confirmation") as MailType;
   const outDir = process.argv[4] || path.join(process.cwd(), ".mail-preview");
@@ -29,14 +34,12 @@ async function main() {
     console.error("Aufruf: npx tsx scripts/preview-inquiry-mail.ts <Nummer> [confirmation|summary|inbox|reply] [Ausgabeordner]");
     process.exit(1);
   }
-  const db = createAdminClient();
-  const { data: inquiry, error } = await db.from("inquiries").select("id").eq("number", number).maybeSingle();
-  if (error) throw error;
+  const [inquiry] = await sql<{ id: string }[]>`select id from inquiries where number = ${number}`;
   if (!inquiry) {
     console.error(`Anfrage ${number} nicht gefunden.`);
     process.exit(1);
   }
-  const ctx = await buildMailContext(inquiry.id, db);
+  const ctx = await buildMailContext(inquiry.id);
   const builders = { confirmation: buildConfirmation, summary: buildSummary, inbox: buildInbox, reply: buildReply };
   const { subject, html, text } = builders[type](ctx);
 
@@ -50,6 +53,7 @@ async function main() {
   await page.screenshot({ path: `${base}-375.png`, fullPage: true });
   await browser.close();
   console.log(`Betreff: ${subject}\nDateien: ${base}.html, ${base}.txt, ${base}-375.png`);
+  await closeDb();
 }
 
 main().catch((err) => {

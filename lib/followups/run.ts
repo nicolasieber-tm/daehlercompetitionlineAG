@@ -3,21 +3,19 @@
 // "Follow-ups" ("Cron ... sendet fällige, nicht gesendete, nicht
 // stornierte Follow-ups, wenn answer_received_at null und Status nicht
 // abgeschlossen"). Aufgerufen von app/api/cron/follow-ups/route.ts.
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sql } from "@/lib/db/client";
 import { sendInquiryMail } from "@/lib/mail";
 import { vehicleLabel } from "@/lib/mail/render";
 import { getSettings } from "@/lib/mail/settings";
-import type { Locale, Model, ModelFamily } from "@/lib/supabase/rows";
+import type { Locale, Model, ModelFamily } from "@/lib/db/rows";
 import { zurichDateString } from "./schedule";
-
-type Admin = ReturnType<typeof createAdminClient>;
 
 /**
  * Maximale Anzahl Versandversuche je Follow-up-Eintrag (Prüfer-Befund:
  * "Erwartung laut Auftrag: maximal 3 Versuche"). Wird in claim_follow_up()
- * (supabase/migrations/20260915000000_followups_retry_limit.sql) als
- * DB-seitiger Claim-Guard durchgesetzt; die Konstante hier dient nur der
- * Entscheidung "war das der letzte Versuch?" nach einem Fehlschlag.
+ * (db/migrations/0001_init.sql) als DB-seitiger Claim-Guard durchgesetzt;
+ * die Konstante hier dient nur der Entscheidung "war das der letzte
+ * Versuch?" nach einem Fehlschlag.
  */
 export const MAX_FOLLOW_UP_ATTEMPTS = 3;
 
@@ -42,40 +40,39 @@ export interface RunDueFollowUpsResult {
   details: RunDueFollowUpDetail[];
 }
 
-// Eingebettete Zeile aus der select()-Query unten. PostgREST liefert für
-// eine solche Zeichenketten-Query keinen streng getippten Rückgabetyp
-// (siehe dasselbe Muster mit "as unknown as {...}" in
-// lib/pricelist/diff.ts/queries.ts); hier deshalb bewusst nur die
-// tatsächlich gelesenen Felder als eigener Typ, statt der vollen Row-Typen.
+// Flache Zeile aus dem LEFT JOIN unten (inquiries/model_families/models/
+// follow_up_rules): nur die tatsächlich gelesenen Felder als eigener Typ,
+// statt der vollen Row-Typen.
 interface DueFollowUpRow {
   id: string;
   inquiry_id: string;
   rule_id: string | null;
   scheduled_for: string;
-  inquiries: {
-    id: string;
-    number: string;
-    status: string;
-    answer_received_at: string | null;
-    first_name: string | null;
-    last_name: string | null;
-    email: string | null;
-    locale: string;
-    vehicle_text: string | null;
-    model_families: Pick<ModelFamily, "brand" | "name" | "codes"> | null;
-    models: Pick<Model, "name"> | null;
-  } | null;
-  follow_up_rules: { id: string; subject: string; body: string; active: boolean } | null;
+  inquiry_number: string | null;
+  inquiry_status: string | null;
+  inquiry_answer_received_at: string | null;
+  inquiry_first_name: string | null;
+  inquiry_last_name: string | null;
+  inquiry_email: string | null;
+  inquiry_locale: string | null;
+  inquiry_vehicle_text: string | null;
+  family_brand: string | null;
+  family_name: string | null;
+  family_codes: string[] | null;
+  model_name: string | null;
+  rule_subject: string | null;
+  rule_body: string | null;
+  rule_active: boolean | null;
 }
 
 /** Storniert genau einen follow_ups-Eintrag (Guard: nur wenn noch nicht gesendet). */
-async function cancelFollowUp(admin: Admin, followUpId: string): Promise<void> {
-  const { error } = await admin
-    .from("follow_ups")
-    .update({ cancelled_at: new Date().toISOString() })
-    .eq("id", followUpId)
-    .is("sent_at", null);
-  if (error) {
+async function cancelFollowUp(followUpId: string): Promise<void> {
+  try {
+    await sql`
+      update follow_ups set cancelled_at = ${new Date().toISOString()}
+      where id = ${followUpId} and sent_at is null
+    `;
+  } catch (error) {
     console.error(`runDueFollowUps: Stornieren von ${followUpId} fehlgeschlagen.`, error);
   }
 }
@@ -90,8 +87,8 @@ interface ClaimedFollowUp {
  * (Aufgabenstellung: "Update mit where sent_at is null als Guard vor dem
  * Versand"): setzt sent_at UND erhöht attempts atomar in einem einzigen
  * UPDATE, über die Postgres-Funktion claim_follow_up() (siehe
- * supabase/migrations/20260915000000_followups_retry_limit.sql) - ein
- * "erst zählen, dann schreiben" in der App-Schicht wäre hier nicht atomar.
+ * db/migrations/0001_init.sql) - ein "erst zählen, dann schreiben" in der
+ * App-Schicht wäre hier nicht atomar.
  * Der Guard ist erfüllt (Zeile wird zurückgegeben), nur wenn sent_at,
  * cancelled_at und failed_at alle noch null sind UND attempts noch unter
  * MAX_FOLLOW_UP_ATTEMPTS liegt. Nur dann wird anschliessend tatsächlich
@@ -108,19 +105,14 @@ interface ClaimedFollowUp {
  * < 3" innerhalb von claim_follow_up() in der Migration), die bei einer
  * künftigen Änderung des Limits leicht auseinanderlaufen. Die Konstante
  * wird deshalb als Parameter an die DB-Funktion übergeben (siehe
- * supabase/migrations/20260916000000_followups_and_imports_phase_b.sql,
- * claim_follow_up(p_id, p_max_attempts)); die einzige Quelle für das Limit
- * bleibt MAX_FOLLOW_UP_ATTEMPTS hier.
+ * db/migrations/0001_init.sql, claim_follow_up(p_id, p_max_attempts)); die
+ * einzige Quelle für das Limit bleibt MAX_FOLLOW_UP_ATTEMPTS hier.
  */
-async function claimFollowUp(admin: Admin, followUpId: string): Promise<ClaimedFollowUp | null> {
-  const { data, error } = await admin.rpc("claim_follow_up", {
-    p_id: followUpId,
-    p_max_attempts: MAX_FOLLOW_UP_ATTEMPTS,
-  });
-  if (error) {
-    throw new Error(`runDueFollowUps: Beanspruchen von ${followUpId} fehlgeschlagen: ${error.message}`);
-  }
-  const row = (data ?? [])[0];
+async function claimFollowUp(followUpId: string): Promise<ClaimedFollowUp | null> {
+  const rows = await sql<{ attempts: number }[]>`
+    select attempts from claim_follow_up(${followUpId}, ${MAX_FOLLOW_UP_ATTEMPTS})
+  `;
+  const row = rows[0];
   return row ? { attempts: row.attempts } : null;
 }
 
@@ -135,29 +127,27 @@ async function claimFollowUp(admin: Admin, followUpId: string): Promise<ClaimedF
  * Gibt zurück, ob es der letzte Versuch war.
  */
 async function recordFollowUpFailure(
-  admin: Admin,
   followUpId: string,
   attemptsAfterClaim: number,
   errorMessage: string,
 ): Promise<boolean> {
   const isFinal = attemptsAfterClaim >= MAX_FOLLOW_UP_ATTEMPTS;
-  const { error } = await admin
-    .from("follow_ups")
-    .update({
-      sent_at: null,
-      last_error: errorMessage,
-      ...(isFinal ? { failed_at: new Date().toISOString() } : {}),
-    })
-    .eq("id", followUpId);
-  if (error) {
+  try {
+    await sql`
+      update follow_ups
+      set sent_at = null, last_error = ${errorMessage}, failed_at = ${isFinal ? new Date().toISOString() : null}
+      where id = ${followUpId}
+    `;
+  } catch (error) {
     console.error(`runDueFollowUps: Fehlerprotokoll für ${followUpId} fehlgeschlagen.`, error);
   }
   return isFinal;
 }
 
-async function linkOutboundEmail(admin: Admin, followUpId: string, outboundEmailId: string): Promise<void> {
-  const { error } = await admin.from("follow_ups").update({ outbound_email_id: outboundEmailId }).eq("id", followUpId);
-  if (error) {
+async function linkOutboundEmail(followUpId: string, outboundEmailId: string): Promise<void> {
+  try {
+    await sql`update follow_ups set outbound_email_id = ${outboundEmailId} where id = ${followUpId}`;
+  } catch (error) {
     console.error(`runDueFollowUps: Verknüpfen von outbound_email_id für ${followUpId} fehlgeschlagen.`, error);
   }
 }
@@ -180,27 +170,34 @@ async function linkOutboundEmail(admin: Admin, followUpId: string, outboundEmail
  * zurichDateString): dieselbe Zeitbasis wie beim Planen.
  */
 export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueFollowUpsResult> {
-  const admin = createAdminClient();
   const todayStr = zurichDateString(today);
 
-  const { data, error } = await admin
-    .from("follow_ups")
-    .select(
-      "id, inquiry_id, rule_id, scheduled_for, " +
-        "inquiries(id, number, status, answer_received_at, first_name, last_name, email, locale, vehicle_text, " +
-        "model_families(brand, name, codes), models(name)), " +
-        "follow_up_rules(id, subject, body, active)",
-    )
-    .lte("scheduled_for", todayStr)
-    .is("sent_at", null)
-    .is("cancelled_at", null)
-    .is("failed_at", null)
-    .order("scheduled_for", { ascending: true });
-  if (error) {
-    throw new Error(`runDueFollowUps: fällige Follow-ups konnten nicht geladen werden: ${error.message}`);
-  }
-
-  const rows = (data ?? []) as unknown as DueFollowUpRow[];
+  // LEFT JOINs statt PostgREST-Embeds: inquiry_id ist zwar "not null" (mit
+  // on delete cascade), rule_id dagegen "on delete set null" - die Regel
+  // kann also fehlen (siehe rule_missing-Fall unten). family_id/model_id
+  // auf inquiries sind ebenfalls nullable. "not null"-Spalten der jeweils
+  // gejointen Tabelle (number, subject, brand, models.name) dienen unten als
+  // Sentinel, ob die Zeile überhaupt existiert (LEFT JOIN liefert sonst
+  // durchgehend null für diese Spalten).
+  const rows = await sql<DueFollowUpRow[]>`
+    select
+      fu.id, fu.inquiry_id, fu.rule_id, fu.scheduled_for,
+      i.number as inquiry_number, i.status as inquiry_status,
+      i.answer_received_at as inquiry_answer_received_at,
+      i.first_name as inquiry_first_name, i.last_name as inquiry_last_name,
+      i.email as inquiry_email, i.locale as inquiry_locale, i.vehicle_text as inquiry_vehicle_text,
+      mf.brand as family_brand, mf.name as family_name, mf.codes as family_codes,
+      m.name as model_name,
+      r.subject as rule_subject, r.body as rule_body, r.active as rule_active
+    from follow_ups fu
+    left join inquiries i on i.id = fu.inquiry_id
+    left join model_families mf on mf.id = i.family_id
+    left join models m on m.id = i.model_id
+    left join follow_up_rules r on r.id = fu.rule_id
+    where fu.scheduled_for <= ${todayStr}
+      and fu.sent_at is null and fu.cancelled_at is null and fu.failed_at is null
+    order by fu.scheduled_for asc
+  `;
   const result: RunDueFollowUpsResult = { sent: 0, skipped: 0, failed: 0, details: [] };
 
   // Prüfung Phase B, Punkt 6: Firmenname aus settings.mail_from_name
@@ -221,11 +218,28 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
   }
 
   for (const row of rows) {
-    const inquiry = row.inquiries;
-    const rule = row.follow_up_rules;
+    // Sentinel: number/subject sind "not null" auf inquiries/follow_up_rules
+    // - null hier heisst, der LEFT JOIN hat keine Zeile gefunden.
+    const inquiry =
+      row.inquiry_number !== null
+        ? {
+            id: row.inquiry_id,
+            number: row.inquiry_number,
+            status: row.inquiry_status,
+            answer_received_at: row.inquiry_answer_received_at,
+            first_name: row.inquiry_first_name,
+            last_name: row.inquiry_last_name,
+            email: row.inquiry_email,
+            locale: row.inquiry_locale,
+            vehicle_text: row.inquiry_vehicle_text,
+            model_families: row.family_brand !== null ? { brand: row.family_brand, name: row.family_name, codes: row.family_codes } : null,
+            models: row.model_name !== null ? { name: row.model_name } : null,
+          }
+        : null;
+    const rule = row.rule_subject !== null ? { id: row.rule_id!, subject: row.rule_subject, body: row.rule_body!, active: row.rule_active! } : null;
 
     if (!inquiry) {
-      await cancelFollowUp(admin, row.id);
+      await cancelFollowUp(row.id);
       result.skipped += 1;
       result.details.push({
         followUpId: row.id,
@@ -239,7 +253,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
     }
 
     if (inquiry.answer_received_at || inquiry.status === "abgeschlossen") {
-      await cancelFollowUp(admin, row.id);
+      await cancelFollowUp(row.id);
       result.skipped += 1;
       result.details.push({
         followUpId: row.id,
@@ -257,7 +271,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
       // gelöscht. Ohne Regel gibt es keinen Text mehr zum Versenden, der
       // Eintrag kann nie mehr fällig abgearbeitet werden -> stornieren
       // statt endlos jeden Tag erneut zu versuchen.
-      await cancelFollowUp(admin, row.id);
+      await cancelFollowUp(row.id);
       result.skipped += 1;
       result.details.push({
         followUpId: row.id,
@@ -276,7 +290,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
       // soll laut Aufgabenstellung nicht mehr gesendet werden - stornieren
       // statt (wie bei einer gelöschten Regel oben) endlos jeden Tag erneut
       // zu versuchen oder den veralteten Text trotzdem zu verschicken.
-      await cancelFollowUp(admin, row.id);
+      await cancelFollowUp(row.id);
       result.skipped += 1;
       result.details.push({
         followUpId: row.id,
@@ -294,7 +308,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
       // zugestellt werden - kein Wiederholungsfall, deshalb sofort
       // stornieren statt bei jedem Lauf erneut als "failed" zu melden
       // (Prüfer-Befund).
-      await cancelFollowUp(admin, row.id);
+      await cancelFollowUp(row.id);
       result.skipped += 1;
       result.details.push({
         followUpId: row.id,
@@ -315,7 +329,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
     // Zeile weitermachen.
     let claimed: ClaimedFollowUp | null;
     try {
-      claimed = await claimFollowUp(admin, row.id);
+      claimed = await claimFollowUp(row.id);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`runDueFollowUps: Claim von ${row.id} fehlgeschlagen.`, err);
@@ -368,8 +382,8 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
       });
 
       if (!mailResult.ok) {
-        const isFinal = await recordFollowUpFailure(admin, row.id, claimed.attempts, mailResult.error ?? "");
-        await linkOutboundEmail(admin, row.id, mailResult.outboundEmailId);
+        const isFinal = await recordFollowUpFailure(row.id, claimed.attempts, mailResult.error ?? "");
+        await linkOutboundEmail(row.id, mailResult.outboundEmailId);
         result.failed += 1;
         result.details.push({
           followUpId: row.id,
@@ -382,7 +396,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
         continue;
       }
 
-      await linkOutboundEmail(admin, row.id, mailResult.outboundEmailId);
+      await linkOutboundEmail(row.id, mailResult.outboundEmailId);
       result.sent += 1;
       result.details.push({
         followUpId: row.id,
@@ -393,7 +407,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const isFinal = await recordFollowUpFailure(admin, row.id, claimed.attempts, message);
+      const isFinal = await recordFollowUpFailure(row.id, claimed.attempts, message);
       result.failed += 1;
       result.details.push({
         followUpId: row.id,

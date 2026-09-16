@@ -5,7 +5,7 @@
 // über outbound_emails.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sql } from "@/lib/db/client";
 import { buildMailContext } from "@/lib/inquiry/context";
 import { sendInquiryMail } from "@/lib/mail";
 
@@ -37,15 +37,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
-  const admin = createAdminClient();
-
-  const { data: inquiry, error: inquiryError } = await admin
-    .from("inquiries")
-    .select("id, share_token, email")
-    .eq("id", id)
-    .maybeSingle();
-  if (inquiryError) {
-    console.error(`POST /api/inquiries/${id}/summary-mail: Anfrage konnte nicht geladen werden.`, inquiryError);
+  let inquiry: { id: string; share_token: string; email: string | null } | undefined;
+  try {
+    [inquiry] = await sql<{ id: string; share_token: string; email: string | null }[]>`
+      select id, share_token, email from inquiries where id = ${id}
+    `;
+  } catch (err) {
+    console.error(`POST /api/inquiries/${id}/summary-mail: Anfrage konnte nicht geladen werden.`, err);
     return NextResponse.json({ ok: false, error: "Anfrage konnte nicht geladen werden." }, { status: 500 });
   }
   // Absichtlich derselbe 404 sowohl für "id existiert nicht" als auch für
@@ -58,16 +56,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: false, error: "Anfrage hat keine E-Mail-Adresse." }, { status: 400 });
   }
 
-  const { count, error: countError } = await admin
-    .from("outbound_emails")
-    .select("id", { count: "exact", head: true })
-    .eq("inquiry_id", id)
-    .eq("type", "summary");
-  if (countError) {
-    console.error(`POST /api/inquiries/${id}/summary-mail: Zähler konnte nicht geladen werden.`, countError);
+  let count: number;
+  try {
+    const [row] = await sql<{ count: number }[]>`
+      select count(*)::int as count from outbound_emails where inquiry_id = ${id} and type = 'summary'
+    `;
+    count = row.count;
+  } catch (err) {
+    console.error(`POST /api/inquiries/${id}/summary-mail: Zähler konnte nicht geladen werden.`, err);
     return NextResponse.json({ ok: false, error: "Zusammenfassung konnte nicht gesendet werden." }, { status: 500 });
   }
-  if ((count ?? 0) >= MAX_SUMMARY_MAILS) {
+  if (count >= MAX_SUMMARY_MAILS) {
     return NextResponse.json(
       { ok: false, error: "Die Zusammenfassung wurde bereits mehrfach gesendet." },
       { status: 429 },
@@ -75,7 +74,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const mailCtx = await buildMailContext(id, admin);
+    const mailCtx = await buildMailContext(id);
     const result = await sendInquiryMail("summary", mailCtx);
     if (!result.ok) {
       return NextResponse.json(

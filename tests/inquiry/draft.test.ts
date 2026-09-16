@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { buildDraft } from "@/lib/draft/template";
 import type { DraftContext, DraftItem, DraftSettings } from "@/lib/draft/template";
 import { vehicleLabel } from "@/lib/mail/render";
-import type { ModelFamily } from "@/lib/supabase/rows";
+import type { ModelFamily } from "@/lib/db/rows";
 
 // companyName (settings.mail_from_name) + companyAddress (settings.
 // company_address, hier "Belp") ergeben zusammen dieselbe Firmenzeile wie
@@ -172,7 +172,7 @@ describe("buildDraft: Kurzablauf Wiesmann ohne Preise", () => {
 });
 
 // --- Kurzablauf mit Platzhalterfamilie ("Älteres Modell", siehe
-// supabase/seed.sql, kein Modell); ctx.vehicleLabel entsteht hier wie in
+// db/seed.sql, kein Modell); ctx.vehicleLabel entsteht hier wie in
 // lib/inquiry/create.ts über die echte vehicleLabel()-Funktion aus
 // lib/mail/render.ts (nicht hart verdrahtet), damit der Test die
 // tatsächliche Pipeline prüft statt nur buildDraft() isoliert.

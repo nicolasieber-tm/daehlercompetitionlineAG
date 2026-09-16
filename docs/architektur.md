@@ -94,7 +94,7 @@ Alle Tabellen mit `id uuid default gen_random_uuid()`, `created_at timestamptz d
 `pricelist_notes` — Hinweistexte aus der Excel (Garantie, Gutachten), `family_id`, `category`, `text`, `sort`.
 
 `pricelist_imports`
-- `filenames text[]`, `status text` (pending | applied | discarded), `diff jsonb`, `summary jsonb` (Zähler neu/geändert/entfernt je Familie), `applied_at`, `created_by uuid`
+- `filenames text[]`, `status text` (pending | applied | discarded), `diff jsonb`, `summary jsonb` (Zähler neu/geändert/entfernt je Familie), `applied_at`, `created_by text` (better-auth-User-Id, keine UUID, siehe `docs/db.md`)
 - Der Import ist zweistufig: Upload erzeugt `pending` mit Diff, «Übernehmen» wendet an.
 
 ### Anfragen

@@ -20,12 +20,10 @@ vi.mock("resend", () => ({
   }),
 }));
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sql } from "@/lib/db/client";
 import { createInquiry, InvalidSelectionError } from "@/lib/inquiry/create";
 import { buildMailContext } from "@/lib/inquiry/context";
 import type { InquiryPayload } from "@/lib/inquiry/schema";
-
-const admin = createAdminClient();
 
 let familyId: string;
 let modelId: string;
@@ -37,21 +35,12 @@ let fahrwerkProductId: string;
 beforeAll(async () => {
   sendMock.mockResolvedValue({ data: { id: "test-resend-id" }, error: null });
 
-  const { data: family, error: familyError } = await admin
-    .from("model_families")
-    .select("id")
-    .eq("slug", "m2-g87")
-    .single();
-  if (familyError) throw familyError;
+  const [family] = await sql<{ id: string }[]>`select id from model_families where slug = 'm2-g87'`;
   familyId = family.id;
 
-  const { data: model, error: modelError } = await admin
-    .from("models")
-    .select("id")
-    .eq("family_id", familyId)
-    .eq("slug", "m2")
-    .single();
-  if (modelError) throw modelError;
+  const [model] = await sql<{ id: string }[]>`
+    select id from models where family_id = ${familyId} and slug = 'm2'
+  `;
   modelId = model.id;
 
   // Reale, dokumentierte M2 G87 Produkte (siehe docs/db.md "M2 G87"),
@@ -60,7 +49,7 @@ beforeAll(async () => {
   // geschützte Leerzeichen (U+00A0, z.B. zwischen "Basis" und "480"), ein
   // im Testcode getippter normaler Leerzeichen-String matcht das nicht
   // (siehe Bericht) - die numerischen/Enum-Felder sind eindeutig und robust.
-  // .eq("active", true) (Rückmeldung erster Klicktest, CLAUDE.md Abschnitt
+  // active = true (Rückmeldung erster Klicktest, CLAUDE.md Abschnitt
   // "AUFGABE": U+00A0 wird jetzt beim Import selbst normalisiert, siehe
   // lib/pricelist/parser.ts) ist Pflicht: der einmalige Re-Import, der die
   // NBSP-Zeichen aus den Namen entfernt, kann den alten (NBSP-behafteten)
@@ -68,63 +57,32 @@ beforeAll(async () => {
   // wiedererkennen (der Name selbst hat sich ja geändert) und legt
   // stattdessen eine neue Zeile an, die alte bleibt als inaktives Duplikat
   // mit denselben ps_to/nm_to/price_total-Werten stehen - ohne den Filter
-  // liefert .single() dann "mehrere Zeilen" statt genau einer.
-  const [{ data: motor, error: motorError }, { data: auspuff, error: auspuffError }, { data: fahrwerk, error: fahrwerkError }] =
-    await Promise.all([
-      admin
-        .from("products")
-        .select("id")
-        .eq("family_id", familyId)
-        .eq("category", "motor")
-        .eq("variant_group", "leistung")
-        .eq("ps_to", 620)
-        .eq("nm_to", 740)
-        .eq("active", true)
-        .single(),
-      admin
-        .from("products")
-        .select("id")
-        .eq("family_id", familyId)
-        .eq("category", "auspuff")
-        .eq("variant_group", "anlage")
-        .eq("price_total", 5260)
-        .eq("active", true)
-        .single(),
-      admin
-        .from("products")
-        .select("id")
-        .eq("family_id", familyId)
-        .eq("category", "fahrwerk")
-        .eq("variant_group", "fahrwerk")
-        .eq("price_total", 1630)
-        .eq("active", true)
-        .single(),
-    ]);
-  if (motorError) throw motorError;
-  if (auspuffError) throw auspuffError;
-  if (fahrwerkError) throw fahrwerkError;
+  // liefert die Abfrage dann mehrere statt genau einer Zeile.
+  const [[motor], [auspuff], [fahrwerk]] = await Promise.all([
+    sql<{ id: string }[]>`
+      select id from products where family_id = ${familyId} and category = 'motor'
+        and variant_group = 'leistung' and ps_to = 620 and nm_to = 740 and active = true
+    `,
+    sql<{ id: string }[]>`
+      select id from products where family_id = ${familyId} and category = 'auspuff'
+        and variant_group = 'anlage' and price_total = 5260 and active = true
+    `,
+    sql<{ id: string }[]>`
+      select id from products where family_id = ${familyId} and category = 'fahrwerk'
+        and variant_group = 'fahrwerk' and price_total = 1630 and active = true
+    `,
+  ]);
   motorProductId = motor.id;
   auspuffProductId = auspuff.id;
   fahrwerkProductId = fahrwerk.id;
 
   // Ein beliebiges Produkt einer anderen Familie (3er G20, G21, siehe
   // docs/db.md), um "ungültiges Produkt (aus anderer Familie)" zu testen.
-  const { data: otherFamily, error: otherFamilyError } = await admin
-    .from("model_families")
-    .select("id")
-    .eq("slug", "3er-g20-g21")
-    .maybeSingle();
-  if (otherFamilyError) throw otherFamilyError;
-  const otherFamilyId = otherFamily?.id;
-  if (!otherFamilyId) throw new Error("Testvoraussetzung: Familie 3er-g20-g21 nicht gefunden.");
-  const { data: otherProduct, error: otherProductError } = await admin
-    .from("products")
-    .select("id")
-    .eq("family_id", otherFamilyId)
-    .eq("active", true)
-    .limit(1)
-    .single();
-  if (otherProductError) throw otherProductError;
+  const [otherFamily] = await sql<{ id: string }[]>`select id from model_families where slug = '3er-g20-g21'`;
+  if (!otherFamily) throw new Error("Testvoraussetzung: Familie 3er-g20-g21 nicht gefunden.");
+  const [otherProduct] = await sql<{ id: string }[]>`
+    select id from products where family_id = ${otherFamily.id} and active = true limit 1
+  `;
   otherFamilyProductId = otherProduct.id;
 });
 
@@ -160,8 +118,8 @@ const createdInquiryIds: string[] = [];
 
 afterAll(async () => {
   for (const id of createdInquiryIds) {
-    await admin.from("outbound_emails").delete().eq("inquiry_id", id);
-    await admin.from("inquiries").delete().eq("id", id);
+    await sql`delete from outbound_emails where inquiry_id = ${id}`;
+    await sql`delete from inquiries where id = ${id}`;
   }
   // inquiry_counters bleibt bewusst unangetastet (siehe Aufgabenstellung:
   // "inquiry_counters nicht zurücksetzen").
@@ -192,12 +150,7 @@ describe("createInquiry: M2 G87 / M2 mit 3 Produkten (echter Katalog)", () => {
     expect(result.draft.body).toContain("dÄHLer Competition Line AG, Belp · ");
     expect(result.draft.body).not.toContain("dÄHLer Competition Line AG, dÄHLer Competition Line AG");
 
-    const { data: inquiry, error } = await admin
-      .from("inquiries")
-      .select("*")
-      .eq("id", result.id)
-      .single();
-    if (error) throw error;
+    const [inquiry] = await sql`select * from inquiries where id = ${result.id}`;
 
     expect(inquiry.number).toBe(result.number);
     expect(inquiry.estimated_total).toBe(4180 + 5260 + 1630);
@@ -233,16 +186,12 @@ describe("createInquiry: M2 G87 / M2 mit 3 Produkten (echter Katalog)", () => {
     // Dieselben Werte müssen über lib/inquiry/context.ts buildMailContext()
     // (parseItems()) wieder ankommen - das ist der tatsächliche Weg, über
     // den die Mailvorlagen (inbox.ts) an ps_to/nm_to kommen.
-    const mailCtx = await buildMailContext(result.id, admin);
+    const mailCtx = await buildMailContext(result.id);
     const motorItem = mailCtx.items.find((i) => i.category === "motor");
     expect(motorItem?.ps_to).toBe(620);
     expect(motorItem?.nm_to).toBe(740);
 
-    const { data: outbound, error: outboundError } = await admin
-      .from("outbound_emails")
-      .select("type")
-      .eq("inquiry_id", result.id);
-    if (outboundError) throw outboundError;
+    const outbound = await sql<{ type: string }[]>`select type from outbound_emails where inquiry_id = ${result.id}`;
     const types = outbound.map((o) => o.type).sort();
     expect(types).toEqual(["confirmation", "inbox"]);
   });

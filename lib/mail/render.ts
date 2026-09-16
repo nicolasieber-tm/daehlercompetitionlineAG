@@ -14,7 +14,7 @@ import { chf, chfFrom } from "@/lib/i18n/format";
 import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
 import { formatPowerPlusText } from "@/lib/catalog/power-before-after";
 import type { BeforeAfterRow } from "@/lib/catalog/before-after";
-import type { Model, ModelFamily } from "@/lib/supabase/rows";
+import type { Model, ModelFamily } from "@/lib/db/rows";
 import type { MailInquiryItem } from "./types";
 
 const BRAND_RED = "#e21014";
@@ -72,7 +72,7 @@ export function optionLabel(
 }
 
 /**
- * Erkennt die drei Kurzablauf-Platzhalterfamilien aus supabase/seed.sql
+ * Erkennt die drei Kurzablauf-Platzhalterfamilien aus db/seed.sql
  * («Älteres Modell», «Älteres MINI-Modell», «Anderes Toyota-Modell», siehe
  * docs/architektur.md "has_pricelist bool (false für Wiesmann und «Älteres
  * Modell»-Platzhalter)"). Es gibt dafür kein eigenes DB-Flag (has_pricelist

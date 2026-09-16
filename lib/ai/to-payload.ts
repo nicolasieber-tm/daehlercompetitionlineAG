@@ -28,18 +28,14 @@
 // Auswahlentscheidungen des Admins, keine vom Kunden diktierten Kontakt-
 // daten, siehe QuickInquiryPayloadSchema unten).
 import { z } from "zod";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { getFamilyBySlug } from "@/lib/catalog/queries";
-import type { Database } from "@/lib/supabase/database.types";
 import {
   InquiryPayloadObjectSchema,
   withInquiryPayloadRefinements,
   type InquiryPayload,
 } from "@/lib/inquiry/schema";
-import type { Character, Channel, FlowCategory, Locale, Timing } from "@/lib/supabase/rows";
+import type { Character, Channel, FlowCategory, Locale, Timing } from "@/lib/db/rows";
 import type { Extraction } from "./extract";
-
-type Db = SupabaseClient<Database>;
 
 /**
  * Schnellweg-Variante von InquiryPayloadObjectSchema (lib/inquiry/schema.ts):
@@ -222,14 +218,13 @@ export interface ToInquiryPayloadResult {
 export async function toInquiryPayload(
   extraction: Extraction,
   overrides?: QuickOverrides,
-  db?: Db,
 ): Promise<ToInquiryPayloadResult> {
   const draft = buildDraft(extraction, overrides);
 
   let familyId: string | null = null;
   let modelId: string | null = null;
   if (draft.familySlug) {
-    const family = await getFamilyBySlug(draft.familySlug, db);
+    const family = await getFamilyBySlug(draft.familySlug);
     familyId = family?.id ?? null;
     if (family && draft.modelSlug) {
       modelId = family.models.find((m) => m.slug === draft.modelSlug)?.id ?? null;

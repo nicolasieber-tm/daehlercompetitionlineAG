@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { itemList, vehicleLabel } from "@/lib/mail/render";
 import type { MailInquiryItem } from "@/lib/mail/types";
-import type { Model, ModelFamily } from "@/lib/supabase/rows";
+import type { Model, ModelFamily } from "@/lib/db/rows";
 
 function family(overrides: Partial<ModelFamily> & { brand: string; name: string }): ModelFamily {
   return {

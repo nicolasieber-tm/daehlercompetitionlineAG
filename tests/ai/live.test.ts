@@ -1,15 +1,15 @@
 // Posten 3, Schnellweg: echte Extraktion gegen die Anthropic-API und den
-// lokalen Katalog (docker/Supabase, siehe docs/db.md). Läuft NUR, wenn
+// lokalen Katalog (Postgres, siehe docs/db.md). Läuft NUR, wenn
 // ANTHROPIC_API_KEY gesetzt ist UND AI_LIVE_TEST=1 (siehe .env.example) -
 // verbraucht sonst bei jedem `npm test` echte API-Tokens. Aufruf:
 //
 //   AI_LIVE_TEST=1 npx vitest run tests/ai/live.test.ts
 //
-// getCatalogCompact() (lib/catalog/queries.ts) braucht ohne Argument einen
-// Next.js-Request-Kontext (next/headers cookies()), den es hier nicht gibt
-// - deshalb wird lib/supabase/admin.ts createAdminClient() explizit an
-// extractInquiry() durchgereicht (dritter, optionaler Parameter, siehe
-// lib/ai/extract.ts).
+// getCatalogCompact() (lib/catalog/queries.ts) läuft seit dem Railway-Umbau
+// über den serverseitigen Postgres-Pool (lib/db/client.ts), ohne
+// Next.js-Request-Kontext - extractInquiry() braucht deshalb keinen eigenen
+// Client-Parameter mehr (anders als zuvor mit dem RLS-gebundenen
+// Supabase-Client).
 //
 // .env selbst laden wie tests/mail/resend.test.ts (kein dotenv-Paket in
 // der freigegebenen Paketliste): vitest lädt .env nicht automatisch.
@@ -21,7 +21,6 @@ try {
 
 import { describe, expect, it } from "vitest";
 import { extractInquiry } from "@/lib/ai/extract";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 const shouldRun = !!process.env.ANTHROPIC_API_KEY && process.env.AI_LIVE_TEST === "1";
 
@@ -31,23 +30,13 @@ if (!shouldRun) {
   );
 }
 
-// Prüfung Phase B, Punkt 7: createAdminClient() darf nicht im describe-Body
-// stehen. Der describe-Callback läuft bei der Testsammlung IMMER (Vitest
-// führt ihn synchron aus, um die it()-Blöcke zu registrieren), auch wenn
-// describe.skipIf() sie danach überspringt - createAdminClient() (wirft
-// ohne NEXT_PUBLIC_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY in .env, siehe
-// lib/supabase/admin.ts) hätte damit `npm test` ohne diese Variablen
-// gesprengt, selbst wenn ANTHROPIC_API_KEY/AI_LIVE_TEST=1 fehlen und die
-// Tests eigentlich übersprungen werden sollen. Jeder it()-Block erzeugt den
-// Client deshalb jetzt selbst, läuft also gar nicht erst, wenn skipIf greift.
 describe.skipIf(!shouldRun)("extractInquiry (live, echte Anthropic-Aufrufe)", () => {
   it("deutsche E-Mail: BMW M2 G87, Stufe 1 + Klappenauspuffanlage, Kontakt Max Muster", async () => {
-    const admin = createAdminClient();
     const text =
       "Guten Tag, ich habe einen M2 G87 Jahrgang 2024 und möchte Stufe 1 und eine Klappenauspuffanlage, " +
       "Termin im November, Gruss Max Muster, 079 555 12 34, max@example.ch";
 
-    const extraction = await extractInquiry(text, undefined, admin);
+    const extraction = await extractInquiry(text);
     console.log("[live] deutsche E-Mail:", JSON.stringify(extraction, null, 2));
 
     expect(extraction.language).toBe("de");
@@ -68,10 +57,9 @@ describe.skipIf(!shouldRun)("extractInquiry (live, echte Anthropic-Aufrufe)", ()
   }, 60000);
 
   it("Telefonnotiz mit Tippfehlern: X3 G45 M50, Federn + 21 Zoll Räder", async () => {
-    const admin = createAdminClient();
     const text = "x3 g45 m50, will federn + 21 zoll räder, ruft zurück 031 555 22 11";
 
-    const extraction = await extractInquiry(text, undefined, admin);
+    const extraction = await extractInquiry(text);
     console.log("[live] Telefonnotiz:", JSON.stringify(extraction, null, 2));
 
     expect(extraction.language).toBe("de");
@@ -81,13 +69,12 @@ describe.skipIf(!shouldRun)("extractInquiry (live, echte Anthropic-Aufrufe)", ()
   }, 60000);
 
   it("englische Anfrage: MINI JCW ohne konkrete Produkte, Beratung/Komplettpaket erkannt", async () => {
-    const admin = createAdminClient();
     const text =
       "Hello, I'm interested in a MINI JCW but I'm not sure yet what exactly I want, maybe a bit more power " +
       "and a sportier look. Could you tell me what's possible and send me an offer? Best regards, " +
       "John Smith, Zurich, +41 79 555 66 77, john.smith@example.com";
 
-    const extraction = await extractInquiry(text, undefined, admin);
+    const extraction = await extractInquiry(text);
     console.log("[live] englische Anfrage:", JSON.stringify(extraction, null, 2));
 
     expect(extraction.language).toBe("en");

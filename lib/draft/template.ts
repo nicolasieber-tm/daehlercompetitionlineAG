@@ -11,7 +11,7 @@ import { en } from "@/lib/i18n/en";
 import { chfFrom } from "@/lib/i18n/format";
 import { categoryLabel, companyLine, itemLineText } from "@/lib/mail/render";
 import { displayItemFields, isStandaloneVmaxProduct } from "@/lib/catalog/product-display";
-import type { Character, FlowCategory, PriceStatus, Timing } from "@/lib/supabase/rows";
+import type { Character, FlowCategory, PriceStatus, Timing } from "@/lib/db/rows";
 
 export interface DraftItem {
   category: FlowCategory;

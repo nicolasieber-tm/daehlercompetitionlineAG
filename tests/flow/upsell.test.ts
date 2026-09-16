@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { de } from "@/lib/i18n/de";
 import { en } from "@/lib/i18n/en";
 import { UPSELL_TARGET } from "@/components/flow/upsell";
-import type { FlowCategory } from "@/lib/supabase/rows";
+import type { FlowCategory } from "@/lib/db/rows";
 import type { Dictionary } from "@/lib/i18n/de";
 
 const CATEGORIES = Object.keys(UPSELL_TARGET) as FlowCategory[];

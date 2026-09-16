@@ -13,14 +13,13 @@
 // Modell-Fitment geprüft (Befund #2).
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getAdminUser } from "@/lib/admin/auth";
+import { sql } from "@/lib/db/client";
 import { extractionSchema } from "@/lib/ai/extract";
 import { toInquiryPayload } from "@/lib/ai/to-payload";
 import { createInquiry, InvalidSelectionError } from "@/lib/inquiry/create";
 import { formatMissingFields } from "@/lib/i18n/admin";
-import { FLOW_CATEGORIES, type FlowCategory } from "@/lib/supabase/rows";
-import type { Json } from "@/lib/supabase/database.types";
+import { FLOW_CATEGORIES, type FlowCategory } from "@/lib/db/rows";
 
 const extractionWithUncertainSchema = extractionSchema.extend({
   uncertain: z.array(z.string()),
@@ -62,10 +61,10 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getAdminUser() statt requireAdmin(): siehe Kommentar in
+  // app/api/admin/quick/extract/route.ts (Route Handler soll 401 JSON statt
+  // eines Redirects liefern).
+  const user = await getAdminUser();
   if (!user) {
     return NextResponse.json({ ok: false, error: "Nicht angemeldet." }, { status: 401 });
   }
@@ -104,19 +103,17 @@ export async function POST(request: Request) {
 
     // raw_text/ai_extraction speichern (docs/architektur.md Datenmodell):
     // kein Teil von lib/inquiry/create.ts (das kennt nur den Kundenflow-
-    // Payload ohne diese beiden Felder), daher als sekundärer Schreib-
-    // zugriff über den Service-Role-Client nachgetragen. Ein Fehler hier
-    // darf die bereits angelegte Anfrage nicht verlieren (wie bei den
-    // Mails in lib/inquiry/create.ts), daher nur geloggt.
-    const admin = createAdminClient();
-    const { error: updateError } = await admin
-      .from("inquiries")
-      .update({
-        raw_text: parsed.data.text,
-        ai_extraction: parsed.data.extraction as unknown as Json,
-      })
-      .eq("id", result.id);
-    if (updateError) {
+    // Payload ohne diese beiden Felder), daher als sekundärer Schreibzugriff
+    // nachgetragen. Ein Fehler hier darf die bereits angelegte Anfrage nicht
+    // verlieren (wie bei den Mails in lib/inquiry/create.ts), daher nur
+    // geloggt.
+    try {
+      await sql`
+        update inquiries
+        set raw_text = ${parsed.data.text}, ai_extraction = ${sql.json(parsed.data.extraction)}
+        where id = ${result.id}
+      `;
+    } catch (updateError) {
       console.error(
         `POST /api/admin/quick/create: raw_text/ai_extraction für Anfrage ${result.number} konnte nicht gespeichert werden.`,
         updateError,

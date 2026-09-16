@@ -1,5 +1,5 @@
 import { admin } from "@/lib/i18n/admin";
-import type { OutboundEmail } from "@/lib/supabase/rows";
+import type { OutboundEmail } from "@/lib/db/rows";
 import { formatDateTime } from "./format";
 import { Card } from "./Card";
 import { Table, TableBody, TableHead, Th, Td } from "./Table";

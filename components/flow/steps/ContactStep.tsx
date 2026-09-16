@@ -7,7 +7,7 @@ import type { Dispatch } from "react";
 import { Chip, Field, Question, StepLabel } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
-import type { Channel, Timing } from "@/lib/supabase/rows";
+import type { Channel, Timing } from "@/lib/db/rows";
 import type { ContactFields, FlowAction, FlowState } from "../state";
 import { vehicleDisplayName } from "../vehicleLabel";
 

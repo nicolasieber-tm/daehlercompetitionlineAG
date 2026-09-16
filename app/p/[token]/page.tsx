@@ -11,7 +11,7 @@ import { getDictionary, isLocale, tf } from "@/lib/i18n/dictionaries";
 import { chfFrom } from "@/lib/i18n/format";
 import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
-import type { FlowCategory } from "@/lib/supabase/rows";
+import type { FlowCategory } from "@/lib/db/rows";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },

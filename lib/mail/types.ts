@@ -1,6 +1,6 @@
 // Kontext-Typen für die Mailvorlagen (lib/mail/templates/*.ts). Siehe
 // docs/architektur.md, Abschnitt "Mail".
-import type { Inquiry, Model, ModelFamily, PriceStatus } from "@/lib/supabase/rows";
+import type { Inquiry, Model, ModelFamily, PriceStatus } from "@/lib/db/rows";
 import type { Locale } from "@/lib/i18n/dictionaries";
 
 /** Eine Position (gewähltes Produkt) im Paket, wie sie die Mail anzeigt. */

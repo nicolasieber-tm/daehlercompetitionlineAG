@@ -28,9 +28,18 @@
 // unverbrauchte Kandidaten übrig (z. B. weil auch beide Schwestern geändert
 // wurden), wird zusätzlich die Kandidatin mit gleichem source_row bevorzugt,
 // sonst die mit identischem Fitment.
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/database.types";
-import type { Product } from "@/lib/supabase/rows";
+//
+// Railway-Umbau (docs/umbau-railway.md): Zugriff über den Postgres-Pool
+// (lib/db/client.ts, sql) statt supabase-js. Alle Aufrufer dieses Moduls
+// liegen im selben Umbau-Umfang (lib/pricelist/apply.ts, lib/admin/
+// pricelists.ts, scripts/import-pricelists.ts, tests/pricelist/*), daher
+// entfällt der bisherige `db`-Parameter ersatzlos statt ihn nur zu ignorieren
+// (anders als bei lib/catalog/queries.ts, dessen Aufrufer teils noch nicht
+// umgestellt sind). .in()-Ketten mit Chunking (CHUNK_SIZE, vormals wegen
+// PostgREST-URL-Längenlimits) entfallen zugunsten von `= any($1)` mit dem
+// vollständigen Array in einem parametrisierten Query.
+import type { Product } from "@/lib/db/rows";
+import { sql } from "@/lib/db/client";
 import type {
   DiffFieldChange,
   DiffModelRef,
@@ -45,21 +54,6 @@ import type {
   ParsedFamily,
   ParsedProduct,
 } from "./types";
-
-type Db = SupabaseClient<Database>;
-
-// Prüfung Phase B, Punkt 8: auf 150 begrenzt (vorher 500) - PostgREST/
-// Postgres begrenzen die Länge einer .in()-Liste in der URL bzw. im
-// generierten "IN (...)" faktisch, bei ~2'500 Produkten über 42 Familien
-// und mehreren .in()-Aufrufen (Fitment, deaktivierte IDs) war 500 zu hoch
-// angesetzt, um verlässlich unter jedem Limit zu bleiben.
-const CHUNK_SIZE = 150;
-
-function chunk<T>(items: T[], size = CHUNK_SIZE): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
-}
 
 // ---------------------------------------------------------------------------
 // Matching (von apply.ts wiederverwendet)
@@ -209,9 +203,11 @@ function isEqual(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) || Array.isArray(b)) {
     return JSON.stringify(a) === JSON.stringify(b);
   }
-  // numeric(...) kommt aus Postgres als string zurück (z. B. "4180"),
-  // die Excel-Werte sind number|null. Für den Vergleich beides als Zahl
-  // interpretieren, sonst meldet der Diff jeden Preis fälschlich als geändert.
+  // lib/db/client.ts registriert einen eigenen numeric-Parser (Number statt
+  // string, siehe dortiger Kommentar), Preisspalten kommen also bereits als
+  // number zurück. Die Zahlen-Normalisierung bleibt trotzdem bestehen (auch
+  // ein sauberer number-Vergleich mit Number(...) schadet nicht) und deckt
+  // weiterhin null/undefined-Mischfälle ab.
   if (typeof a === "number" || typeof b === "number") {
     const na = a === null || a === undefined ? null : Number(a);
     const nb = b === null || b === undefined ? null : Number(b);
@@ -258,46 +254,43 @@ function buildFieldChanges(
 // Fitment-Namen bestehender Produkte laden (für den "fits"-Feldvergleich)
 // ---------------------------------------------------------------------------
 
-// Prüfrunde Import-Modul, Befund "loadFitsByProductId-Pagination" (nicht zu
-// verwechseln mit dem Befund #2 oben zur Match-Reihenfolge, andere
-// Prüfrunde, andere Nummerierung): PostgREST kappt jede Antwort still bei
-// max_rows (supabase/config.toml, aktuell 1000), auch innerhalb eines
-// Chunks - product_fitment hat im Schnitt 4-5 Zeilen je Produkt, eine
-// Familie mit >= 224 Produkten in einem Chunk reisst die Grenze (Beleg:
-// Familie "3er F30, F31, F34, F35" mit 100 Produkten hat bereits 1008
-// Fitment-Zeilen). Deshalb pro Chunk zusätzlich per .range() seitenweise
-// laden, bis eine Seite weniger als PAGE_SIZE Zeilen liefert. Die
-// Sortierung nach (product_id, model_id) - das ist der Primärschlüssel von
-// product_fitment, siehe supabase/migrations/20260911000000_init.sql -
-// macht die Seitenreihenfolge deterministisch, sonst wäre .range() ohne
-// ORDER BY nicht verlässlich.
-const FITMENT_PAGE_SIZE = 1000;
+/**
+ * Lädt für die gegebenen Produkt-IDs alle aktuell zugeordneten Modellnamen
+ * (product_fitment JOIN models), eine einzelne Abfrage mit `= any($1)`. Die
+ * frühere seitenweise Pagination (FITMENT_PAGE_SIZE) war ein PostgREST-
+ * Limit (max_rows, siehe Git-Historie); der direkte Postgres-Zugriff über
+ * lib/db/client.ts kennt dieses Limit nicht.
+ *
+ * `client` ist optional (Default: der globale Pool `sql`) und wird von
+ * apply.ts mit der laufenden Familien-Transaktion (sql.begin()) aufgerufen,
+ * damit diese Lese-Abfrage denselben Snapshot sieht wie die restlichen
+ * Schreiboperationen dieser Familie.
+ */
+/** Siehe der ausführliche Kommentar zu `Tx` in apply.ts: aus denselben
+ * Gründen (postgres.js' Custom-Types + Dynamic-Column-Helfer lassen sich
+ * über ISql<...> nicht sauber sowohl für den globalen Pool als auch für
+ * eine Transaktion typisieren) bewusst `any` statt `postgres.ISql<...>`. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LegacyOrTxClient = any;
 
-export async function loadFitsByProductId(db: Db, productIds: string[]): Promise<Map<string, string[]>> {
+export async function loadFitsByProductId(
+  productIds: string[],
+  client: LegacyOrTxClient = sql,
+): Promise<Map<string, string[]>> {
   const map = new Map<string, string[]>();
   if (productIds.length === 0) return map;
-  for (const ids of chunk(productIds)) {
-    let from = 0;
-    for (;;) {
-      const { data, error } = await db
-        .from("product_fitment")
-        .select("product_id, model_id, models(name)")
-        .in("product_id", ids)
-        .order("product_id", { ascending: true })
-        .order("model_id", { ascending: true })
-        .range(from, from + FITMENT_PAGE_SIZE - 1);
-      if (error) throw new Error(`Fitment laden fehlgeschlagen: ${error.message}`);
-      const rows = data ?? [];
-      for (const row of rows) {
-        const name = (row as { models: { name: string } | null }).models?.name;
-        if (!name) continue;
-        const arr = map.get(row.product_id);
-        if (arr) arr.push(name);
-        else map.set(row.product_id, [name]);
-      }
-      if (rows.length < FITMENT_PAGE_SIZE) break;
-      from += FITMENT_PAGE_SIZE;
-    }
+
+  const rows = await client<{ product_id: string; name: string }[]>`
+    select pf.product_id, m.name
+    from product_fitment pf
+    join models m on m.id = pf.model_id
+    where pf.product_id = any(${productIds}::uuid[])
+    order by pf.product_id, m.name
+  `;
+  for (const row of rows) {
+    const arr = map.get(row.product_id);
+    if (arr) arr.push(row.name);
+    else map.set(row.product_id, [row.name]);
   }
   return map;
 }
@@ -306,26 +299,18 @@ export async function loadFitsByProductId(db: Db, productIds: string[]): Promise
 // Diff je Familie
 // ---------------------------------------------------------------------------
 
-async function buildFamilyDiff(parsed: ParsedFamily, db: Db): Promise<FamilyDiff> {
-  const bySlug = await db
-    .from("model_families")
-    .select("id, slug, source_file")
-    .eq("slug", parsed.slug)
-    .maybeSingle();
-  if (bySlug.error) throw new Error(`Familie laden (slug) fehlgeschlagen: ${bySlug.error.message}`);
+async function buildFamilyDiff(parsed: ParsedFamily): Promise<FamilyDiff> {
+  const bySlugRows = await sql<{ id: string; slug: string; source_file: string | null }[]>`
+    select id, slug, source_file from model_families where slug = ${parsed.slug}
+  `;
 
-  let dbFamily = bySlug.data;
+  let dbFamily = bySlugRows[0] ?? null;
   let matchedByFallback = false;
   if (!dbFamily && parsed.sourceFile) {
-    const bySource = await db
-      .from("model_families")
-      .select("id, slug, source_file")
-      .eq("source_file", parsed.sourceFile)
-      .maybeSingle();
-    if (bySource.error) {
-      throw new Error(`Familie laden (source_file) fehlgeschlagen: ${bySource.error.message}`);
-    }
-    dbFamily = bySource.data;
+    const bySourceRows = await sql<{ id: string; slug: string; source_file: string | null }[]>`
+      select id, slug, source_file from model_families where source_file = ${parsed.sourceFile}
+    `;
+    dbFamily = bySourceRows[0] ?? null;
     matchedByFallback = dbFamily !== null;
   }
 
@@ -369,13 +354,9 @@ async function buildFamilyDiff(parsed: ParsedFamily, db: Db): Promise<FamilyDiff
   }
 
   // --- Modelle ---------------------------------------------------------
-  const dbModelsRes = await db
-    .from("models")
-    .select("id, slug, name")
-    .eq("family_id", dbFamily.id)
-    .eq("active", true);
-  if (dbModelsRes.error) throw new Error(`Modelle laden fehlgeschlagen: ${dbModelsRes.error.message}`);
-  const dbModels = dbModelsRes.data ?? [];
+  const dbModels = await sql<{ id: string; slug: string; name: string }[]>`
+    select id, slug, name from models where family_id = ${dbFamily.id} and active = true
+  `;
   const dbModelBySlug = new Map(dbModels.map((m) => [m.slug, m]));
   const parsedSlugs = new Set(parsed.models.map((m) => m.slug));
 
@@ -391,21 +372,14 @@ async function buildFamilyDiff(parsed: ParsedFamily, db: Db): Promise<FamilyDiff
     .map((m) => ({ id: m.id, slug: m.slug, name: m.name }));
 
   // --- Produkte ----------------------------------------------------------
-  const dbProductsRes = await db
-    .from("products")
-    .select("*")
-    .eq("family_id", dbFamily.id)
-    .eq("active", true);
-  if (dbProductsRes.error) throw new Error(`Produkte laden fehlgeschlagen: ${dbProductsRes.error.message}`);
-  const dbProducts = dbProductsRes.data ?? [];
+  const dbProducts = await sql<Product[]>`
+    select * from products where family_id = ${dbFamily.id} and active = true
+  `;
   // Fits VOR dem Matching laden: pickBestCandidate() braucht sie schon dort
   // zur Auswahl bei Mehrdeutigkeit (siehe matchFamilyProducts, Befund #2),
   // buildFieldChanges() danach für den "fits"-Feldvergleich - eine Abfrage
   // für beides.
-  const fitsByProductId = await loadFitsByProductId(
-    db,
-    dbProducts.map((p) => p.id),
-  );
+  const fitsByProductId = await loadFitsByProductId(dbProducts.map((p) => p.id));
 
   const { matches, removedProducts } = matchFamilyProducts(parsed.products, dbProducts, fitsByProductId);
 
@@ -475,10 +449,10 @@ async function buildFamilyDiff(parsed: ParsedFamily, db: Db): Promise<FamilyDiff
   };
 }
 
-export async function buildDiff(parsed: ParsedFamily[], db: Db): Promise<ImportDiff> {
+export async function buildDiff(parsed: ParsedFamily[]): Promise<ImportDiff> {
   const families: FamilyDiff[] = [];
   for (const family of parsed) {
-    families.push(await buildFamilyDiff(family, db));
+    families.push(await buildFamilyDiff(family));
   }
 
   const summary: ImportDiffSummary = families.reduce<ImportDiffSummary>(

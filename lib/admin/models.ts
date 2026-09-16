@@ -5,23 +5,13 @@
 // Admin" ("Admin-Felder photo_url, short_text, series_ps, series_nm, sort
 // bleiben erhalten").
 //
-// Wie lib/admin/inquiries.ts: liest/schreibt über den Server-Client
-// (Session-Cookies, RLS) - die Policies `model_families_all_authenticated`
-// und `models_all_authenticated` (siehe supabase/migrations/
-// 20260911000000_init.sql) geben jedem eingeloggten Admin volle Rechte,
-// auch auf inaktive Zeilen. Foto-Uploads laufen separat über den
-// Service-Role-Client (siehe app/api/admin/models/photo/route.ts, Storage-
-// Bucket "model-photos").
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/database.types";
-import type { Brand, Fuel, ModelFamilyUpdate, ModelUpdate } from "@/lib/supabase/rows";
-
-type Db = SupabaseClient<Database>;
-
-async function resolveClient(db?: Db): Promise<Db> {
-  return db ?? (await createServerClient());
-}
+// Postgres direkt über lib/db/client.ts (sql), siehe docs/umbau-railway.md,
+// Abschnitt "Datenzugriffsschicht": keine RLS mehr, jeder Zugriff läuft
+// ohnehin serverseitig durch die App. Foto-Uploads laufen über
+// app/api/admin/models/photo/route.ts (Tabelle photos statt Storage-Bucket,
+// siehe dortiger Kommentar und docs/umbau-railway.md, Abschnitt "Fotos").
+import { sql } from "@/lib/db/client";
+import type { Brand, Fuel } from "@/lib/db/rows";
 
 // ---------------------------------------------------------------------------
 // Foto-Validierung (app/api/admin/models/photo/route.ts): als reine
@@ -41,7 +31,7 @@ export function isUuid(value: string): boolean {
  * (Prüfbefund admin-photo, Punkt 3): `file.type` ist unquestioniert der
  * Content-Type des multipart-Teils und lässt sich beliebig gegen den
  * tatsächlichen Dateiinhalt fälschen - relevant, weil die hochgeladene Datei
- * anschliessend über eine öffentliche Storage-URL ausgeliefert wird. Prüft
+ * anschliessend öffentlich (GET /api/photos/[id]) ausgeliefert wird. Prüft
  * nur so viele Bytes, wie für die jeweilige Signatur nötig sind, ein kurzer
  * Test-Fixture-Buffer reicht daher für jede der drei Signaturen.
  *
@@ -69,34 +59,6 @@ export function detectImageExtension(buffer: Buffer): "jpg" | "png" | "webp" | n
 }
 
 // ---------------------------------------------------------------------------
-// Zählungen (Anzahl Modelle/Produkte je Baureihe), seitenweise geladen wie
-// lib/catalog/queries.ts loadAllActiveProducts(): PostgREST kappt jede
-// Antwort still bei max_rows (supabase/config.toml), bei ~2'500 aktiven
-// Produkten reicht eine einzelne select() ohne .range() nicht.
-// ---------------------------------------------------------------------------
-
-const PAGE_SIZE = 1000;
-
-async function countActiveByFamily(db: Db, table: "models" | "products"): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
-  let from = 0;
-  for (;;) {
-    const { data, error } = await db
-      .from(table)
-      .select("family_id")
-      .eq("active", true)
-      .order("id", { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(`${table} zählen fehlgeschlagen: ${error.message}`);
-    const rows = data ?? [];
-    for (const r of rows) counts.set(r.family_id, (counts.get(r.family_id) ?? 0) + 1);
-    if (rows.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-  }
-  return counts;
-}
-
-// ---------------------------------------------------------------------------
 // Übersicht
 // ---------------------------------------------------------------------------
 
@@ -115,19 +77,29 @@ export interface AdminFamilyListItem {
 
 const BRAND_ORDER: Record<string, number> = { BMW: 0, MINI: 1, Toyota: 2, Wiesmann: 3 };
 
-export async function getFamiliesForAdmin(db?: Db): Promise<AdminFamilyListItem[]> {
-  const client = await resolveClient(db);
-  const { data, error } = await client
-    .from("model_families")
-    .select("id, slug, name, brand, photo_url, has_pricelist, active, sort");
-  if (error) throw new Error(`Baureihen laden fehlgeschlagen: ${error.message}`);
+interface FamilyListRow {
+  id: string;
+  slug: string;
+  name: string;
+  brand: string;
+  photo_url: string | null;
+  has_pricelist: boolean;
+  active: boolean;
+  sort: number;
+  model_count: number;
+  product_count: number;
+}
 
-  const [modelCounts, productCounts] = await Promise.all([
-    countActiveByFamily(client, "models"),
-    countActiveByFamily(client, "products"),
-  ]);
+export async function getFamiliesForAdmin(): Promise<AdminFamilyListItem[]> {
+  const rows = await sql<FamilyListRow[]>`
+    select
+      f.id, f.slug, f.name, f.brand, f.photo_url, f.has_pricelist, f.active, f.sort,
+      (select count(*) from models m where m.family_id = f.id and m.active) as model_count,
+      (select count(*) from products p where p.family_id = f.id and p.active) as product_count
+    from model_families f
+  `;
 
-  return (data ?? [])
+  return rows
     .map((f) => ({
       id: f.id,
       slug: f.slug,
@@ -137,8 +109,8 @@ export async function getFamiliesForAdmin(db?: Db): Promise<AdminFamilyListItem[
       hasPricelist: f.has_pricelist,
       active: f.active,
       sort: f.sort,
-      modelCount: modelCounts.get(f.id) ?? 0,
-      productCount: productCounts.get(f.id) ?? 0,
+      modelCount: f.model_count,
+      productCount: f.product_count,
     }))
     .sort((a, b) => {
       const ba = BRAND_ORDER[a.brand] ?? 99;
@@ -180,44 +152,59 @@ export interface AdminFamilyDetail {
   models: AdminModelItem[];
 }
 
-export async function getFamilyDetailForAdmin(slug: string, db?: Db): Promise<AdminFamilyDetail | null> {
-  const client = await resolveClient(db);
-  const { data: family, error: familyError } = await client
-    .from("model_families")
-    .select("id, slug, name, brand, codes, has_pricelist, active, sort, short_text, photo_url")
-    .eq("slug", slug)
-    .maybeSingle();
-  if (familyError) throw new Error(`Baureihe laden fehlgeschlagen: ${familyError.message}`);
+interface FamilyDetailRow {
+  id: string;
+  slug: string;
+  name: string;
+  brand: string;
+  codes: string[];
+  has_pricelist: boolean;
+  active: boolean;
+  sort: number;
+  short_text: string | null;
+  photo_url: string | null;
+}
+
+interface ModelDetailRow {
+  id: string;
+  slug: string;
+  name: string;
+  fuel: string | null;
+  series_ps: number | null;
+  series_nm: number | null;
+  series_ps_suggested: number[];
+  sort: number;
+  active: boolean;
+  // Trefferzahl aus product_fitment PLUS fits_all-Produkte der Familie (kein
+  // eigener product_fitment-Eintrag), wie im Kundenflow (lib/catalog/
+  // queries.ts loadFittingProducts()): pro Modell separat berechnet, damit
+  // sich fits_all korrekt für jedes Modell derselben Familie addiert.
+  product_count: number;
+}
+
+export async function getFamilyDetailForAdmin(slug: string): Promise<AdminFamilyDetail | null> {
+  const [family] = await sql<FamilyDetailRow[]>`
+    select id, slug, name, brand, codes, has_pricelist, active, sort, short_text, photo_url
+    from model_families
+    where slug = ${slug}
+  `;
   if (!family) return null;
 
-  const { data: models, error: modelsError } = await client
-    .from("models")
-    .select("id, slug, name, fuel, series_ps, series_nm, series_ps_suggested, sort, active")
-    .eq("family_id", family.id)
-    .order("sort", { ascending: true })
-    .order("name", { ascending: true });
-  if (modelsError) throw new Error(`Modelle laden fehlgeschlagen: ${modelsError.message}`);
-
-  const { data: productRows, error: productsError } = await client
-    .from("product_fitment")
-    .select("model_id, products!inner(id, family_id, active)")
-    .eq("products.family_id", family.id)
-    .eq("products.active", true);
-  if (productsError) throw new Error(`Produktzahl laden fehlgeschlagen: ${productsError.message}`);
-  const fitmentCounts = new Map<string, number>();
-  for (const row of (productRows ?? []) as unknown as { model_id: string }[]) {
-    fitmentCounts.set(row.model_id, (fitmentCounts.get(row.model_id) ?? 0) + 1);
-  }
-  // fits_all-Produkte (kein product_fitment-Eintrag) zählen für jedes Modell
-  // der Familie zusätzlich, wie im Kundenflow (lib/catalog/queries.ts
-  // loadFittingProducts()).
-  const { count: fitsAllCount, error: fitsAllError } = await client
-    .from("products")
-    .select("id", { count: "exact", head: true })
-    .eq("family_id", family.id)
-    .eq("active", true)
-    .eq("fits_all", true);
-  if (fitsAllError) throw new Error(`Produktzahl (fits_all) laden fehlgeschlagen: ${fitsAllError.message}`);
+  const models = await sql<ModelDetailRow[]>`
+    select
+      m.id, m.slug, m.name, m.fuel, m.series_ps, m.series_nm, m.series_ps_suggested, m.sort, m.active,
+      (
+        (select count(*) from product_fitment pf
+          join products p on p.id = pf.product_id
+          where pf.model_id = m.id and p.active)
+        +
+        (select count(*) from products p
+          where p.family_id = m.family_id and p.active and p.fits_all)
+      ) as product_count
+    from models m
+    where m.family_id = ${family.id}
+    order by m.sort asc, m.name asc
+  `;
 
   return {
     id: family.id,
@@ -230,7 +217,7 @@ export async function getFamilyDetailForAdmin(slug: string, db?: Db): Promise<Ad
     sort: family.sort,
     shortText: family.short_text,
     photoUrl: family.photo_url,
-    models: (models ?? []).map((m) => ({
+    models: models.map((m) => ({
       id: m.id,
       slug: m.slug,
       name: m.name,
@@ -240,7 +227,7 @@ export async function getFamilyDetailForAdmin(slug: string, db?: Db): Promise<Ad
       seriesPsSuggested: m.series_ps_suggested,
       sort: m.sort,
       active: m.active,
-      productCount: (fitmentCounts.get(m.id) ?? 0) + (fitsAllCount ?? 0),
+      productCount: m.product_count,
     })),
   };
 }
@@ -265,26 +252,31 @@ export interface FamilyMetaPatch {
  * abweichender Admin-Name wäre irreführend, deshalb wird er hier
  * serverseitig verworfen statt nur im UI ausgeblendet.
  */
-export async function updateFamilyMeta(familyId: string, patch: FamilyMetaPatch, db?: Db): Promise<void> {
-  const client = await resolveClient(db);
+export async function updateFamilyMeta(familyId: string, patch: FamilyMetaPatch): Promise<void> {
+  const [family] = await sql<{ has_pricelist: boolean }[]>`
+    select has_pricelist from model_families where id = ${familyId}
+  `;
+  if (!family) throw new Error(`Baureihe speichern fehlgeschlagen: ${familyId} nicht gefunden.`);
 
-  const { data: family, error: loadError } = await client
-    .from("model_families")
-    .select("has_pricelist")
-    .eq("id", familyId)
-    .single();
-  if (loadError) throw new Error(`Baureihe laden fehlgeschlagen: ${loadError.message}`);
+  const name = patch.name !== undefined && !family.has_pricelist ? patch.name : undefined;
+  if (
+    patch.shortText === undefined &&
+    patch.sort === undefined &&
+    patch.active === undefined &&
+    name === undefined
+  ) {
+    return;
+  }
 
-  const payload: ModelFamilyUpdate = {};
-  if (patch.shortText !== undefined) payload.short_text = patch.shortText;
-  if (patch.sort !== undefined) payload.sort = patch.sort;
-  if (patch.active !== undefined) payload.active = patch.active;
-  if (patch.name !== undefined && !family.has_pricelist) payload.name = patch.name;
-
-  if (Object.keys(payload).length === 0) return;
-
-  const { error } = await client.from("model_families").update(payload).eq("id", familyId);
-  if (error) throw new Error(`Baureihe speichern fehlgeschlagen: ${error.message}`);
+  await sql`
+    update model_families
+    set
+      short_text = ${patch.shortText !== undefined ? patch.shortText : sql`short_text`},
+      sort = ${patch.sort !== undefined ? patch.sort : sql`sort`},
+      active = ${patch.active !== undefined ? patch.active : sql`active`},
+      name = ${name !== undefined ? name : sql`name`}
+    where id = ${familyId}
+  `;
 }
 
 export interface ModelPatch {
@@ -293,35 +285,31 @@ export interface ModelPatch {
   active?: boolean;
 }
 
-export async function updateModel(modelId: string, patch: ModelPatch, db?: Db): Promise<void> {
-  const client = await resolveClient(db);
-  const payload: ModelUpdate = {};
-  if (patch.seriesPs !== undefined) payload.series_ps = patch.seriesPs;
-  if (patch.seriesNm !== undefined) payload.series_nm = patch.seriesNm;
-  if (patch.active !== undefined) payload.active = patch.active;
-  if (Object.keys(payload).length === 0) return;
+export async function updateModel(modelId: string, patch: ModelPatch): Promise<void> {
+  if (patch.seriesPs === undefined && patch.seriesNm === undefined && patch.active === undefined) {
+    return;
+  }
 
-  const { error } = await client.from("models").update(payload).eq("id", modelId);
-  if (error) throw new Error(`Modell speichern fehlgeschlagen: ${error.message}`);
+  await sql`
+    update models
+    set
+      series_ps = ${patch.seriesPs !== undefined ? patch.seriesPs : sql`series_ps`},
+      series_nm = ${patch.seriesNm !== undefined ? patch.seriesNm : sql`series_nm`},
+      active = ${patch.active !== undefined ? patch.active : sql`active`}
+    where id = ${modelId}
+  `;
 }
 
 /** Nur für die Foto-Route: liefert slug + aktuelle photo_url einer Baureihe. */
 export async function getFamilyForPhoto(
   familyId: string,
-  db?: Db,
 ): Promise<{ id: string; slug: string; photoUrl: string | null } | null> {
-  const client = await resolveClient(db);
-  const { data, error } = await client
-    .from("model_families")
-    .select("id, slug, photo_url")
-    .eq("id", familyId)
-    .maybeSingle();
-  if (error) throw new Error(`Baureihe laden fehlgeschlagen: ${error.message}`);
-  return data ? { id: data.id, slug: data.slug, photoUrl: data.photo_url } : null;
+  const [row] = await sql<{ id: string; slug: string; photo_url: string | null }[]>`
+    select id, slug, photo_url from model_families where id = ${familyId}
+  `;
+  return row ? { id: row.id, slug: row.slug, photoUrl: row.photo_url } : null;
 }
 
-export async function setFamilyPhotoUrl(familyId: string, photoUrl: string | null, db?: Db): Promise<void> {
-  const client = await resolveClient(db);
-  const { error } = await client.from("model_families").update({ photo_url: photoUrl }).eq("id", familyId);
-  if (error) throw new Error(`Foto speichern fehlgeschlagen: ${error.message}`);
+export async function setFamilyPhotoUrl(familyId: string, photoUrl: string | null): Promise<void> {
+  await sql`update model_families set photo_url = ${photoUrl} where id = ${familyId}`;
 }

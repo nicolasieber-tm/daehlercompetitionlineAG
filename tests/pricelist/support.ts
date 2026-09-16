@@ -3,7 +3,7 @@
 // Datei (siehe vitest.config.ts: include nur "tests/**/*.test.ts" und
 // "lib/**/*.test.ts"), wird also selbst nicht als Testsuite ausgeführt.
 import { createHash } from "node:crypto";
-import type { Product } from "@/lib/supabase/rows";
+import type { Product } from "@/lib/db/rows";
 import type { ParsedProduct } from "@/lib/pricelist/types";
 
 /**

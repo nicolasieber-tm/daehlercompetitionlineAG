@@ -2,7 +2,7 @@
 // sendInquiryMail() als Komfortfunktion, die eine Vorlage baut und direkt
 // über sendMail() verschickt. Siehe docs/architektur.md, Abschnitt "Mail".
 import { randomUUID } from "node:crypto";
-import type { EmailType } from "@/lib/supabase/rows";
+import type { EmailType } from "@/lib/db/rows";
 import { sendMail } from "./resend";
 import type { SendMailResult } from "./resend";
 import { getSettings } from "./settings";

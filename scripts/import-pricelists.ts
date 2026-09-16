@@ -8,11 +8,26 @@
 //   ohne Pfad-Argument: alle .xls/.xlsx-Dateien in docs/preislisten.
 export {}; // macht die Datei zu einem Modul (isolierter Scope)
 
+// .env laden, BEVOR irgendein Modul geladen wird, das transitiv lib/db/
+// client.ts importiert: statische ESM-Imports werden vollständig aufgelöst
+// und ausgeführt, bevor der eigene Modul-Körper läuft (auch wenn der
+// Ladeaufruf textuell vor den import-Zeilen steht) - ein try/catch VOR den
+// imports reicht hier also NICHT (anders als bei scripts/migrate.ts, das
+// seinen postgres-Client erst innerhalb einer Funktion aufbaut). lib/db/
+// client.ts baut den Postgres-Pool dagegen als Modul-Top-Level-Seiteneffekt
+// auf (`export const sql = ... postgres(...)`) und wirft sofort, wenn
+// DATABASE_URL fehlt. Deshalb bleiben nur Imports ohne DB-Bezug (node:fs,
+// node:path, der reine Excel-Parser) statisch; buildDiff/applyImport/
+// closeDb lädt main() unten per dynamischem import() NACH loadEnvFile().
+try {
+  process.loadEnvFile(".env");
+} catch {
+  // .env nicht vorhanden: process.env muss die Variablen dann schon enthalten
+  // (z.B. auf Railway, wo sie als Service-Variablen gesetzt sind).
+}
+
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { buildDiff } from "@/lib/pricelist/diff";
-import { applyImport } from "@/lib/pricelist/apply";
 import { parseWorkbook } from "@/lib/pricelist/parser";
 import type { ParsedFamily } from "@/lib/pricelist/types";
 import type { ImportDiff } from "@/lib/pricelist/types";
@@ -94,8 +109,19 @@ function printDiff(diff: ImportDiff): void {
   );
 }
 
+// Wird von main() gesetzt, sobald lib/db/client.ts geladen ist (siehe
+// dort), damit der abschliessende .finally() unten den Pool auch bei einem
+// frühen return/throw in main() noch schliessen kann.
+let closeDb: (() => Promise<void>) | undefined;
+
 async function main() {
-  process.loadEnvFile(".env");
+  // Dynamischer Import statt statisch oben (siehe Kommentar dort): erst
+  // jetzt, nach process.loadEnvFile(".env"), wird lib/db/client.ts (und
+  // damit lib/pricelist/diff.ts/apply.ts, die es transitiv importieren)
+  // tatsächlich geladen und der Postgres-Pool aufgebaut.
+  const { buildDiff } = await import("@/lib/pricelist/diff");
+  const { applyImport } = await import("@/lib/pricelist/apply");
+  ({ closeDb } = await import("@/lib/db/client"));
 
   const { paths, apply } = parseArgs(process.argv.slice(2));
 
@@ -127,10 +153,8 @@ async function main() {
   const totalWarnings = parsed.reduce((sum, f) => sum + f.warnings.length, 0);
   console.log(`${parsed.length} Familie(n) geparst, ${totalWarnings} Parser-Warnung(en) insgesamt.`);
 
-  const db = createAdminClient();
-
   console.log("\nBerechne Diff gegen die DB...");
-  const diff = await buildDiff(parsed, db);
+  const diff = await buildDiff(parsed);
   printDiff(diff);
 
   if (!apply) {
@@ -140,7 +164,7 @@ async function main() {
   }
 
   console.log("\n--apply gesetzt: übernehme in die DB...");
-  const result = await applyImport(parsed, db, {});
+  const result = await applyImport(parsed, {});
 
   console.log("\nErgebnis je Familie:");
   const cols = [
@@ -191,7 +215,15 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.stack ?? err.message : err);
-  process.exitCode = 1;
-});
+main()
+  .catch((err) => {
+    console.error(err instanceof Error ? err.stack ?? err.message : err);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    // Ohne explizites Schliessen hält der Postgres-Pool (lib/db/client.ts)
+    // den Prozess offen (kein automatisches Ende bei einem tsx-Skript wie
+    // bei next dev/start). closeDb ist nur gesetzt, wenn main() so weit kam,
+    // lib/db/client.ts zu laden (siehe dort).
+    await closeDb?.();
+  });

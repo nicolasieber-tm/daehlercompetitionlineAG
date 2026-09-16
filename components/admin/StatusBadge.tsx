@@ -1,5 +1,5 @@
 import { admin } from "@/lib/i18n/admin";
-import type { InquiryStatus } from "@/lib/supabase/rows";
+import type { InquiryStatus } from "@/lib/db/rows";
 
 const COLORS: Record<InquiryStatus, string> = {
   neu: "border-red-bright text-red-bright bg-red-soft",

@@ -1,18 +1,22 @@
 // POST/DELETE /api/admin/models/photo: Baureihen-Foto hochladen/ersetzen
 // (POST, multipart/form-data mit "familyId" + "file") bzw. entfernen
-// (DELETE, JSON-Body { familyId }). Siehe Aufgabenstellung "Modelle": Foto
-// hochladen/ersetzen/entfernen, Storage-Bucket model-photos über
-// Service-Role, Pfad families/<slug>.<ext>, serverseitig max. 8 MB,
-// jpg/png/webp, photo_url speichern, revalidateTag('catalog'). Nur für
-// angemeldete Admins (Supabase-Session), sonst 401.
+// (DELETE, JSON-Body { familyId }). Siehe docs/umbau-railway.md, Abschnitt
+// "Fotos und Import-Zwischenspeicher": Fotos liegen als bytea in der Tabelle
+// `photos` statt in einem Supabase-Storage-Bucket, ausgeliefert über
+// GET /api/photos/[id] (Content-Type, ETag=sha1). Serverseitig max. 8 MB,
+// jpg/png/webp, photo_url zeigt danach auf /api/photos/<id>,
+// revalidateTag('catalog'). Nur für angemeldete Admins, sonst 401
+// (middleware.ts deckt /api/admin/* bereits über das Session-Cookie ab,
+// getAdminUser() hier als zweite, unabhängige Prüfung mit echtem
+// DB-Zugriff, wie bei jeder anderen Admin-Route).
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { detectImageExtension, getFamilyForPhoto, isUuid, setFamilyPhotoUrl } from "@/lib/admin/models";
+import { getAdminUser } from "@/lib/admin/auth";
+import { detectImageExtension, getFamilyForPhoto, isUuid } from "@/lib/admin/models";
+import { sql } from "@/lib/db/client";
 
-const BUCKET = "model-photos";
 const MAX_SIZE = 8 * 1024 * 1024; // 8 MB
 const ALLOWED_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -20,26 +24,8 @@ const ALLOWED_TYPES: Record<string, string> = {
   "image/webp": "webp",
 };
 
-// Alle möglichen bisherigen Dateiendungen: vor einem Upload/Entfernen werden
-// sämtliche Kandidaten gelöscht, damit bei einem Wechsel des Dateityps
-// (z.B. vorher .png, jetzt .jpg) kein verwaistes altes Objekt im Bucket
-// liegen bleibt (der Pfad ist sonst nur über slug+ext eindeutig).
-const ALL_EXTENSIONS = ["jpg", "jpeg", "png", "webp"];
-
-function pathsForSlug(slug: string): string[] {
-  return ALL_EXTENSIONS.map((ext) => `families/${slug}.${ext}`);
-}
-
-async function requireSessionUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
-
 export async function POST(request: Request) {
-  const user = await requireSessionUser();
+  const user = await getAdminUser();
   if (!user) {
     return NextResponse.json({ ok: false, error: "Nicht angemeldet." }, { status: 401 });
   }
@@ -69,7 +55,7 @@ export async function POST(request: Request) {
   }
 
   // Inhalt einmal lesen: für die Magic-Bytes-Prüfung UND (bei Erfolg) für
-  // den Upload weiter unten - kein zweites file.arrayBuffer().
+  // den Insert weiter unten - kein zweites file.arrayBuffer().
   const buffer = Buffer.from(await file.arrayBuffer());
   const detectedExt = detectImageExtension(buffer);
   if (!detectedExt || detectedExt !== ext) {
@@ -79,31 +65,35 @@ export async function POST(request: Request) {
     );
   }
 
-  const admin = createAdminClient();
-  const family = await getFamilyForPhoto(familyId, admin);
+  const family = await getFamilyForPhoto(familyId);
   if (!family) {
     return NextResponse.json({ ok: false, error: "Baureihe nicht gefunden." }, { status: 404 });
   }
 
   try {
-    // Alte Objekte aller Endungen zuerst entfernen (siehe Kommentar oben),
-    // Fehler dabei sind unkritisch (z.B. Objekt existierte gar nicht).
-    await admin.storage.from(BUCKET).remove(pathsForSlug(family.slug));
+    const sha1 = createHash("sha1").update(buffer).digest("hex");
 
-    const path = `families/${family.slug}.${ext}`;
-    const { error: uploadError } = await admin.storage
-      .from(BUCKET)
-      .upload(path, buffer, { contentType: file.type, upsert: true });
-    if (uploadError) throw new Error(uploadError.message);
-
-    const { data: publicUrlData } = admin.storage.from(BUCKET).getPublicUrl(path);
-    await setFamilyPhotoUrl(familyId, publicUrlData.publicUrl, admin);
+    const photoUrl = await sql.begin(async (tx) => {
+      const [photo] = await tx<{ id: string }[]>`
+        insert into photos (kind, owner_id, content_type, bytes, size, sha1)
+        values ('family', ${familyId}, ${file.type}, ${buffer}, ${buffer.length}, ${sha1})
+        returning id
+      `;
+      // Voriges Foto derselben Familie entfernen (siehe Aufgabenstellung
+      // "löscht das vorherige Foto der Familie/des Modells") - erst nach dem
+      // erfolgreichen Insert, damit bei einem Fehler weiter oben nie
+      // versehentlich ein noch gültiges Foto verloren geht.
+      await tx`delete from photos where kind = 'family' and owner_id = ${familyId} and id != ${photo.id}`;
+      const url = `/api/photos/${photo.id}`;
+      await tx`update model_families set photo_url = ${url} where id = ${familyId}`;
+      return url;
+    });
 
     revalidateTag("catalog");
     revalidatePath(`/admin/modelle/${family.slug}`);
     revalidatePath("/admin/modelle");
 
-    return NextResponse.json({ ok: true, photoUrl: publicUrlData.publicUrl });
+    return NextResponse.json({ ok: true, photoUrl });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Foto-Upload fehlgeschlagen.";
     console.error("POST /api/admin/models/photo fehlgeschlagen.", err);
@@ -116,7 +106,7 @@ const deleteSchema = z.object({
 });
 
 export async function DELETE(request: Request) {
-  const user = await requireSessionUser();
+  const user = await getAdminUser();
   if (!user) {
     return NextResponse.json({ ok: false, error: "Nicht angemeldet." }, { status: 401 });
   }
@@ -135,15 +125,19 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const admin = createAdminClient();
-  const family = await getFamilyForPhoto(parsed.data.familyId, admin);
+  const family = await getFamilyForPhoto(parsed.data.familyId);
   if (!family) {
     return NextResponse.json({ ok: false, error: "Baureihe nicht gefunden." }, { status: 404 });
   }
 
   try {
-    await admin.storage.from(BUCKET).remove(pathsForSlug(family.slug));
-    await setFamilyPhotoUrl(family.id, null, admin);
+    // Löschen der photos-Zeile(n) und das Zurücksetzen von photo_url in
+    // derselben Transaktion, damit photo_url nie auf ein bereits gelöschtes
+    // Foto zeigen kann.
+    await sql.begin(async (tx) => {
+      await tx`delete from photos where kind = 'family' and owner_id = ${family.id}`;
+      await tx`update model_families set photo_url = null where id = ${family.id}`;
+    });
 
     revalidateTag("catalog");
     revalidatePath(`/admin/modelle/${family.slug}`);

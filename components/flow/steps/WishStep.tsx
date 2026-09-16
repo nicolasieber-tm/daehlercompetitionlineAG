@@ -6,7 +6,7 @@
 import type { Dispatch } from "react";
 import { Button, Question, StepLabel, Subtitle, Tile } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
-import { FLOW_CATEGORIES } from "@/lib/supabase/rows";
+import { FLOW_CATEGORIES } from "@/lib/db/rows";
 import type { FlowAction, FlowState } from "../state";
 
 export function WishStep({ state, dispatch }: { state: FlowState; dispatch: Dispatch<FlowAction> }) {

@@ -2,9 +2,12 @@
 // fitten (oder fits_all), gruppiert für den Kategorie-Schritt des
 // Kundenflows, plus Hinweise. Siehe docs/architektur.md, Abschnitt
 // "Kundenflow", und lib/catalog/queries.ts (getProductsForModel).
+//
+// Railway-Umbau (docs/umbau-railway.md): getProductsForModel() greift
+// direkt über den Postgres-Pool zu (lib/db/client.ts), ein Supabase-Client
+// wird hier nicht mehr gebraucht.
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
 import { getProductsForModel } from "@/lib/catalog/queries";
 
 const querySchema = z.object({
@@ -22,10 +25,9 @@ export async function GET(request: NextRequest) {
   const { model } = parsedQuery.data;
 
   try {
-    const client = await createClient();
     // Kein next/cache-unstable_cache mehr, siehe Kommentar in
     // app/api/catalog/route.ts (Befund #3, Bericht).
-    const result = await getProductsForModel(model, client);
+    const result = await getProductsForModel(model);
 
     if (!result) {
       return NextResponse.json({ ok: false, error: "Modell nicht gefunden." }, { status: 404 });

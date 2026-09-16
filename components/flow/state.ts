@@ -14,7 +14,7 @@
 import type { CatalogProduct, CategoryNote, ProductGroup } from "@/lib/catalog/queries";
 import { gearboxProductVisible } from "@/lib/catalog/gearbox";
 import { hasVmaxLift, isStageProduct } from "@/lib/catalog/product-display";
-import type { Brand, Channel, Character, FlowCategory, InquiryGearbox, Timing } from "@/lib/supabase/rows";
+import type { Brand, Channel, Character, FlowCategory, InquiryGearbox, Timing } from "@/lib/db/rows";
 
 export type StepId = "car" | "wish" | `cat:${FlowCategory}` | "character" | "contact" | "done";
 

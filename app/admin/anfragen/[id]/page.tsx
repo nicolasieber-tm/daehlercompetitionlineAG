@@ -12,7 +12,7 @@ import { getSettings } from "@/lib/mail";
 import { admin } from "@/lib/i18n/admin";
 import { tf } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
-import type { InquiryStatus } from "@/lib/supabase/rows";
+import type { InquiryStatus } from "@/lib/db/rows";
 import { Toolbar } from "@/components/admin/Toolbar";
 import { StatusControl } from "@/components/admin/StatusControl";
 import { SummaryBlock } from "@/components/admin/SummaryBlock";

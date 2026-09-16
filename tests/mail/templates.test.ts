@@ -12,7 +12,7 @@ import { buildFollowUp } from "@/lib/mail/templates/follow_up";
 import { itemLineText, vehicleLabel } from "@/lib/mail/render";
 import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
 import type { MailCheck, MailFollowUpContext, MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
-import type { Inquiry, Model, ModelFamily } from "@/lib/supabase/rows";
+import type { Inquiry, Model, ModelFamily } from "@/lib/db/rows";
 import type { Locale } from "@/lib/i18n/dictionaries";
 
 // --- Fixtures ----------------------------------------------------------
@@ -326,7 +326,7 @@ describe("Mailvorlagen: gemeinsame Anforderungen", () => {
   }
 
   // Befund «polish» #1: der ausgelieferte Seed-Wert für company_address
-  // (supabase/seed.sql) ist bereits "dÄHLer Competition Line AG, Belp"
+  // (db/seed.sql) ist bereits "dÄHLer Competition Line AG, Belp"
   // (voller Firmenname inklusive), nicht die reine Adresse "Belp" wie in
   // makeFollowUpContext() oben. Mit diesen Werten hängte follow_up.ts den
   // Firmennamen bisher ein zweites Mal davor ("dÄHLer Competition Line AG,
@@ -524,7 +524,7 @@ describe("vehicleLabel: vehicle_text und Platzhalterfamilien (Fahrzeugbezeichnun
     // lib/catalog/vehicle-label.ts stripBrandWord()), sonst "MINI Älteres
     // MINI-Modell". Die ausgelieferten Seed-Namen heissen deshalb seit
     // diesem Feinschliff einheitlich "Älteres Modell"/"Anderes Modell" ohne
-    // Markenwort (supabase/seed.sql) - dieser Test bildet weiterhin einen
+    // Markenwort (db/seed.sql) - dieser Test bildet weiterhin einen
     // von Hand nachgetragenen Namen MIT Markenwort ab, als Schutznetz.
     expect(vehicleLabel({ family: mini, model: null, vehicleText: null })).toBe("MINI Älteres Modell");
     expect(vehicleLabel({ family: toyota, model: null, vehicleText: null })).toBe("Toyota Anderes Modell");

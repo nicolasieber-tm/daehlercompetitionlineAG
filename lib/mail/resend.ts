@@ -10,18 +10,17 @@
 //
 // Abweichung vom Auftrag ("Zeile in outbound_emails anlegen (status
 // pending), danach status sent/failed"): outbound_emails.status hat in
-// supabase/migrations/20260911000000_init.sql die check-Constraint
-// `status in ('sent', 'failed')` (Default 'sent'), "pending" ist dort kein
-// gültiger Wert (siehe auch docs/db.md und EmailStatus in
-// lib/supabase/rows.ts: nur "sent" | "failed"). Migrationen liegen ausserhalb
-// dieser Aufgabe. sendMail() ermittelt deshalb das Ergebnis zuerst und
-// schreibt danach genau eine Zeile mit dem finalen Status, statt eine
-// pending-Zeile vorab anzulegen und anschliessend zu aktualisieren. Siehe
-// Bericht.
+// db/migrations/0001_init.sql die check-Constraint `status in ('sent',
+// 'failed')` (Default 'sent'), "pending" ist dort kein gültiger Wert (siehe
+// auch docs/db.md und EmailStatus in lib/db/rows.ts: nur "sent" | "failed").
+// Migrationen liegen ausserhalb dieser Aufgabe. sendMail() ermittelt deshalb
+// das Ergebnis zuerst und schreibt danach genau eine Zeile mit dem finalen
+// Status, statt eine pending-Zeile vorab anzulegen und anschliessend zu
+// aktualisieren. Siehe Bericht.
 import { randomUUID } from "node:crypto";
 import { Resend } from "resend";
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { EmailType, Locale } from "@/lib/supabase/rows";
+import { sql } from "@/lib/db/client";
+import type { EmailType, Locale } from "@/lib/db/rows";
 import { getSettings } from "./settings";
 
 export interface SendMailInput {
@@ -61,20 +60,6 @@ export function resetResendClient(): void {
 type Outcome = { status: "sent"; resendId: string } | { status: "failed"; error: string };
 
 export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
-  // createAdminClient() wirft bei fehlenden Env-Variablen (siehe
-  // lib/supabase/admin.ts). sendMail() darf trotzdem nie nach aussen werfen,
-  // deshalb hier abgefangen: ohne Admin-Client ist auch keine
-  // outbound_emails-Zeile möglich, das Ergebnis kommt also ohne
-  // Protokollzeile zurück (Befund 2).
-  let admin: ReturnType<typeof createAdminClient>;
-  try {
-    admin = createAdminClient();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("sendMail: Admin-Client konnte nicht erstellt werden.", err);
-    return { ok: false, error: message, outboundEmailId: randomUUID() };
-  }
-
   let settings: Record<string, string>;
   try {
     settings = await getSettings();
@@ -136,24 +121,17 @@ export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
   let outboundEmailId: string = randomUUID();
   if (input.inquiryId) {
     try {
-      const { data, error } = await admin
-        .from("outbound_emails")
-        .insert({
-          id: outboundEmailId,
-          inquiry_id: input.inquiryId,
-          type: input.type,
-          to_email: effectiveTo,
-          subject,
-          body_text: input.text,
-          status: outcome.status,
-          resend_id: outcome.status === "sent" ? outcome.resendId : null,
-          error: outcome.status === "failed" ? outcome.error : null,
-          sent_at: outcome.status === "sent" ? new Date().toISOString() : null,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      outboundEmailId = data.id;
+      const [row] = await sql<{ id: string }[]>`
+        insert into outbound_emails (id, inquiry_id, type, to_email, subject, body_text, status, resend_id, error, sent_at)
+        values (
+          ${outboundEmailId}, ${input.inquiryId}, ${input.type}, ${effectiveTo}, ${subject}, ${input.text},
+          ${outcome.status}, ${outcome.status === "sent" ? outcome.resendId : null},
+          ${outcome.status === "failed" ? outcome.error : null},
+          ${outcome.status === "sent" ? new Date().toISOString() : null}
+        )
+        returning id
+      `;
+      outboundEmailId = row.id;
     } catch (err) {
       console.error("sendMail: outbound_emails-Zeile konnte nicht angelegt werden.", err);
     }

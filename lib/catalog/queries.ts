@@ -2,26 +2,19 @@
 // Schnellweg (Posten 3). Quelle: docs/architektur.md, Abschnitte
 // "Kundenflow", "Excel-Import im Admin" (Kategorie-Mapping), "Posten 3".
 //
-// Alle Funktionen nehmen optional einen bereits erzeugten Supabase-Client
-// entgegen ("oder einen übergebenen Client", siehe Aufgabenstellung), damit
-// sie sowohl serverseitig im Next-Kontext (ohne Argument: eigener
-// Server-Client mit RLS über die Request-Cookies) als auch aus tsx-Skripten
-// ohne Next (Argument zwingend, da lib/supabase/server.ts next/headers
-// braucht) funktionieren. Caching per unstable_cache passiert bewusst NICHT
-// hier, sondern an den Aufrufstellen mit sicherem Next-Kontext (den beiden
-// Route Handlern app/api/catalog/*), siehe Aufgabenstellung "Cache-Wrapper
-// optional" - so bleibt dieses Modul ohne next/cache-Abhängigkeit direkt aus
-// scripts/ verwendbar.
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/database.types";
-import { FLOW_CATEGORIES, type Brand, type FlowCategory, type Fuel, type Gearbox, type PriceStatus } from "@/lib/supabase/rows";
+// Railway-Umbau (docs/umbau-railway.md, Abschnitt "Datenzugriffsschicht"):
+// Zugriff läuft jetzt über den einzigen, serverseitigen Postgres-Pool
+// (lib/db/client.ts, sql), nicht mehr über einen supabase-js-Client. Der
+// `db`-Parameter bleibt aus Rückwärtskompatibilität in der Signatur
+// erhalten (viele Aufrufer - lib/admin/*, lib/ai/*, lib/inquiry/create.ts -
+// übergeben noch einen alten Supabase-Client und werden erst in einer
+// späteren Phase umgestellt), wird aber ignoriert: sql ist ein
+// Singleton-Pool, ein zusätzlicher Client wird nicht mehr gebraucht.
+import { sql } from "@/lib/db/client";
+import { FLOW_CATEGORIES, type Brand, type FlowCategory, type Fuel, type Gearbox, type PriceStatus } from "@/lib/db/rows";
 
-type Db = SupabaseClient<Database>;
-
-async function resolveClient(db?: Db): Promise<Db> {
-  return db ?? (await createServerClient());
-}
+/** Rückwärtskompatibler, ignorierter Client-Parameter (siehe Kommentar oben). */
+type LegacyDbArg = unknown;
 
 // ---------------------------------------------------------------------------
 // Typen (Flow-Sicht, camelCase statt DB-Spaltennamen)
@@ -154,31 +147,31 @@ function sourceCategoryOrder(sourceCategory: string | null): number {
 // getFamilies / getFamilyBySlug
 // ---------------------------------------------------------------------------
 
-const FAMILY_SELECT =
-  "id, brand, name, slug, codes, has_pricelist, photo_url, short_text, sort, " +
-  "models(id, name, slug, fuel, series_ps, series_nm, series_ps_suggested, sort, active)";
-
-interface FamilyRow {
-  id: string;
+/** Eine Zeile aus dem LEFT JOIN model_families/models: eine Familie kann
+ * mehrfach auftreten (eine Zeile je Modell), oder genau einmal mit
+ * model_id null (Familie ohne aktive Modelle, z.B. die Platzhalter-Familien
+ * "auf Anfrage" aus db/seed.sql). LEFT statt INNER JOIN, damit solche
+ * Familien nicht verschwinden (Pendant zum bisherigen PostgREST-Verhalten:
+ * .eq("models.active", true) filtert die eingebettete Relation, entfernt
+ * aber keine Familien ohne Treffer). */
+interface FamilyModelRow {
+  family_id: string;
   brand: string;
-  name: string;
-  slug: string;
+  family_name: string;
+  family_slug: string;
   codes: string[];
   has_pricelist: boolean;
   photo_url: string | null;
   short_text: string | null;
-  sort: number;
-  models: {
-    id: string;
-    name: string;
-    slug: string;
-    fuel: string | null;
-    series_ps: number | null;
-    series_nm: number | null;
-    series_ps_suggested: number[];
-    sort: number;
-    active: boolean;
-  }[];
+  family_sort: number;
+  model_id: string | null;
+  model_name: string | null;
+  model_slug: string | null;
+  model_fuel: string | null;
+  model_series_ps: number | null;
+  model_series_nm: number | null;
+  model_series_ps_suggested: number[] | null;
+  model_sort: number | null;
 }
 
 /** Ergebnis von loadGearboxSpecificModelIds() (siehe dort). */
@@ -189,34 +182,46 @@ interface GearboxCoverage {
   modelIds: Set<string>;
 }
 
-function mapFamily(row: FamilyRow, gearboxCoverage: GearboxCoverage): CatalogFamily {
-  const models = [...row.models]
-    .filter((m) => m.active)
-    .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "de-CH"))
-    .map((m) => ({
-      id: m.id,
-      name: m.name,
-      slug: m.slug,
-      fuel: m.fuel as Fuel | null,
-      seriesPs: m.series_ps,
-      seriesNm: m.series_nm,
-      seriesPsSuggested: m.series_ps_suggested,
-      sort: m.sort,
-      hasGearboxSpecificProducts:
-        gearboxCoverage.familyIdsWithFitsAll.has(row.id) || gearboxCoverage.modelIds.has(m.id),
-    }));
-  return {
-    id: row.id,
-    brand: row.brand as Brand,
-    name: row.name,
-    slug: row.slug,
-    codes: row.codes,
-    hasPricelist: row.has_pricelist,
-    photoUrl: row.photo_url,
-    shortText: row.short_text,
-    sort: row.sort,
-    models,
-  };
+/** Gruppiert die flachen JOIN-Zeilen zu einer CatalogFamily je family_id,
+ * in der Reihenfolge des ersten Auftretens. */
+function groupFamilyRows(rows: FamilyModelRow[], gearboxCoverage: GearboxCoverage): CatalogFamily[] {
+  const byId = new Map<string, CatalogFamily>();
+  for (const row of rows) {
+    let family = byId.get(row.family_id);
+    if (!family) {
+      family = {
+        id: row.family_id,
+        brand: row.brand as Brand,
+        name: row.family_name,
+        slug: row.family_slug,
+        codes: row.codes,
+        hasPricelist: row.has_pricelist,
+        photoUrl: row.photo_url,
+        shortText: row.short_text,
+        sort: row.family_sort,
+        models: [],
+      };
+      byId.set(row.family_id, family);
+    }
+    if (row.model_id) {
+      family.models.push({
+        id: row.model_id,
+        name: row.model_name!,
+        slug: row.model_slug!,
+        fuel: row.model_fuel as Fuel | null,
+        seriesPs: row.model_series_ps,
+        seriesNm: row.model_series_nm,
+        seriesPsSuggested: row.model_series_ps_suggested ?? [],
+        sort: row.model_sort ?? 0,
+        hasGearboxSpecificProducts:
+          gearboxCoverage.familyIdsWithFitsAll.has(row.family_id) || gearboxCoverage.modelIds.has(row.model_id),
+      });
+    }
+  }
+  for (const family of byId.values()) {
+    family.models.sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "de-CH"));
+  }
+  return [...byId.values()];
 }
 
 function sortFamilies(families: CatalogFamily[]): CatalogFamily[] {
@@ -237,66 +242,69 @@ function sortFamilies(families: CatalogFamily[]): CatalogFamily[] {
  * (nur gearbox-gesetzte Zeilen, siehe DB-Auswertung: 43 Stück im Bestand),
  * product_fitment wird nur für deren fits_all=false-Teilmenge geladen.
  */
-async function loadGearboxSpecificModelIds(familyIds: string[], client: Db): Promise<GearboxCoverage> {
+async function loadGearboxSpecificModelIds(familyIds: string[]): Promise<GearboxCoverage> {
   const empty: GearboxCoverage = { familyIdsWithFitsAll: new Set(), modelIds: new Set() };
   if (familyIds.length === 0) return empty;
 
-  const { data: products, error } = await client
-    .from("products")
-    .select("id, family_id, fits_all")
-    .in("family_id", familyIds)
-    .eq("active", true)
-    .not("gearbox", "is", null);
-  if (error) throw new Error(`Getriebe-Abdeckung laden fehlgeschlagen: ${error.message}`);
+  const products = await sql<{ id: string; family_id: string; fits_all: boolean }[]>`
+    select id, family_id, fits_all
+    from products
+    where family_id = any(${familyIds}::uuid[])
+      and active = true
+      and gearbox is not null
+  `;
 
   const familyIdsWithFitsAll = new Set<string>();
   const specificProductIds: string[] = [];
-  for (const p of products ?? []) {
+  for (const p of products) {
     if (p.fits_all) familyIdsWithFitsAll.add(p.family_id);
     else specificProductIds.push(p.id);
   }
 
   const modelIds = new Set<string>();
   if (specificProductIds.length > 0) {
-    const { data: fitment, error: fitmentError } = await client
-      .from("product_fitment")
-      .select("model_id")
-      .in("product_id", specificProductIds);
-    if (fitmentError) throw new Error(`Getriebe-Abdeckung (Fitment) laden fehlgeschlagen: ${fitmentError.message}`);
-    for (const f of fitment ?? []) modelIds.add(f.model_id);
+    const fitment = await sql<{ model_id: string }[]>`
+      select model_id from product_fitment where product_id = any(${specificProductIds}::uuid[])
+    `;
+    for (const f of fitment) modelIds.add(f.model_id);
   }
 
   return { familyIdsWithFitsAll, modelIds };
 }
 
 /** Aktive Familien mit aktiven Modellen, sortiert BMW/MINI/Toyota/Wiesmann, dann sort, dann name. */
-export async function getFamilies(db?: Db): Promise<CatalogFamily[]> {
-  const client = await resolveClient(db);
-  const { data, error } = await client
-    .from("model_families")
-    .select(FAMILY_SELECT)
-    .eq("active", true)
-    .eq("models.active", true);
-  if (error) throw new Error(`getFamilies fehlgeschlagen: ${error.message}`);
-  const rows = (data ?? []) as unknown as FamilyRow[];
-  const gearboxCoverage = await loadGearboxSpecificModelIds(rows.map((r) => r.id), client);
-  return sortFamilies(rows.map((row) => mapFamily(row, gearboxCoverage)));
+export async function getFamilies(_db?: LegacyDbArg): Promise<CatalogFamily[]> {
+  const rows = await sql<FamilyModelRow[]>`
+    select
+      mf.id as family_id, mf.brand, mf.name as family_name, mf.slug as family_slug,
+      mf.codes, mf.has_pricelist, mf.photo_url, mf.short_text, mf.sort as family_sort,
+      m.id as model_id, m.name as model_name, m.slug as model_slug, m.fuel as model_fuel,
+      m.series_ps as model_series_ps, m.series_nm as model_series_nm,
+      m.series_ps_suggested as model_series_ps_suggested, m.sort as model_sort
+    from model_families mf
+    left join models m on m.family_id = mf.id and m.active = true
+    where mf.active = true
+  `;
+  const familyIds = [...new Set(rows.map((r) => r.family_id))];
+  const gearboxCoverage = await loadGearboxSpecificModelIds(familyIds);
+  return sortFamilies(groupFamilyRows(rows, gearboxCoverage));
 }
 
-export async function getFamilyBySlug(slug: string, db?: Db): Promise<CatalogFamily | null> {
-  const client = await resolveClient(db);
-  const { data, error } = await client
-    .from("model_families")
-    .select(FAMILY_SELECT)
-    .eq("slug", slug)
-    .eq("active", true)
-    .eq("models.active", true)
-    .maybeSingle();
-  if (error) throw new Error(`getFamilyBySlug fehlgeschlagen: ${error.message}`);
-  if (!data) return null;
-  const row = data as unknown as FamilyRow;
-  const gearboxCoverage = await loadGearboxSpecificModelIds([row.id], client);
-  return mapFamily(row, gearboxCoverage);
+export async function getFamilyBySlug(slug: string, _db?: LegacyDbArg): Promise<CatalogFamily | null> {
+  const rows = await sql<FamilyModelRow[]>`
+    select
+      mf.id as family_id, mf.brand, mf.name as family_name, mf.slug as family_slug,
+      mf.codes, mf.has_pricelist, mf.photo_url, mf.short_text, mf.sort as family_sort,
+      m.id as model_id, m.name as model_name, m.slug as model_slug, m.fuel as model_fuel,
+      m.series_ps as model_series_ps, m.series_nm as model_series_nm,
+      m.series_ps_suggested as model_series_ps_suggested, m.sort as model_sort
+    from model_families mf
+    left join models m on m.family_id = mf.id and m.active = true
+    where mf.active = true and mf.slug = ${slug}
+  `;
+  if (rows.length === 0) return null;
+  const gearboxCoverage = await loadGearboxSpecificModelIds([rows[0].family_id]);
+  return groupFamilyRows(rows, gearboxCoverage)[0] ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -349,34 +357,45 @@ function mapProduct(p: ProductRow): CatalogProduct {
   };
 }
 
-const PRODUCT_COLUMNS =
-  "id, name, description, category, source_category, group_label, article_no, " +
-  "price_parts, price_install, price_approval, price_total, price_status, price_note, " +
-  "ps_base, ps_to, nm_to, variant_group, gearbox, sort";
+const PRODUCT_COLUMNS = [
+  "id",
+  "name",
+  "description",
+  "category",
+  "source_category",
+  "group_label",
+  "article_no",
+  "price_parts",
+  "price_install",
+  "price_approval",
+  "price_total",
+  "price_status",
+  "price_note",
+  "ps_base",
+  "ps_to",
+  "nm_to",
+  "variant_group",
+  "gearbox",
+  "sort",
+] as const;
 
-async function loadFittingProducts(familyId: string, modelId: string, client: Db): Promise<ProductRow[]> {
-  const [fitsAllRes, fitmentRes] = await Promise.all([
-    client
-      .from("products")
-      .select(PRODUCT_COLUMNS)
-      .eq("family_id", familyId)
-      .eq("active", true)
-      .eq("fits_all", true),
-    client
-      .from("product_fitment")
-      .select(`products!inner(${PRODUCT_COLUMNS})`)
-      .eq("model_id", modelId)
-      .eq("products.active", true)
-      .eq("products.family_id", familyId),
+async function loadFittingProducts(familyId: string, modelId: string): Promise<ProductRow[]> {
+  const [fitsAll, fitment] = await Promise.all([
+    sql<ProductRow[]>`
+      select ${sql(PRODUCT_COLUMNS)} from products
+      where family_id = ${familyId} and active = true and fits_all = true
+    `,
+    sql<ProductRow[]>`
+      select ${sql(PRODUCT_COLUMNS.map((c) => `p.${c}`))}
+      from product_fitment pf
+      join products p on p.id = pf.product_id
+      where pf.model_id = ${modelId} and p.active = true and p.family_id = ${familyId}
+    `,
   ]);
-  if (fitsAllRes.error) throw new Error(`Produkte (fits_all) laden fehlgeschlagen: ${fitsAllRes.error.message}`);
-  if (fitmentRes.error) throw new Error(`Produkte (Fitment) laden fehlgeschlagen: ${fitmentRes.error.message}`);
 
   const byId = new Map<string, ProductRow>();
-  for (const p of (fitsAllRes.data ?? []) as unknown as ProductRow[]) byId.set(p.id, p);
-  for (const row of (fitmentRes.data ?? []) as unknown as { products: ProductRow }[]) {
-    byId.set(row.products.id, row.products);
-  }
+  for (const p of fitsAll) byId.set(p.id, p);
+  for (const p of fitment) byId.set(p.id, p);
   return [...byId.values()];
 }
 
@@ -415,43 +434,35 @@ function groupProducts(products: ProductRow[]): ProductGroup[] {
  * Flow-Reihenfolge, plus die Hinweise (pricelist_notes) je Excel-Kategorie
  * der Familie. null, wenn das Modell nicht existiert oder inaktiv ist.
  */
-export async function getProductsForModel(modelId: string, db?: Db): Promise<ProductsForModelResult | null> {
-  const client = await resolveClient(db);
-
-  const { data: model, error: modelError } = await client
-    .from("models")
-    .select("id, name, slug, family_id, model_families(id, slug, name, brand)")
-    .eq("id", modelId)
-    .eq("active", true)
-    .maybeSingle();
-  if (modelError) throw new Error(`Modell laden fehlgeschlagen: ${modelError.message}`);
+export async function getProductsForModel(modelId: string, _db?: LegacyDbArg): Promise<ProductsForModelResult | null> {
+  const modelRows = await sql<
+    { id: string; name: string; slug: string; family_id: string; family_slug: string; family_name: string; family_brand: string }[]
+  >`
+    select m.id, m.name, m.slug, m.family_id,
+           mf.slug as family_slug, mf.name as family_name, mf.brand as family_brand
+    from models m
+    join model_families mf on mf.id = m.family_id
+    where m.id = ${modelId} and m.active = true
+  `;
+  const model = modelRows[0];
   if (!model) return null;
 
-  const family = model.model_families as unknown as {
-    id: string;
-    slug: string;
-    name: string;
-    brand: string;
-  } | null;
-  if (!family) return null;
-
-  const products = await loadFittingProducts(family.id, modelId, client);
+  const products = await loadFittingProducts(model.family_id, modelId);
   const groups = groupProducts(products);
 
-  const { data: noteRows, error: notesError } = await client
-    .from("pricelist_notes")
-    .select("category, text")
-    .eq("family_id", family.id)
-    .order("sort", { ascending: true });
-  if (notesError) throw new Error(`pricelist_notes laden fehlgeschlagen: ${notesError.message}`);
-  const notes: CategoryNote[] = (noteRows ?? []).map((n) => ({
+  const noteRows = await sql<{ category: string | null; text: string }[]>`
+    select category, text from pricelist_notes
+    where family_id = ${model.family_id}
+    order by sort asc
+  `;
+  const notes: CategoryNote[] = noteRows.map((n) => ({
     sourceCategory: n.category ?? "",
     text: n.text,
   }));
 
   return {
-    model: { id: model.id, name: model.name, slug: model.slug, familyId: family.id },
-    family: { id: family.id, slug: family.slug, name: family.name, brand: family.brand as Brand },
+    model: { id: model.id, name: model.name, slug: model.slug, familyId: model.family_id },
+    family: { id: model.family_id, slug: model.family_slug, name: model.family_name, brand: model.family_brand as Brand },
     groups,
     notes,
   };
@@ -462,65 +473,36 @@ export async function getProductsForModel(modelId: string, db?: Db): Promise<Pro
 // Client übernehmen, siehe docs/architektur.md "Anfrage anlegen")
 // ---------------------------------------------------------------------------
 
-export async function getProductsByIds(ids: string[], db?: Db): Promise<CatalogProduct[]> {
+export async function getProductsByIds(ids: string[], _db?: LegacyDbArg): Promise<CatalogProduct[]> {
   if (ids.length === 0) return [];
-  const client = await resolveClient(db);
-  const { data, error } = await client
-    .from("products")
-    .select(PRODUCT_COLUMNS)
-    .in("id", ids)
-    .eq("active", true);
-  if (error) throw new Error(`getProductsByIds fehlgeschlagen: ${error.message}`);
-  return ((data ?? []) as unknown as ProductRow[]).map(mapProduct);
+  const rows = await sql<ProductRow[]>`
+    select ${sql(PRODUCT_COLUMNS)} from products
+    where id = any(${ids}::uuid[]) and active = true
+  `;
+  return rows.map(mapProduct);
 }
 
 // ---------------------------------------------------------------------------
 // getCatalogCompact (Posten 3: kompakter Katalog fürs Sprachmodell)
 // ---------------------------------------------------------------------------
 
-// PostgREST kappt jede Antwort still bei max_rows (supabase/config.toml,
-// aktuell 1000). Bei > 1000 aktiven Produkten insgesamt (Befund #1, Bericht:
-// 2685 aktive Produkte, ein einzelnes select() ohne range() liefert nur die
-// ersten 1000 ohne Fehler) muss seitenweise geladen werden, bis eine Seite
-// weniger als PAGE_SIZE Zeilen liefert. Sortierung nach (sort, id) macht die
-// Seitenreihenfolge deterministisch, sonst wäre .range() ohne eindeutigen
-// ORDER BY nicht verlässlich.
-const PRODUCT_PAGE_SIZE = 1000;
-
-async function loadAllActiveProducts(
-  client: Db,
-  familyIds: string[],
-): Promise<{ id: string; name: string; category: string; price_total: number | null; family_id: string }[]> {
-  const out: { id: string; name: string; category: string; price_total: number | null; family_id: string }[] = [];
-  let from = 0;
-  for (;;) {
-    const { data, error } = await client
-      .from("products")
-      .select("id, name, category, price_total, family_id")
-      .in("family_id", familyIds)
-      .eq("active", true)
-      .order("sort", { ascending: true })
-      .order("id", { ascending: true })
-      .range(from, from + PRODUCT_PAGE_SIZE - 1);
-    if (error) throw new Error(`getCatalogCompact fehlgeschlagen: ${error.message}`);
-    const rows = data ?? [];
-    out.push(...rows);
-    if (rows.length < PRODUCT_PAGE_SIZE) break;
-    from += PRODUCT_PAGE_SIZE;
-  }
-  return out;
-}
-
-export async function getCatalogCompact(db?: Db): Promise<CompactFamily[]> {
-  const client = await resolveClient(db);
-  const families = await getFamilies(client);
+export async function getCatalogCompact(db?: LegacyDbArg): Promise<CompactFamily[]> {
+  const families = await getFamilies(db);
   const familyIds = families.map((f) => f.id);
   if (familyIds.length === 0) return [];
 
-  const data = await loadAllActiveProducts(client, familyIds);
+  // Direkter Postgres-Zugriff statt PostgREST: kein max_rows-Limit mehr
+  // (vormals 1000, seitenweises Laden per .range() nötig, siehe Git-
+  // Historie), eine einzelne Abfrage genügt.
+  const rows = await sql<{ id: string; name: string; category: string; price_total: number | null; family_id: string }[]>`
+    select id, name, category, price_total, family_id
+    from products
+    where family_id = any(${familyIds}::uuid[]) and active = true
+    order by sort asc, id asc
+  `;
 
   const productsByFamily = new Map<string, CompactProduct[]>();
-  for (const p of data) {
+  for (const p of rows) {
     const arr = productsByFamily.get(p.family_id);
     const item: CompactProduct = { id: p.id, name: p.name, category: p.category as FlowCategory, priceTotal: p.price_total };
     if (arr) arr.push(item);

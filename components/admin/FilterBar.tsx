@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { admin } from "@/lib/i18n/admin";
-import type { InquiryStatus } from "@/lib/supabase/rows";
+import type { InquiryStatus } from "@/lib/db/rows";
 import type { FamilyFilterOption } from "@/lib/admin/inquiries";
 
 // Filterleiste der Übersicht: Status-Chips als reine Links (kein Client-JS

@@ -1,65 +1,35 @@
-import { createServerClient } from "@supabase/ssr";
+import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Middleware: schützt /admin/* (ausser /admin/login) und /api/admin/*,
- * erneuert nebenbei die Supabase-Session, Muster @supabase/ssr
- * "updateSession" (https://supabase.com/docs/guides/auth/server-side/nextjs).
+ * Middleware: schützt /admin/* (ausser /admin/login) und /api/admin/*.
+ * Prüft nur, ob better-auths Session-Cookie überhaupt existiert
+ * (getSessionCookie() aus "better-auth/cookies" liest/verifiziert nur das
+ * Cookie, ohne DB-Zugriff - für die Middleware, die auf jeder Anfrage
+ * läuft, bewusst schnell und ohne Netzwerk-Roundtrip gehalten, siehe
+ * docs/umbau-railway.md, Abschnitt "Login": "middleware.ts prüft nur das
+ * Session-Cookie"). Ob die Session dahinter noch gültig ist (nicht
+ * abgelaufen, nicht gelöscht), prüft lib/admin/auth.ts requireAdmin()
+ * serverseitig mit echtem DB-Zugriff (auth.api.getSession()) - das ist die
+ * massgebliche Prüfung, diese Middleware ist nur der schnelle erste Filter.
  *
- * Zwei unterschiedliche Reaktionen ohne Session (siehe CLAUDE.md, Abschnitt
+ * Zwei unterschiedliche Reaktionen ohne Cookie (siehe CLAUDE.md, Abschnitt
  * "Route Handler"): Seiten (/admin/*) -> Redirect auf /admin/login mit
  * ?next=<ursprünglicher Pfad>, damit app/admin/login/page.tsx nach
  * erfolgreichem Login dorthin zurückführen kann. API-Routen (/api/admin/*)
  * -> 401 JSON statt Redirect, ein fetch()-Aufruf soll dort kein HTML einer
  * Login-Seite als "Erfolg" interpretieren.
- *
- * lib/admin/auth.ts requireAdmin() prüft zusätzlich serverseitig in jeder
- * Page/Server Action (Defense in Depth), falls diese Middleware je
- * übersprungen wird.
  */
-export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
-
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isApiAdminRoute = pathname.startsWith("/api/admin");
   const isAdminPage = pathname.startsWith("/admin");
   const isLoginPage = pathname.startsWith("/admin/login");
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const sessionCookie = getSessionCookie(request);
 
-  // Ohne konfigurierte Supabase-Umgebung kann die Middleware keine Session
-  // prüfen; sie lässt die Anfrage dann unverändert durch (lokale
-  // Entwicklung ohne .env, Build-Zeit-Analyse).
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return supabaseResponse;
-  }
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) =>
-          request.cookies.set(name, value),
-        );
-        supabaseResponse = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) =>
-          supabaseResponse.cookies.set(name, value, options),
-        );
-      },
-    },
-  });
-
-  // getUser() statt getSession(): validiert den Token gegen Supabase Auth,
-  // statt nur dem (fälschbaren) Cookie-Inhalt zu vertrauen.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user) {
-    return supabaseResponse;
+  if (sessionCookie) {
+    return NextResponse.next();
   }
 
   if (isApiAdminRoute) {
@@ -74,7 +44,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return supabaseResponse;
+  return NextResponse.next();
 }
 
 export const config = {

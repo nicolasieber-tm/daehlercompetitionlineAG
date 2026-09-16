@@ -1,6 +1,6 @@
-// DB-Tests für lib/followups/schedule.ts und lib/followups/run.ts gegen die
-// lokale Supabase-Instanz (siehe docs/db.md), Resend gemockt (kein echter
-// Versand, gleiches Muster wie tests/mail/resend.test.ts).
+// DB-Tests für lib/followups/schedule.ts und lib/followups/run.ts gegen den
+// lokalen Postgres (siehe docs/db.md), Resend gemockt (kein echter Versand,
+// gleiches Muster wie tests/mail/resend.test.ts).
 //
 // Bewusst EINE Datei statt zwei: scheduleFollowUps() liest beim Planen ALLE
 // aktiven follow_up_rules (kein Filter auf eine bestimmte Regel, siehe
@@ -44,7 +44,7 @@ import {
 } from "@/lib/followups/schedule";
 import { resetResendClient } from "@/lib/mail/resend";
 import { clearSettingsCache } from "@/lib/mail/settings";
-import { admin, createTestInquiry, createTestRule, deleteTestInquiry, deleteTestRule } from "./support";
+import { sql, createTestInquiry, createTestRule, deleteTestInquiry, deleteTestRule } from "./support";
 
 // Aufräum-Register: jeder Test trägt seine IDs ein, afterEach räumt auf,
 // auch wenn eine Assertion mittendrin fehlschlägt.
@@ -56,6 +56,17 @@ beforeEach(() => {
   sendMock.mockResolvedValue({ data: { id: `re_${Math.random().toString(36).slice(2)}` }, error: null });
   resetResendClient();
   clearSettingsCache();
+  // tests/setup.ts setzt RESEND_API_KEY global auf "" (kein echter
+  // Mailversand in irgendeinem Test). runDueFollowUps()/sendInquiryMail()
+  // behandeln das wie "kein Schlüssel gesetzt" (siehe lib/mail/resend.ts)
+  // und würden dadurch jeden Versand-Test hier scheitern lassen, obwohl der
+  // Resend-Client oben bereits gemockt ist. Ein beliebiger, nicht-leerer
+  // Wert genügt (der eine Test, der das MAX_FOLLOW_UP_ATTEMPTS-Limit über
+  // einen fehlenden Schlüssel simuliert, löscht die Variable selbst und
+  // stellt sie danach wieder her, siehe dort).
+  if (!process.env.RESEND_API_KEY) {
+    process.env.RESEND_API_KEY = "test-resend-api-key";
+  }
 });
 
 afterEach(async () => {
@@ -66,13 +77,7 @@ afterEach(async () => {
 });
 
 async function followUpsFor(inquiryId: string) {
-  const { data, error } = await admin
-    .from("follow_ups")
-    .select("*")
-    .eq("inquiry_id", inquiryId)
-    .order("created_at", { ascending: true });
-  if (error) throw error;
-  return data ?? [];
+  return sql`select * from follow_ups where inquiry_id = ${inquiryId} order by created_at asc`;
 }
 
 async function singleFollowUpFor(inquiryId: string) {
@@ -166,7 +171,7 @@ describe("scheduleFollowUps", () => {
   // für dieselbe Anfrage (z.B. Doppelklick auf "Senden" im Admin, zwei
   // Tabs) legten dadurch mehr Einträge an als max_count erlaubt. Behoben
   // über die Postgres-Funktion schedule_follow_ups() (Advisory-Lock je
-  // Anfrage, siehe supabase/migrations/20260915000000_followups_retry_limit.sql).
+  // Anfrage, siehe db/migrations/0001_init.sql).
   it("race: gleichzeitige markReplied()-Aufrufe für dieselbe Anfrage legen nie mehr als max_count Einträge an", async () => {
     const rule = await createTestRule({ days_after_reply: 0, active: true, max_count: 1 });
     ruleIds.push(rule.id);
@@ -214,12 +219,7 @@ describe("markReplied", () => {
     expect(created).toHaveLength(1);
     expect(created[0].scheduled_for).toBe(zurichDateString(new Date()));
 
-    const { data: updated, error } = await admin
-      .from("inquiries")
-      .select("replied_at, status")
-      .eq("id", inquiry.id)
-      .single();
-    if (error) throw error;
+    const [updated] = await sql`select replied_at, status from inquiries where id = ${inquiry.id}`;
     expect(updated.status).toBe("beantwortet");
     expect(updated.replied_at).not.toBeNull();
 
@@ -239,12 +239,7 @@ describe("markAnswerReceived", () => {
 
     await markAnswerReceived(inquiry.id);
 
-    const { data: updated, error } = await admin
-      .from("inquiries")
-      .select("answer_received_at")
-      .eq("id", inquiry.id)
-      .single();
-    if (error) throw error;
+    const [updated] = await sql`select answer_received_at from inquiries where id = ${inquiry.id}`;
     expect(updated.answer_received_at).not.toBeNull();
 
     const row = await singleFollowUpFor(inquiry.id);
@@ -278,12 +273,7 @@ describe("runDueFollowUps", () => {
     expect(row.outbound_email_id).not.toBeNull();
     const outboundEmailId = row.outbound_email_id as string;
 
-    const { data: outbound, error } = await admin
-      .from("outbound_emails")
-      .select("*")
-      .eq("id", outboundEmailId)
-      .single();
-    if (error) throw error;
+    const [outbound] = await sql`select * from outbound_emails where id = ${outboundEmailId}`;
     expect(outbound.type).toBe("follow_up");
     expect(outbound.status).toBe("sent");
     expect(outbound.inquiry_id).toBe(inquiry.id);
@@ -333,8 +323,7 @@ describe("runDueFollowUps", () => {
     inquiryIds.push(inquiry.id);
 
     await scheduleFollowUps(inquiry.id, new Date());
-    const { error } = await admin.from("inquiries").update({ status: "abgeschlossen" }).eq("id", inquiry.id);
-    if (error) throw error;
+    await sql`update inquiries set status = 'abgeschlossen' where id = ${inquiry.id}`;
 
     const result = await runDueFollowUps();
 
@@ -404,12 +393,9 @@ describe("runDueFollowUps", () => {
       expect(row.cancelled_at).toBeNull();
       expect(row.last_error).toContain("RESEND_API_KEY");
 
-      const { count, error } = await admin
-        .from("outbound_emails")
-        .select("id", { count: "exact", head: true })
-        .eq("inquiry_id", inquiry.id)
-        .eq("type", "follow_up");
-      if (error) throw error;
+      const [{ count }] = await sql<{ count: number }[]>`
+        select count(*)::int as count from outbound_emails where inquiry_id = ${inquiry.id} and type = 'follow_up'
+      `;
       expect(count).toBe(MAX_FOLLOW_UP_ATTEMPTS); // eine Zeile je tatsächlichem Versuch, nicht 5
     } finally {
       if (originalApiKey === undefined) delete process.env.RESEND_API_KEY;
@@ -455,11 +441,7 @@ describe("runDueFollowUps", () => {
 
     await scheduleFollowUps(inquiry.id, new Date());
 
-    const { error: deactivateError } = await admin
-      .from("follow_up_rules")
-      .update({ active: false })
-      .eq("id", rule.id);
-    if (deactivateError) throw deactivateError;
+    await sql`update follow_up_rules set active = false where id = ${rule.id}`;
 
     const result = await runDueFollowUps();
     const detail = result.details.find((d) => d.inquiryId === inquiry.id);

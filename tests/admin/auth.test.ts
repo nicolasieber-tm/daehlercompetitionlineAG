@@ -1,22 +1,22 @@
-// lib/admin/auth.ts gegen einen gemockten Supabase-Client (kein echter
+// lib/admin/auth.ts gegen einen gemockten better-auth-Client (kein echter
 // Netzwerk-/DB-Zugriff nötig, siehe Aufgabenstellung: "Server Actions/Routen
 // ohne Session -> 401/Redirect (requireAdmin mit gemocktem Client)").
 // getAdminUser()/requireAdmin() nehmen dafür bewusst einen optionalen
-// Client entgegen (siehe dortiger Kommentar AdminAuthClient).
+// Client entgegen (siehe dortiger Kommentar AdminAuthClient), der nur die
+// eine tatsächlich genutzte Methode (auth.api.getSession()) nachbildet.
 import { describe, expect, it } from "vitest";
-import type { User } from "@supabase/supabase-js";
 import { getAdminUser, requireAdmin } from "@/lib/admin/auth";
-import type { AdminAuthClient } from "@/lib/admin/auth";
+import type { AdminAuthClient, AdminUser } from "@/lib/admin/auth";
 
-function mockClient(user: User | null): AdminAuthClient {
+function mockClient(user: AdminUser | null): AdminAuthClient {
   return {
-    auth: {
-      getUser: async () => ({ data: { user } }),
+    api: {
+      getSession: async () => (user ? { user } : null),
     },
   };
 }
 
-const FAKE_USER = { id: "11111111-1111-1111-1111-111111111111", email: "admin@trendingmedia.ch" } as User;
+const FAKE_USER: AdminUser = { id: "11111111-1111-1111-1111-111111111111", email: "admin@trendingmedia.ch" };
 
 describe("getAdminUser", () => {
   it("liefert null ohne Session", async () => {

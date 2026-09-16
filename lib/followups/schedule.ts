@@ -5,8 +5,8 @@
 // offene Follow-ups (ausschliesslich manuell über "Antwort erhalten",
 // CLAUDE.md), markReplied() wird vom Admin beim Senden der Antwort
 // aufgerufen.
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { FollowUp, InquiryStatus } from "@/lib/supabase/rows";
+import { sql } from "@/lib/db/client";
+import type { FollowUp, InquiryStatus } from "@/lib/db/rows";
 
 /**
  * Kalendertag (YYYY-MM-DD) von `date` in Europe/Zurich, für die `date`-Spalte
@@ -34,63 +34,44 @@ export function zurichDateString(date: Date): string {
  * Gibt die neu angelegten Einträge zurück.
  *
  * Die eigentliche Prüfung+Einfügung läuft in der Postgres-Funktion
- * `schedule_follow_ups` (siehe
- * supabase/migrations/20260915000000_followups_retry_limit.sql, ergänzt in
- * supabase/migrations/20260916000000_followups_and_imports_phase_b.sql),
- * nicht mehr hier als zwei getrennte Roundtrips (erst zählen, dann
- * einfügen): das war nicht atomar, zwei gleichzeitige Aufrufe für dieselbe
- * Anfrage (z.B. Doppelklick auf "Senden" im Admin, zwei Tabs) konnten
- * dadurch mehr Einträge anlegen als max_count erlaubt (Prüfer-Befund). Die
- * Datenbankfunktion sperrt die Anfrage für die Dauer der Transaktion
- * (`pg_advisory_xact_lock`), wodurch ein zweiter gleichzeitiger Aufruf
- * wartet statt parallel zu zählen. security definer, Execute-Recht nur für
- * `service_role` (siehe Migration), daher nur über den Admin-Client
- * aufrufbar.
+ * `schedule_follow_ups` (siehe db/migrations/0001_init.sql), nicht als zwei
+ * getrennte Roundtrips (erst zählen, dann einfügen): das wäre nicht atomar,
+ * zwei gleichzeitige Aufrufe für dieselbe Anfrage (z.B. Doppelklick auf
+ * "Senden" im Admin, zwei Tabs) könnten dadurch mehr Einträge anlegen als
+ * max_count erlaubt. Die Datenbankfunktion sperrt die Anfrage für die Dauer
+ * der Transaktion (`pg_advisory_xact_lock`), wodurch ein zweiter
+ * gleichzeitiger Aufruf wartet statt parallel zu zählen.
  *
- * Prüfung Phase B, Punkt 4: zusätzlich überspringt schedule_follow_ups()
- * jetzt eine Regel, für die bereits ein OFFENER Eintrag existiert (sent_at,
- * cancelled_at und failed_at alle noch null) - ohne diese Prüfung hätte ein
- * erneuter markReplied()-Aufruf für dieselbe Anfrage (z.B. der Admin sendet
- * die Antwort ein zweites Mal nach, bevor der erste Follow-up fällig war)
- * eine zweite, parallele Planung derselben Regel angelegt, solange
- * max_count noch nicht erreicht war.
+ * Zusätzlich überspringt schedule_follow_ups() eine Regel, für die bereits
+ * ein OFFENER Eintrag existiert (sent_at, cancelled_at und failed_at alle
+ * noch null) - ohne diese Prüfung hätte ein erneuter markReplied()-Aufruf
+ * für dieselbe Anfrage (z.B. der Admin sendet die Antwort ein zweites Mal
+ * nach, bevor der erste Follow-up fällig war) eine zweite, parallele
+ * Planung derselben Regel angelegt, solange max_count noch nicht erreicht
+ * war.
  */
 export async function scheduleFollowUps(inquiryId: string, repliedAt: Date): Promise<FollowUp[]> {
-  const admin = createAdminClient();
-
-  const { data, error } = await admin.rpc("schedule_follow_ups", {
-    p_inquiry_id: inquiryId,
-    p_replied_at: repliedAt.toISOString(),
-  });
-  if (error) {
-    throw new Error(`scheduleFollowUps: Planung fehlgeschlagen: ${error.message}`);
-  }
-  return data ?? [];
+  return sql<FollowUp[]>`
+    select * from schedule_follow_ups(${inquiryId}, ${repliedAt.toISOString()})
+  `;
 }
 
 /**
  * Storniert alle offenen (sent_at null, cancelled_at null) follow_ups einer
  * Anfrage (cancelled_at = now). `reason` dient nur der Nachvollziehbarkeit
  * im Log: follow_ups hat keine eigene Spalte für den Stornierungsgrund
- * (siehe supabase/migrations/20260911000000_init.sql, docs/db.md), eine
- * Migration ist ausserhalb dieser Aufgabe. Gibt die Anzahl der stornierten
- * Einträge zurück.
+ * (siehe db/migrations/0001_init.sql, docs/db.md), eine Migration ist
+ * ausserhalb dieser Aufgabe. Gibt die Anzahl der stornierten Einträge
+ * zurück.
  */
 export async function cancelOpenFollowUps(inquiryId: string, reason: string): Promise<number> {
-  const admin = createAdminClient();
+  const cancelled = await sql<{ id: string }[]>`
+    update follow_ups
+    set cancelled_at = ${new Date().toISOString()}
+    where inquiry_id = ${inquiryId} and sent_at is null and cancelled_at is null
+    returning id
+  `;
 
-  const { data, error } = await admin
-    .from("follow_ups")
-    .update({ cancelled_at: new Date().toISOString() })
-    .eq("inquiry_id", inquiryId)
-    .is("sent_at", null)
-    .is("cancelled_at", null)
-    .select("id");
-  if (error) {
-    throw new Error(`cancelOpenFollowUps: Stornieren fehlgeschlagen: ${error.message}`);
-  }
-
-  const cancelled = data ?? [];
   if (cancelled.length > 0) {
     console.info(
       `cancelOpenFollowUps: ${cancelled.length} Follow-up(s) für Anfrage ${inquiryId} storniert (${reason}).`,
@@ -104,16 +85,7 @@ export async function cancelOpenFollowUps(inquiryId: string, reason: string): Pr
  * Setzt inquiries.answer_received_at und storniert alle offenen Follow-ups.
  */
 export async function markAnswerReceived(inquiryId: string): Promise<void> {
-  const admin = createAdminClient();
-
-  const { error } = await admin
-    .from("inquiries")
-    .update({ answer_received_at: new Date().toISOString() })
-    .eq("id", inquiryId);
-  if (error) {
-    throw new Error(`markAnswerReceived: Anfrage konnte nicht aktualisiert werden: ${error.message}`);
-  }
-
+  await sql`update inquiries set answer_received_at = ${new Date().toISOString()} where id = ${inquiryId}`;
   await cancelOpenFollowUps(inquiryId, "answer_received");
 }
 
@@ -124,17 +96,10 @@ export async function markAnswerReceived(inquiryId: string): Promise<void> {
  * follow_ups-Einträge zurück (siehe scheduleFollowUps()).
  */
 export async function markReplied(inquiryId: string): Promise<FollowUp[]> {
-  const admin = createAdminClient();
   const repliedAt = new Date();
   const status: InquiryStatus = "beantwortet";
 
-  const { error } = await admin
-    .from("inquiries")
-    .update({ replied_at: repliedAt.toISOString(), status })
-    .eq("id", inquiryId);
-  if (error) {
-    throw new Error(`markReplied: Anfrage konnte nicht aktualisiert werden: ${error.message}`);
-  }
+  await sql`update inquiries set replied_at = ${repliedAt.toISOString()}, status = ${status} where id = ${inquiryId}`;
 
   return scheduleFollowUps(inquiryId, repliedAt);
 }

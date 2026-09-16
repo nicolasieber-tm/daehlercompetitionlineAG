@@ -15,13 +15,19 @@ try {
   // .env nicht vorhanden: process.env muss die Variablen dann schon enthalten.
 }
 
-import { createAdminClient } from "@/lib/supabase/admin";
-import { buildMailContext } from "@/lib/inquiry/context";
-import { sendInquiryMail } from "@/lib/mail";
-
 type MailType = "confirmation" | "summary" | "inbox";
 
 async function main() {
+  // Dynamischer Import, NACH process.loadEnvFile(): ein statischer
+  // `import { sql } from "@/lib/db/client"` (oder ein Modul, das es
+  // transitiv importiert, wie lib/inquiry/context.ts/lib/mail) würde von
+  // esbuild/tsx an den Dateianfang gehoben (CJS-Emit hoisted alle Imports,
+  // empirisch geprüft) - DATABASE_URL wäre beim Erzeugen des Pools dann noch
+  // nicht gesetzt.
+  const { sql, closeDb } = await import("@/lib/db/client");
+  const { buildMailContext } = await import("@/lib/inquiry/context");
+  const { sendInquiryMail } = await import("@/lib/mail");
+
   const number = process.argv[2];
   const types = (process.argv[3] || "confirmation,summary,inbox")
     .split(",")
@@ -32,9 +38,9 @@ async function main() {
     process.exit(1);
   }
 
-  const db = createAdminClient();
-  const { data: inquiry, error } = await db.from("inquiries").select("id, email").eq("number", number).maybeSingle();
-  if (error) throw error;
+  const [inquiry] = await sql<{ id: string; email: string | null }[]>`
+    select id, email from inquiries where number = ${number}
+  `;
   if (!inquiry) {
     console.error(`Anfrage ${number} nicht gefunden.`);
     process.exit(1);
@@ -46,7 +52,7 @@ async function main() {
       (process.env.RESEND_FROM_OVERRIDE ? ` · Absender ${process.env.RESEND_FROM_OVERRIDE}` : ""),
   );
 
-  const ctx = await buildMailContext(inquiry.id, db);
+  const ctx = await buildMailContext(inquiry.id);
   let failed = 0;
   for (const type of types) {
     const result = await sendInquiryMail(type, ctx);
@@ -57,6 +63,7 @@ async function main() {
       console.log(`  ${type.padEnd(12)} FEHLER · ${result.error}`);
     }
   }
+  await closeDb();
   process.exitCode = failed ? 1 : 0;
 }
 

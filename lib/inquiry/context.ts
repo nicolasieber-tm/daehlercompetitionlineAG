@@ -5,14 +5,11 @@
 // "Senden (via Resend, BCC info@)" - Posten Admin ist nicht Teil dieser
 // Aufgabe, das Modul liegt aber bereits hier bereit, wie in der
 // Aufgabenstellung verlangt: "Wird auch vom Admin (reply) genutzt").
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { Database } from "@/lib/supabase/database.types";
+import { sql } from "@/lib/db/client";
+import type { Inquiry, Model, ModelFamily } from "@/lib/db/rows";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import type { MailCheck, MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
 import { shareUrl } from "./share";
-
-type Db = SupabaseClient<Database>;
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -86,39 +83,26 @@ function parseChecks(raw: unknown): MailCheck[] {
  * serverseitig zum Zeitpunkt des Anlegens berechnet, siehe
  * lib/inquiry/create.ts) - hier wird nichts neu berechnet.
  *
- * db optional (Standard: Service-Role-Client): der öffentliche Erstell-Weg
- * (lib/inquiry/create.ts, ohne Admin-Session) MUSS den Service-Role-Client
- * verwenden, inquiries hat keine anon/eigene-Zeile-Policy (siehe docs/db.md
- * Abschnitt "Sicherheit": inquiries "alle Operationen nur für
- * authenticated"). Ein Admin-Aufrufer kann optional seinen eigenen
- * (Session-)Client übergeben.
+ * Läuft über den einzigen, serverseitigen Postgres-Pool (kein RLS mehr,
+ * siehe docs/umbau-railway.md): sowohl der öffentliche Erstell-Weg
+ * (lib/inquiry/create.ts) als auch der Admin (Antwort senden) verwenden
+ * denselben Zugriff, ein eigener Client-Parameter ist nicht mehr nötig.
  */
-export async function buildMailContext(inquiryId: string, db?: Db): Promise<MailInquiryContext> {
-  const client = db ?? createAdminClient();
-
-  const { data: inquiry, error: inquiryError } = await client
-    .from("inquiries")
-    .select("*")
-    .eq("id", inquiryId)
-    .maybeSingle();
-  if (inquiryError) throw new Error(`buildMailContext: Anfrage konnte nicht geladen werden: ${inquiryError.message}`);
+export async function buildMailContext(inquiryId: string): Promise<MailInquiryContext> {
+  const [inquiry] = await sql<Inquiry[]>`select * from inquiries where id = ${inquiryId}`;
   if (!inquiry) throw new Error(`buildMailContext: Anfrage ${inquiryId} nicht gefunden.`);
 
-  const [familyRes, modelRes] = await Promise.all([
-    inquiry.family_id
-      ? client.from("model_families").select("*").eq("id", inquiry.family_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null } as const),
-    inquiry.model_id
-      ? client.from("models").select("*").eq("id", inquiry.model_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null } as const),
-  ]);
-  if (familyRes.error) throw new Error(`buildMailContext: Familie konnte nicht geladen werden: ${familyRes.error.message}`);
-  if (modelRes.error) throw new Error(`buildMailContext: Modell konnte nicht geladen werden: ${modelRes.error.message}`);
+  const [family] = inquiry.family_id
+    ? await sql<ModelFamily[]>`select * from model_families where id = ${inquiry.family_id}`
+    : [];
+  const [model] = inquiry.model_id
+    ? await sql<Model[]>`select * from models where id = ${inquiry.model_id}`
+    : [];
 
   return {
     inquiry,
-    family: familyRes.data,
-    model: modelRes.data,
+    family: family ?? null,
+    model: model ?? null,
     items: parseItems(inquiry.selections),
     estimatedTotal: inquiry.estimated_total,
     checks: parseChecks(inquiry.checks),

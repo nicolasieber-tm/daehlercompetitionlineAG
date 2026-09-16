@@ -12,7 +12,7 @@ import { chfFrom } from "@/lib/i18n/format";
 import { de } from "@/lib/i18n/de";
 import { isStageProduct, productDisplay, stageShortTitle } from "@/lib/catalog/product-display";
 import type { CatalogFamily, CatalogModel, CatalogProduct, CategoryNote, ProductGroup } from "@/lib/catalog/queries";
-import type { FlowCategory } from "@/lib/supabase/rows";
+import type { FlowCategory } from "@/lib/db/rows";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import type { FlowAction, FlowState } from "../state";
 import { gearboxSelectionVisible, isVmaxLocked, motorProductVisible, vmaxLiftStage } from "../state";

@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSummaryText, goalText } from "@/lib/inquiry/summary";
 import type { MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
-import type { Inquiry, Model, ModelFamily } from "@/lib/supabase/rows";
+import type { Inquiry, Model, ModelFamily } from "@/lib/db/rows";
 
 function baseInquiry(overrides: Partial<Inquiry> = {}): Inquiry {
   return {

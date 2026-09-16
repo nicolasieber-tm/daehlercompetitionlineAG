@@ -8,7 +8,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { getAnthropicClient, getAiModel } from "./client";
 import { getCatalogCompact, type CompactFamily } from "@/lib/catalog/queries";
-import { FLOW_CATEGORIES, type FlowCategory } from "@/lib/supabase/rows";
+import { FLOW_CATEGORIES, type FlowCategory } from "@/lib/db/rows";
 
 // ---------------------------------------------------------------------------
 // Rollen-/Stil-Systemprompt. Zwei kurze Stilbeispiele aus docs/vorschau.html
@@ -464,33 +464,24 @@ function validateExtraction(raw: unknown, catalog: CompactFamily[]): Extraction 
 // ---------------------------------------------------------------------------
 
 /**
- * Optionaler, bereits erzeugter Supabase-Client für getCatalogCompact()
- * (lib/catalog/queries.ts), analog zu dessen eigenem `db?`-Parameter:
- * ohne Next.js-Request-Kontext (z. B. aus vitest/tsx heraus, siehe
- * tests/ai/live.test.ts) wirft lib/supabase/server.ts (next/headers
- * cookies() ausserhalb eines Requests), daher hier durchreichbar, z. B.
- * mit lib/supabase/admin.ts createAdminClient(). Innerhalb einer
- * Route-Handler-Anfrage (app/api/admin/quick/extract/route.ts) kann das
- * Argument entfallen, dann verwendet getCatalogCompact() den
- * RLS-gebundenen Server-Client der laufenden Admin-Session.
- */
-type CatalogDb = Parameters<typeof getCatalogCompact>[0];
-
-/**
  * Extrahiert eine strukturierte Anfrage aus Freitext (Mail/Telefonnotiz).
- * Lädt den Katalog kompakt (lib/catalog/queries.ts getCatalogCompact()),
- * zählt dessen Token (client.messages.countTokens, "Tokens zählen und im
- * Bericht nennen") und schickt ihn entweder komplett mit
- * (< MAX_CATALOG_TOKENS) oder grenzt vorher per separatem, günstigem
- * Aufruf (Tool "pick_family") auf eine Familie ein.
+ * Lädt den Katalog kompakt (lib/catalog/queries.ts getCatalogCompact(), seit
+ * dem Railway-Umbau ein direkter, serverseitiger Postgres-Zugriff ohne
+ * Next.js-Request-Kontext, siehe docs/umbau-railway.md - ein eigener
+ * Client-Parameter ist deshalb nicht mehr nötig, anders als zuvor mit dem
+ * RLS-gebundenen Supabase-Client), zählt dessen Token
+ * (client.messages.countTokens, "Tokens zählen und im Bericht nennen") und
+ * schickt ihn entweder komplett mit (< MAX_CATALOG_TOKENS) oder grenzt
+ * vorher per separatem, günstigem Aufruf (Tool "pick_family") auf eine
+ * Familie ein.
  */
-export async function extractInquiry(rawText: string, locale?: "de" | "en", db?: CatalogDb): Promise<Extraction> {
+export async function extractInquiry(rawText: string, locale?: "de" | "en"): Promise<Extraction> {
   if (!rawText.trim()) {
     throw new Error("extractInquiry(): rawText ist leer.");
   }
 
   const client = getAnthropicClient();
-  const catalog = await getCatalogCompact(db);
+  const catalog = await getCatalogCompact();
 
   const familyIndex = familyIndexText(catalog);
   const fullCatalogText = `${familyIndex}\n\n${productsText(catalog)}`;

@@ -1,54 +1,45 @@
 // lib/admin/models.ts gegen die lokale DB: Modell-Update (short_text der
-// Baureihe) und Rücksetzen (Aufgabenstellung). Verwendet die Platzhalter-
-// Baureihe "wiesmann" (supabase/seed.sql, has_pricelist = false), damit kein
-// echter, per Excel-Import gepflegter Katalogeintrag angefasst wird. Liest
-// den ursprünglichen short_text zuerst und setzt ihn am Ende exakt zurück -
-// kein bleibender Unterschied zum Ausgangszustand.
-try {
-  process.loadEnvFile(".env");
-} catch {
-  // Datei fehlt oder Variablen sind bereits gesetzt (z. B. CI).
-}
-
+// Baureihe) und Rücksetzen. Verwendet die Platzhalter-Baureihe "wiesmann"
+// (db/seed.sql, has_pricelist = false), damit kein echter, per Excel-Import
+// gepflegter Katalogeintrag angefasst wird. Liest den ursprünglichen
+// short_text zuerst und setzt ihn am Ende exakt zurück - kein bleibender
+// Unterschied zum Ausgangszustand.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sql } from "../helpers/db";
 import { getFamilyDetailForAdmin, updateFamilyMeta } from "@/lib/admin/models";
 
-function hasSupabaseEnv(): boolean {
-  return !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
-}
-
-const admin = createAdminClient();
 const FAMILY_SLUG = "wiesmann";
 const TEST_SHORT_TEXT = `Test-Kurzbeschrieb models.test.ts ${Date.now()}`;
 
-describe.skipIf(!hasSupabaseEnv())("updateFamilyMeta() gegen die lokale DB", () => {
+describe("updateFamilyMeta() gegen die lokale DB", () => {
   let familyId: string;
   let originalShortText: string | null;
 
   beforeAll(async () => {
-    const { data, error } = await admin.from("model_families").select("id, short_text").eq("slug", FAMILY_SLUG).single();
-    if (error) throw error;
-    familyId = data.id;
-    originalShortText = data.short_text;
+    const [row] = await sql<{ id: string; short_text: string | null }[]>`
+      select id, short_text from model_families where slug = ${FAMILY_SLUG}
+    `;
+    if (!row) throw new Error(`Platzhalter-Baureihe "${FAMILY_SLUG}" fehlt (db/seed.sql, npm run db:seed).`);
+    familyId = row.id;
+    originalShortText = row.short_text;
   });
 
   afterAll(async () => {
     if (!familyId) return;
-    await admin.from("model_families").update({ short_text: originalShortText }).eq("id", familyId);
+    await sql`update model_families set short_text = ${originalShortText} where id = ${familyId}`;
   });
 
   it("aktualisiert short_text und liest ihn über getFamilyDetailForAdmin() wieder aus", async () => {
-    await updateFamilyMeta(familyId, { shortText: TEST_SHORT_TEXT }, admin);
+    await updateFamilyMeta(familyId, { shortText: TEST_SHORT_TEXT });
 
-    const detail = await getFamilyDetailForAdmin(FAMILY_SLUG, admin);
+    const detail = await getFamilyDetailForAdmin(FAMILY_SLUG);
     expect(detail?.shortText).toBe(TEST_SHORT_TEXT);
   });
 
   it("setzt short_text wieder auf den Ausgangswert zurück", async () => {
-    await updateFamilyMeta(familyId, { shortText: originalShortText }, admin);
+    await updateFamilyMeta(familyId, { shortText: originalShortText });
 
-    const detail = await getFamilyDetailForAdmin(FAMILY_SLUG, admin);
+    const detail = await getFamilyDetailForAdmin(FAMILY_SLUG);
     expect(detail?.shortText).toBe(originalShortText);
   });
 
@@ -57,16 +48,18 @@ describe.skipIf(!hasSupabaseEnv())("updateFamilyMeta() gegen die lokale DB", () 
     // Platzhalter-Familie hat has_pricelist=false, ein Name-Update muss hier
     // also greifen (anders als bei einer echten, per Excel gepflegten
     // Familie) - und wird sofort wieder zurückgesetzt.
-    const { data: before } = await admin.from("model_families").select("name, has_pricelist").eq("id", familyId).single();
+    const [before] = await sql<{ name: string; has_pricelist: boolean }[]>`
+      select name, has_pricelist from model_families where id = ${familyId}
+    `;
     expect(before?.has_pricelist).toBe(false);
     const originalName = before!.name;
 
-    await updateFamilyMeta(familyId, { name: `${originalName} (Test)` }, admin);
-    const { data: renamed } = await admin.from("model_families").select("name").eq("id", familyId).single();
+    await updateFamilyMeta(familyId, { name: `${originalName} (Test)` });
+    const [renamed] = await sql<{ name: string }[]>`select name from model_families where id = ${familyId}`;
     expect(renamed?.name).toBe(`${originalName} (Test)`);
 
-    await updateFamilyMeta(familyId, { name: originalName }, admin);
-    const { data: restored } = await admin.from("model_families").select("name").eq("id", familyId).single();
+    await updateFamilyMeta(familyId, { name: originalName });
+    const [restored] = await sql<{ name: string }[]>`select name from model_families where id = ${familyId}`;
     expect(restored?.name).toBe(originalName);
   });
 });

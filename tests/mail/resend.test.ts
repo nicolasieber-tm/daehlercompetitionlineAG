@@ -1,5 +1,5 @@
 // sendMail() gegen einen gemockten Resend-Client (vi.mock("resend")), aber
-// mit echten DB-Schreibzugriffen auf outbound_emails (lokale Supabase,
+// mit echten DB-Schreibzugriffen auf outbound_emails (lokaler Postgres,
 // siehe docs/db.md): eine Test-Anfrage wird angelegt und am Ende wieder
 // gelöscht. Deckt: Override-Verhalten (to/bcc/Betreff-Präfix), BCC ohne
 // Override, outbound_emails: Zeile mit finalem Status sent bzw. failed, und den
@@ -30,27 +30,29 @@ vi.mock("resend", () => ({
 
 import { resetResendClient, sendMail } from "@/lib/mail/resend";
 import { clearSettingsCache } from "@/lib/mail/settings";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sql } from "@/lib/db/client";
 
-const admin = createAdminClient();
-const ORIGINAL_ENV = { ...process.env };
+// tests/setup.ts setzt RESEND_API_KEY global auf "" (kein echter Mailversand
+// in irgendeinem Test, siehe AUFGABE-Umgebung), läuft aber VOR diesem Modul
+// und damit auch vor process.loadEnvFile() oben - ein echter Wert aus .env
+// würde hier sonst wieder überschrieben. sendMail() behandelt eine leere
+// Zeichenkette wie "kein Schlüssel gesetzt" (siehe lib/mail/resend.ts), die
+// meisten Tests hier brauchen aber gerade einen (beliebigen) gesetzten
+// Schlüssel, damit sie den (gemockten) Resend-Aufruf überhaupt versuchen -
+// der eine Test, der explizit "ohne RESEND_API_KEY" prüft, löscht die
+// Variable selbst (siehe unten). Fallback nur, wenn .env wirklich keinen
+// Wert liefert, sonst bleibt der lokale echte Wert massgeblich.
+const ORIGINAL_ENV = { ...process.env, RESEND_API_KEY: process.env.RESEND_API_KEY || "test-resend-api-key" };
 
 let inquiryId: string;
 
 beforeAll(async () => {
-  const { data, error } = await admin
-    .from("inquiries")
-    .insert({
-      number: `TEST-${Date.now()}`,
-      share_token: randomUUID(),
-      first_name: "Test",
-      last_name: "Versand",
-      email: "kunde@example.com",
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-  inquiryId = data.id;
+  const [row] = await sql<{ id: string }[]>`
+    insert into inquiries (number, share_token, first_name, last_name, email)
+    values (${`TEST-${Date.now()}`}, ${randomUUID()}, 'Test', 'Versand', 'kunde@example.com')
+    returning id
+  `;
+  inquiryId = row.id;
 });
 
 afterAll(async () => {
@@ -58,8 +60,8 @@ afterAll(async () => {
     // outbound_emails hängt per on-delete-cascade an inquiries, ein
     // explizites Aufräumen ist trotzdem sauberer (keine Altlasten, falls die
     // Reihenfolge der Tests mal geändert wird).
-    await admin.from("outbound_emails").delete().eq("inquiry_id", inquiryId);
-    await admin.from("inquiries").delete().eq("id", inquiryId);
+    await sql`delete from outbound_emails where inquiry_id = ${inquiryId}`;
+    await sql`delete from inquiries where id = ${inquiryId}`;
   }
 });
 
@@ -71,14 +73,13 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await admin.from("outbound_emails").delete().eq("inquiry_id", inquiryId);
+  await sql`delete from outbound_emails where inquiry_id = ${inquiryId}`;
   process.env = { ...ORIGINAL_ENV };
 });
 
 async function getOutboundRow(id: string) {
-  const { data, error } = await admin.from("outbound_emails").select("*").eq("id", id).single();
-  if (error) throw error;
-  return data;
+  const [row] = await sql`select * from outbound_emails where id = ${id}`;
+  return row;
 }
 
 describe("sendMail", () => {
@@ -128,10 +129,10 @@ describe("sendMail", () => {
     expect(result.ok).toBe(true);
     const call = sendMock.mock.calls[0][0];
     expect(call.to).toBe("kunde@example.com");
-    expect(call.bcc).toBe("info@daehler.com"); // supabase/seed.sql: mail_bcc
+    expect(call.bcc).toBe("info@daehler.com"); // db/seed.sql: mail_bcc
     expect(call.subject).toBe("Ihre Anfrage");
-    expect(call.replyTo).toBe("info@daehler.com"); // supabase/seed.sql: mail_reply_to
-    expect(call.from).toContain("anfrage@daehler.com"); // supabase/seed.sql: mail_from
+    expect(call.replyTo).toBe("info@daehler.com"); // db/seed.sql: mail_reply_to
+    expect(call.from).toContain("anfrage@daehler.com"); // db/seed.sql: mail_from
   });
 
   it("ohne Override: kein bcc, wenn to bereits die bcc-Adresse ist", async () => {
@@ -238,7 +239,7 @@ describe("sendMail", () => {
     expect(result.ok).toBe(true);
     expect(result.resendId).toBe("re_no_inquiry");
 
-    const { data } = await admin.from("outbound_emails").select("id").eq("subject", "Testversand ohne Anfrage");
-    expect(data ?? []).toHaveLength(0);
+    const rows = await sql`select id from outbound_emails where subject = 'Testversand ohne Anfrage'`;
+    expect(rows).toHaveLength(0);
   });
 });

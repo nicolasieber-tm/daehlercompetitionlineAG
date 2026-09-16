@@ -19,7 +19,7 @@ import type { Dictionary, Locale } from "@/lib/i18n/dictionaries";
 import { buildBeforeAfterRows as buildSharedBeforeAfterRows } from "@/lib/catalog/before-after";
 import type { BeforeAfterItemInput as SharedBeforeAfterItemInput } from "@/lib/catalog/before-after";
 import type { PowerBeforeAfter } from "@/lib/catalog/power-before-after";
-import type { FlowCategory } from "@/lib/supabase/rows";
+import type { FlowCategory } from "@/lib/db/rows";
 
 export interface BeforeAfterItemInput {
   category: FlowCategory;

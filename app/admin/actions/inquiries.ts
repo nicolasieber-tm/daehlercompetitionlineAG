@@ -12,7 +12,7 @@ import { regenerateDraft as regenerateDraftData, saveDraft as saveDraftData, set
 import { buildMailContext } from "@/lib/inquiry/context";
 import { sendInquiryMail } from "@/lib/mail";
 import { markAnswerReceived, markReplied } from "@/lib/followups/schedule";
-import type { InquiryStatus } from "@/lib/supabase/rows";
+import type { InquiryStatus } from "@/lib/db/rows";
 
 export type ActionResult<T extends object = Record<string, unknown>> = ({ ok: true } & T) | { ok: false; error: string };
 

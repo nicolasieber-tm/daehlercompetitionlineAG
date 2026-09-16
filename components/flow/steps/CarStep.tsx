@@ -8,7 +8,7 @@ import type { Dispatch } from "react";
 import { Chip, Field, Question, StepLabel, Tile } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
-import type { Brand, Fuel } from "@/lib/supabase/rows";
+import type { Brand, Fuel } from "@/lib/db/rows";
 import type { FlowAction, FlowState } from "../state";
 import { YEAR_OPTIONS_BASE, effectiveSeriesPs } from "../state";
 import { vehicleDisplayName } from "../vehicleLabel";

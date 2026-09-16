@@ -1,6 +1,7 @@
-// Liest public.settings (Key-Value, siehe supabase/seed.sql) über den
-// Service-Role-Client. Serverseitig only (lib/supabase/admin.ts wirft im
-// Browser).
+// Liest settings (Key-Value, siehe db/seed.sql) über den einzigen,
+// serverseitigen Postgres-Pool (lib/db/client.ts, sql). Serverseitig only
+// (lib/db/client.ts läuft ohnehin nie im Browser, DATABASE_URL ist nicht
+// als NEXT_PUBLIC_* gesetzt).
 //
 // Cache: next/cache unstable_cache mit Tag "settings" (revalidate 300s)
 // hält den DB-Stand über mehrere Requests hinweg vor. Der Next Data Cache
@@ -35,18 +36,13 @@
 // Aufrufer einen eigenen Client übergeben lässt.
 import { cache } from "react";
 import { unstable_cache, revalidateTag } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sql } from "@/lib/db/client";
 
 async function fetchSettingsFromDb(): Promise<Record<string, string>> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.from("settings").select("key, value");
-
-  if (error) {
-    throw new Error(`getSettings: settings konnten nicht geladen werden: ${error.message}`);
-  }
+  const rows = await sql<{ key: string; value: string | null }[]>`select key, value from settings`;
 
   const value: Record<string, string> = {};
-  for (const row of data ?? []) {
+  for (const row of rows) {
     if (row.value !== null) value[row.key] = row.value;
   }
   return value;

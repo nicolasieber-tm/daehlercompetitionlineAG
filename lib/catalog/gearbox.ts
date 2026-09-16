@@ -4,7 +4,7 @@
 // "Getriebeoptimierung St.1 / 8 HP") sind getriebespezifisch. Siehe
 // CLAUDE.md Abschnitt "AUFGABE", Punkt 3, und docs/excel-import.md,
 // Abschnitt "Getriebe (Kraftübertragung)".
-import type { Gearbox } from "@/lib/supabase/rows";
+import type { Gearbox } from "@/lib/db/rows";
 
 // "Handschalt" deckt "Handschalter"/"Handschaltung"/"Handschaltgetriebe"
 // ab, "Schaltgetr" die seltenere Schreibweise ohne "Hand-" davor

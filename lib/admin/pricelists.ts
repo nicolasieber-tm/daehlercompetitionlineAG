@@ -4,21 +4,14 @@
 // lib/pricelist/{parser,diff,imports,apply,types}.ts, die hier ausschliesslich
 // wiederverwendet werden (kein eigener Parser-/Diff-/Apply-Code).
 //
-// Wie lib/admin/inquiries.ts: Funktionen nehmen optional einen bereits
-// erzeugten Supabase-Client entgegen (Tests gegen die lokale DB); ohne
-// Angabe wird der Service-Role-Client verwendet (Schreibzugriffe auf
-// pricelist_imports/Storage-Bucket "imports" verlangen ihn ohnehin, siehe
-// lib/pricelist/imports.ts).
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { Database } from "@/lib/supabase/database.types";
+// Railway-Umbau (docs/umbau-railway.md): Zugriff über den Postgres-Pool
+// (lib/db/client.ts, sql) statt supabase-js/Service-Role-Client.
+import { sql } from "@/lib/db/client";
 import { buildDiff } from "@/lib/pricelist/diff";
 import { parseWorkbook } from "@/lib/pricelist/parser";
-import { createPendingImport, uploadParsedFamilies } from "@/lib/pricelist/imports";
+import { createPendingImport } from "@/lib/pricelist/imports";
 import type { ImportDiff, ParsedFamily } from "@/lib/pricelist/types";
-import type { PricelistImportStatus } from "@/lib/supabase/rows";
-
-type Db = SupabaseClient<Database>;
+import type { PricelistImportStatus } from "@/lib/db/rows";
 
 // ---------------------------------------------------------------------------
 // Upload -> parsen -> Diff -> pending Import
@@ -43,14 +36,21 @@ export type CreatePricelistImportResult =
  * z.B. bei einer beschädigten/falsch formatierten Excel - eine einzelne
  * kaputte Datei darf einen Mehrfach-Upload nicht komplett scheitern lassen,
  * siehe Aufgabenstellung "Mehrfach-Upload"), berechnet den Diff gegen den
- * DB-Bestand und legt einen pending-Import an (createPendingImport +
- * uploadParsedFamilies, siehe lib/pricelist/imports.ts). Liefert ok:false,
- * wenn keine einzige Datei geparst werden konnte.
+ * DB-Bestand und legt einen pending-Import mitsamt den geparsten Rohdaten
+ * an (createPendingImport, siehe lib/pricelist/imports.ts - das Payload
+ * landet direkt in pricelist_imports.payload, kein separater Upload-Schritt
+ * mehr wie zu Supabase-Storage-Zeiten). Liefert ok:false, wenn keine
+ * einzige Datei geparst werden konnte.
+ *
+ * `_legacyDb` bleibt als ignorierter, optionaler dritter Parameter stehen:
+ * tests/admin/pricelists.test.ts (ausserhalb des Umbau-Umfangs dieser
+ * Aufgabe) ruft createPricelistImport() noch mit einem dritten (Supabase-)
+ * Argument auf.
  */
 export async function createPricelistImport(
   files: UploadFileInput[],
   userId?: string,
-  db: Db = createAdminClient(),
+  _legacyDb?: unknown,
 ): Promise<CreatePricelistImportResult> {
   const parsed: ParsedFamily[] = [];
   const fileErrors: FileParseError[] = [];
@@ -67,14 +67,13 @@ export async function createPricelistImport(
     return { ok: false, error: "Keine der hochgeladenen Dateien konnte gelesen werden.", fileErrors };
   }
 
-  const diff = await buildDiff(parsed, db);
+  const diff = await buildDiff(parsed);
   const importId = await createPendingImport(
     parsed.map((f) => f.sourceFile),
     diff,
+    parsed,
     userId,
-    db,
   );
-  await uploadParsedFamilies(importId, parsed, db);
 
   return { ok: true, importId, diff, fileErrors };
 }
@@ -94,14 +93,14 @@ function asImportDiff(value: unknown): ImportDiff {
   return value as ImportDiff;
 }
 
-export async function getPendingImports(db: Db = createAdminClient()): Promise<PendingImportRow[]> {
-  const { data, error } = await db
-    .from("pricelist_imports")
-    .select("id, filenames, diff, created_at")
-    .eq("status", "pending")
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`Offene Importe laden fehlgeschlagen: ${error.message}`);
-  return (data ?? []).map((row) => ({
+export async function getPendingImports(): Promise<PendingImportRow[]> {
+  const rows = await sql<{ id: string; filenames: string[]; diff: unknown; created_at: string }[]>`
+    select id, filenames, diff, created_at
+    from pricelist_imports
+    where status = 'pending'
+    order by created_at desc
+  `;
+  return rows.map((row) => ({
     id: row.id,
     filenames: row.filenames,
     createdAt: row.created_at,
@@ -124,24 +123,24 @@ export interface ImportHistoryRow {
 
 const HISTORY_LIMIT = 30;
 
-export async function getImportHistory(
-  limit: number = HISTORY_LIMIT,
-  db: Db = createAdminClient(),
-): Promise<ImportHistoryRow[]> {
-  const { data, error } = await db
-    .from("pricelist_imports")
-    .select("id, filenames, status, summary, created_at, applied_at")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(`Import-Historie laden fehlgeschlagen: ${error.message}`);
-  return (data ?? []).map((row) => ({
+export async function getImportHistory(limit: number = HISTORY_LIMIT): Promise<ImportHistoryRow[]> {
+  const rows = await sql<
+    { id: string; filenames: string[]; status: string; summary: unknown; created_at: string; applied_at: string | null }[]
+  >`
+    select id, filenames, status, summary, created_at, applied_at
+    from pricelist_imports
+    order by created_at desc
+    limit ${limit}
+  `;
+  return rows.map((row) => ({
     id: row.id,
     filenames: row.filenames,
     status: row.status as PricelistImportStatus,
     createdAt: row.created_at,
     appliedAt: row.applied_at,
-    summary: row.summary && typeof row.summary === "object" && !Array.isArray(row.summary)
-      ? (row.summary as Record<string, unknown>)
-      : null,
+    summary:
+      row.summary && typeof row.summary === "object" && !Array.isArray(row.summary)
+        ? (row.summary as Record<string, unknown>)
+        : null,
   }));
 }

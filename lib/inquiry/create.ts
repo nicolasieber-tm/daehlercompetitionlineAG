@@ -3,11 +3,10 @@
 // für neue Anfragen, genutzt von app/api/inquiries/route.ts (source "web")
 // und künftig vom Schnellweg-Admin (source "quick", Posten 3, nicht Teil
 // dieser Aufgabe).
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sql } from "@/lib/db/client";
 import { getProductsByIds, getProductsForModel } from "@/lib/catalog/queries";
 import { getSettings, sendInquiryMail, vehicleLabel } from "@/lib/mail";
-import type { Json } from "@/lib/supabase/database.types";
-import type { Character, FlowCategory, Model, PriceStatus, Timing } from "@/lib/supabase/rows";
+import type { Character, FlowCategory, Model, ModelFamily, PriceStatus, Timing } from "@/lib/db/rows";
 import { runChecks } from "@/lib/rules/checks";
 import type { CheckContext, CheckResult } from "@/lib/rules/checks";
 import { buildDraft } from "@/lib/draft/template";
@@ -75,20 +74,12 @@ export async function createInquiry(
   payload: InquiryPayload,
   opts: { source: "web" | "quick"; sendCustomerMail: boolean },
 ): Promise<CreateInquiryResult> {
-  const admin = createAdminClient();
-
   // 1. Familie laden (auch für Kurzablauf-Platzhalter wie Wiesmann, siehe
   // CLAUDE.md "Modelle ohne Preisliste") - familyId ist immer Pflicht,
   // unabhängig davon, ob ein Modell gewählt wurde.
-  const { data: family, error: familyError } = await admin
-    .from("model_families")
-    .select("*")
-    .eq("id", payload.familyId)
-    .eq("active", true)
-    .maybeSingle();
-  if (familyError) {
-    throw new Error(`createInquiry: Familie konnte nicht geladen werden: ${familyError.message}`);
-  }
+  const [family] = await sql<ModelFamily[]>`
+    select * from model_families where id = ${payload.familyId} and active = true
+  `;
   if (!family) throw new InvalidSelectionError();
 
   // 2. Produkte per getProductsByIds nachladen, nur Produkte behalten, die
@@ -101,17 +92,14 @@ export async function createInquiry(
   const selected: SelectedProduct[] = [];
 
   if (payload.modelId) {
-    const [modelRes, fitting] = await Promise.all([
-      admin.from("models").select("*").eq("id", payload.modelId).eq("active", true).maybeSingle(),
-      getProductsForModel(payload.modelId, admin),
+    const [[modelRow], fitting] = await Promise.all([
+      sql<Model[]>`select * from models where id = ${payload.modelId} and active = true`,
+      getProductsForModel(payload.modelId),
     ]);
-    if (modelRes.error) {
-      throw new Error(`createInquiry: Modell konnte nicht geladen werden: ${modelRes.error.message}`);
-    }
-    if (!modelRes.data || !fitting || fitting.family.id !== payload.familyId) {
+    if (!modelRow || !fitting || fitting.family.id !== payload.familyId) {
       throw new InvalidSelectionError();
     }
-    model = modelRes.data;
+    model = modelRow;
 
     if (payload.selections.length > 0) {
       const allowedIds = new Set(fitting.groups.flatMap((g) => g.products.map((p) => p.id)));
@@ -119,7 +107,7 @@ export async function createInquiry(
       // gewählt oder nicht, keine Mengenangabe im Flow (siehe CLAUDE.md
       // Kundenflow Schritt 3).
       const uniqueIds = [...new Set(payload.selections.map((s) => s.productId))];
-      const products = await getProductsByIds(uniqueIds, admin);
+      const products = await getProductsByIds(uniqueIds);
       const byId = new Map(products.map((p) => [p.id, p]));
 
       for (const id of uniqueIds) {
@@ -147,13 +135,6 @@ export async function createInquiry(
     // falls createInquiry künftig mit einem selbst gebauten Payload aus dem
     // Schnellweg aufgerufen wird (siehe docs/architektur.md "Posten 3").
     throw new InvalidSelectionError();
-  }
-
-  // 3. Anfragenummer, siehe docs/db.md next_inquiry_number() (nur für
-  // service_role ausführbar).
-  const { data: number, error: numberError } = await admin.rpc("next_inquiry_number");
-  if (numberError || !number) {
-    throw new Error(`createInquiry: Anfragenummer konnte nicht vergeben werden: ${numberError?.message ?? "leere Antwort"}`);
   }
 
   // 4. Prüfhinweise.
@@ -189,65 +170,48 @@ export async function createInquiry(
   const pricedItems = selected.filter((p) => p.priceStatus === "priced" && p.priceTotal != null);
   const estimatedTotal = pricedItems.length > 0 ? pricedItems.reduce((sum, p) => sum + (p.priceTotal ?? 0), 0) : null;
 
-  // 6. Antwortentwurf.
+  // 6. Antwortentwurf: settings ausserhalb der Transaktion gelesen (reiner
+  // Read, gecacht über lib/mail/settings.ts getSettings()). Die Nummer
+  // selbst kommt erst unten aus der Transaktion (next_inquiry_number()); der
+  // Entwurf wird deshalb dort gebaut, weil sein Betreff die Nummer enthält.
   const settings = await getSettings();
-  const draftCtx: DraftContext = {
-    number,
-    firstName: payload.firstName,
-    lastName: payload.lastName,
-    vehicleLabel: vehicleLabel({ family, model, vehicleText: payload.vehicleText }),
-    year: payload.year,
-    character: payload.character as Character,
-    categories: payload.categories,
-    consulting: payload.consulting,
-    timing: payload.timing as Timing,
-    hasPricelist: family.has_pricelist,
-    items: selected.map(
-      (p): DraftItem => ({
-        category: p.category,
-        name: p.name,
-        description: p.description,
-        priceTotal: p.priceTotal,
-        priceStatus: p.priceStatus,
-        psTo: p.psTo,
-        nmTo: p.nmTo,
-        variantGroup: p.variantGroup,
-      }),
-    ),
-    estimatedTotal,
-    settings: {
-      signatureName: settings.signature_name || "dÄHLer Competition Line AG",
-      // Prüfung, Befund 4: companyName (settings.mail_from_name) fehlte
-      // hier bisher, buildDraft() fiel deshalb auf companyAddress allein
-      // zurück (siehe DraftSettings/companyLine()-Kommentar in
-      // lib/draft/template.ts). companyLine() dedupliziert selbst, falls
-      // company_address den Firmennamen bereits als Anfang enthält (wie der
-      // ausgelieferte Seed-Wert "dÄHLer Competition Line AG, Belp").
-      companyName: settings.mail_from_name || "dÄHLer Competition Line AG",
-      companyAddress: settings.company_address || "dÄHLer Competition Line AG, Belp",
-      signaturePhone: settings.signature_phone || "",
-    },
+  const draftSettings = {
+    signatureName: settings.signature_name || "dÄHLer Competition Line AG",
+    // Prüfung, Befund 4: companyName (settings.mail_from_name) fehlte hier
+    // bisher, buildDraft() fiel deshalb auf companyAddress allein zurück
+    // (siehe DraftSettings/companyLine()-Kommentar in lib/draft/template.ts).
+    // companyLine() dedupliziert selbst, falls company_address den
+    // Firmennamen bereits als Anfang enthält (wie der ausgelieferte
+    // Seed-Wert "dÄHLer Competition Line AG, Belp").
+    companyName: settings.mail_from_name || "dÄHLer Competition Line AG",
+    companyAddress: settings.company_address || "dÄHLer Competition Line AG, Belp",
+    signaturePhone: settings.signature_phone || "",
   };
-  const deterministicDraft = buildDraft(draftCtx, payload.locale);
-  // Optionales Glätten (lib/draft/polish.ts): no-op ohne ANTHROPIC_API_KEY/
-  // DRAFT_POLISH=1, liefert sonst unverändert deterministicDraft.body zurück.
-  const polishedBody = await polishDraft(deterministicDraft.body, payload.locale);
-  const draft = { subject: deterministicDraft.subject, body: polishedBody };
+  const draftItems: DraftItem[] = selected.map((p) => ({
+    category: p.category,
+    name: p.name,
+    description: p.description,
+    priceTotal: p.priceTotal,
+    priceStatus: p.priceStatus,
+    psTo: p.psTo,
+    nmTo: p.nmTo,
+    variantGroup: p.variantGroup,
+  }));
 
   // 7. Teilen-Token.
   const shareToken = generateShareToken();
 
-  // 8. Speichern. ps_to/nm_to mit persistiert (Prüfung, Befund 4): ohne sie
-  // kennt lib/inquiry/context.ts parseItems() sie beim späteren Mailversand
-  // nicht mehr (inquiries.selections ist die einzige Quelle danach, die
-  // Produkte selbst werden nicht erneut geladen) - die ZIEL-Zeile der
-  // Inbox-Mail (lib/mail/templates/inbox.ts goalLine()) fiele dann auf die
-  // description zurück statt "ca. 620 PS / 740 Nm" zu zeigen. variant_group
-  // ebenso mit persistiert (Korrektur 15.09.2026, Prüfung Modul Produkte,
-  // Befund 2): ohne sie fällt lib/catalog/product-display.ts isStageItem()
-  // beim späteren Mailversand auf die ungenaue ps_to!=null-Herleitung
-  // zurück (13 aktive Stufen ohne ps_to würden dann in confirmation-/
-  // summary-/inbox-Mail fälschlich nicht als Stufe erkannt, siehe Bericht).
+  // ps_to/nm_to mit persistiert (Prüfung, Befund 4): ohne sie kennt
+  // lib/inquiry/context.ts parseItems() sie beim späteren Mailversand nicht
+  // mehr (inquiries.selections ist die einzige Quelle danach, die Produkte
+  // selbst werden nicht erneut geladen) - die ZIEL-Zeile der Inbox-Mail
+  // (lib/mail/templates/inbox.ts goalLine()) fiele dann auf die description
+  // zurück statt "ca. 620 PS / 740 Nm" zu zeigen. variant_group ebenso mit
+  // persistiert (Korrektur 15.09.2026, Prüfung Modul Produkte, Befund 2):
+  // ohne sie fällt lib/catalog/product-display.ts isStageItem() beim
+  // späteren Mailversand auf die ungenaue ps_to!=null-Herleitung zurück (13
+  // aktive Stufen ohne ps_to würden dann in confirmation-/summary-/
+  // inbox-Mail fälschlich nicht als Stufe erkannt, siehe Bericht).
   const selectionsJson = selected.map((p) => ({
     product_id: p.productId,
     category: p.category,
@@ -260,57 +224,64 @@ export async function createInquiry(
     variant_group: p.variantGroup,
   }));
 
-  const { data: inserted, error: insertError } = await admin
-    .from("inquiries")
-    .insert({
+  // 8. Nummer und Insert in einer Transaktion: next_inquiry_number() erhöht
+  // den Jahreszähler unwiderruflich; ohne Transaktion würde ein danach
+  // fehlschlagender Insert eine Nummer verbrauchen, ohne dass je eine
+  // Anfrage mit dieser Nummer existiert (Nummerierungslücke). Der Entwurf
+  // (braucht die Nummer im Betreff) wird deshalb hier, innerhalb der
+  // Transaktion, gebaut statt vorher.
+  const { inquiryId, number, draft } = await sql.begin(async (tx) => {
+    const [{ next_inquiry_number: number }] = await tx<{ next_inquiry_number: string }[]>`
+      select next_inquiry_number()
+    `;
+
+    const draftCtx: DraftContext = {
       number,
-      status: "neu",
-      source: opts.source,
-      locale: payload.locale,
-      family_id: payload.familyId,
-      model_id: payload.modelId,
-      vehicle_text: payload.vehicleText,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      vehicleLabel: vehicleLabel({ family, model, vehicleText: payload.vehicleText }),
       year: payload.year,
-      been_here: payload.beenHere,
-      gearbox: payload.gearbox,
-      // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
-      // Punkt 3): effektiv wirksame Serienleistung mitspeichern (siehe
-      // supabase/migrations/20260916010000_inquiries_series_ps.sql) - für
-      // die Vorher/Nachher-Leistungszeile nach dem Absenden (Teilen-Seite,
-      // Bestätigungs-/Zusammenfassungsmail), da models.series_ps bei
-      // mehreren series_ps_suggested-Werten null bleibt und die im
-      // Fahrzeug-Schritt gewählte Basis sonst nicht mehr rekonstruierbar
-      // wäre.
-      series_ps: payload.seriesPs,
+      character: payload.character as Character,
       categories: payload.categories,
       consulting: payload.consulting,
-      selections: selectionsJson,
-      follow_up_answers: payload.followUpAnswers,
-      character: payload.character,
-      timing: payload.timing,
-      first_name: payload.firstName,
-      last_name: payload.lastName,
-      city: payload.city,
-      phone: payload.phone,
-      email: payload.email,
-      channel: payload.channel,
-      message: payload.message || null,
-      estimated_total: estimatedTotal,
-      // CheckResult[] -> Json: CheckResult ist ein benanntes Interface ohne
-      // Indexsignatur, jsonb in database.types.ts erwartet Json (siehe
-      // lib/supabase/database.types.ts). Strukturell identisch (plain
-      // {id, text}-Objekte), der Cast ist rein für den Compiler.
-      checks: checks as unknown as Json,
-      draft_subject: draft.subject,
-      draft_reply: draft.body,
-      share_token: shareToken,
-    })
-    .select("id")
-    .single();
-  if (insertError) {
-    throw new Error(`createInquiry: Anfrage konnte nicht gespeichert werden: ${insertError.message}`);
-  }
-  const inquiryId = inserted.id;
+      timing: payload.timing as Timing,
+      hasPricelist: family.has_pricelist,
+      items: draftItems,
+      estimatedTotal,
+      settings: draftSettings,
+    };
+    const deterministicDraft = buildDraft(draftCtx, payload.locale);
+    // Optionales Glätten (lib/draft/polish.ts): no-op ohne
+    // ANTHROPIC_API_KEY/DRAFT_POLISH=1, liefert sonst unverändert
+    // deterministicDraft.body zurück.
+    const polishedBody = await polishDraft(deterministicDraft.body, payload.locale);
+    const draft = { subject: deterministicDraft.subject, body: polishedBody };
+
+    // checks (CheckResult[], ein benanntes Interface ohne Indexsignatur)
+    // erfüllt sql.json()s JSONValue-Parametertyp nicht strukturell (fehlende
+    // Indexsignatur); der JSON-Rundtrip macht daraus ein plain object,
+    // inhaltlich identisch (CheckResult ist bereits eine reine {id, text}-
+    // Struktur).
+    const [inserted] = await tx<{ id: string }[]>`
+      insert into inquiries (
+        number, status, source, locale, family_id, model_id, vehicle_text, year, been_here, gearbox,
+        series_ps, categories, consulting, selections, follow_up_answers, character, timing,
+        first_name, last_name, city, phone, email, channel, message, estimated_total, checks,
+        draft_subject, draft_reply, share_token
+      ) values (
+        ${number}, 'neu', ${opts.source}, ${payload.locale}, ${payload.familyId}, ${payload.modelId},
+        ${payload.vehicleText}, ${payload.year}, ${payload.beenHere}, ${payload.gearbox},
+        ${payload.seriesPs}, ${payload.categories}, ${payload.consulting}, ${sql.json(selectionsJson)},
+        ${sql.json(payload.followUpAnswers)}, ${payload.character}, ${payload.timing},
+        ${payload.firstName}, ${payload.lastName}, ${payload.city}, ${payload.phone}, ${payload.email},
+        ${payload.channel}, ${payload.message || null}, ${estimatedTotal}, ${sql.json(JSON.parse(JSON.stringify(checks)))},
+        ${draft.subject}, ${draft.body}, ${shareToken}
+      )
+      returning id
+    `;
+
+    return { inquiryId: inserted.id, number, draft };
+  });
 
   // 9. Mails: Bestätigung (nur wenn opts.sendCustomerMail) und Anfrage-Mail
   // an settings.mail_inbox. Mailfehler werden nur protokolliert (siehe
@@ -320,7 +291,7 @@ export async function createInquiry(
   // Zeitpunkt bereits gespeichert und muss auf jeden Fall zurückgegeben
   // werden.
   try {
-    const mailCtx = await buildMailContext(inquiryId, admin);
+    const mailCtx = await buildMailContext(inquiryId);
     if (opts.sendCustomerMail) {
       const confirmationResult = await sendInquiryMail("confirmation", mailCtx);
       if (!confirmationResult.ok) {

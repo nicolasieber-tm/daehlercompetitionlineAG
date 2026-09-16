@@ -1,14 +1,14 @@
 "use client";
 
-// Login: E-Mail/Passwort über Supabase Auth, Browser-Client,
-// signInWithPassword (Aufgabenstellung). Absichtlich der Browser-Client
-// (lib/supabase/client.ts), nicht eine Server Action: signInWithPassword
-// setzt die Session-Cookies clientseitig über @supabase/ssr, danach liest
-// jede weitere Server-Anfrage (auch der anschliessende router.push) sie
-// direkt aus dem Cookie-Header, ohne einen Zwischenschritt über eine Action.
+// Login: E-Mail/Passwort über better-auth, Browser-Client
+// (lib/auth/client.ts, signIn.email). Absichtlich der Browser-Client, nicht
+// eine Server Action: signIn.email setzt das Session-Cookie clientseitig,
+// danach liest jede weitere Server-Anfrage (auch der anschliessende
+// router.push) es direkt aus dem Cookie-Header, ohne einen Zwischenschritt
+// über eine Action.
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { signIn } from "@/lib/auth/client";
 import { admin } from "@/lib/i18n/admin";
 import { Button } from "@/components/ui";
 import { FormField } from "./FormField";
@@ -33,8 +33,7 @@ export function LoginForm() {
     event.preventDefault();
     setError(null);
     startTransition(async () => {
-      const supabase = createClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { error: signInError } = await signIn.email({ email, password });
       if (signInError) {
         setError(admin.login.errorInvalid);
         return;

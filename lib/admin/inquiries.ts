@@ -1,26 +1,24 @@
 // Admin-Datenzugriff für Anfragen: Übersicht (Filter, Suche, Pagination) und
 // Detailansicht (Zusammenfassung, Antwortentwurf, Mail-Protokoll,
-// Follow-ups), siehe docs/architektur.md, Abschnitt "Admin", und die
-// Aufgabenstellung "Admin Teil 1".
+// Follow-ups), siehe docs/architektur.md, Abschnitt "Admin".
 //
-// Liest/schreibt über den Server-Client (Session-Cookies, RLS): die Policy
-// `inquiries_all_authenticated` (siehe supabase/migrations/
-// 20260911000000_init.sql) gibt jedem eingeloggten Admin-User volle Rechte,
-// ein Service-Role-Client ist für diese Lesezugriffe nicht nötig. Aufrufer
-// können trotzdem einen eigenen Client übergeben (Tests gegen die lokale
-// DB, siehe tests/admin/inquiries.test.ts, nutzen dafür den
-// Service-Role-Client wie die übrigen Tests, z.B. tests/mail/resend.test.ts).
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { Database } from "@/lib/supabase/database.types";
+// Postgres direkt über lib/db/client.ts (sql), siehe docs/umbau-railway.md,
+// Abschnitt "Datenzugriffsschicht": keine RLS mehr, jeder Zugriff läuft
+// ohnehin serverseitig durch die App. getFamilies()/getProductsByIds()
+// (lib/catalog/queries.ts), getSettings() (lib/mail/settings.ts) und
+// buildMailContext() (lib/inquiry/context.ts) bleiben unverändert
+// eingebunden (ausserhalb dieser Aufgabe, siehe Bericht) - ihre Signatur
+// bleibt stabil, nur ihre eigene Implementierung wechselt unabhängig davon
+// auf Postgres.
 import { vehicleLabel } from "@/lib/mail/render";
+import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
 import { getFamilies } from "@/lib/catalog/queries";
 import { getProductsByIds } from "@/lib/catalog/queries";
 import { getSettings } from "@/lib/mail/settings";
 import { buildMailContext } from "@/lib/inquiry/context";
 import { buildDraft } from "@/lib/draft/template";
 import type { DraftContext, DraftItem } from "@/lib/draft/template";
+import { sql } from "@/lib/db/client";
 import type {
   Character,
   FlowCategory,
@@ -33,14 +31,8 @@ import type {
   ModelFamily,
   OutboundEmail,
   Timing,
-} from "@/lib/supabase/rows";
+} from "@/lib/db/rows";
 import type { MailInquiryContext } from "@/lib/mail/types";
-
-type Db = SupabaseClient<Database>;
-
-async function resolveClient(db?: Db): Promise<Db> {
-  return db ?? (await createServerClient());
-}
 
 export const INQUIRY_PAGE_SIZE = 50;
 
@@ -94,8 +86,7 @@ export interface InquiryListResult {
 // app/admin/page.tsx darf bei einer von Hand verstümmelten URL nie mit 500
 // abstürzen. Ob eine syntaktisch gültige "page" auch tatsächlich existiert
 // (page ≤ Seitenzahl), stellt sich erst bei der Datenbankabfrage heraus -
-// das fängt der PostgREST-416-Fallback in listInquiries() unten ab
-// (RANGE_NOT_SATISFIABLE_CODE), nicht diese Funktion.
+// listInquiries() fängt das unten selbst ab (fällt auf Seite 1 zurück).
 // ---------------------------------------------------------------------------
 
 const STATUS_PARAM_VALUES: InquiryStatus[] = ["neu", "in_bearbeitung", "beantwortet", "abgeschlossen"];
@@ -130,17 +121,6 @@ export function parseFamilyIdParam(value: string | undefined): string | undefine
 }
 
 /**
- * Entfernt Zeichen, die die PostgREST-`or()`-Filterliste ("spalte.ilike.%
- * wert%,spalte2.ilike.%wert%") sprengen würden (Komma trennt die
- * Teilausdrücke, Klammern haben dort ebenfalls Sonderbedeutung). Eine
- * Sucheingabe mit Komma/Klammern soll nicht zu einem Query-Fehler führen,
- * sondern einfach ohne diese Zeichen gesucht werden.
- */
-function sanitizeSearchTerm(term: string): string {
-  return term.replace(/[,()%]/g, " ").trim();
-}
-
-/**
  * Offset (ms) von Europe/Zurich gegenüber UTC zum Zeitpunkt `atUtcMs`
  * (+7200000 im Sommer/CEST, +3600000 im Winter/CET). Ermittelt über
  * Intl.DateTimeFormat statt einer festen Verschiebung, damit die Zeitum-
@@ -172,103 +152,135 @@ function zurichOffsetMs(atUtcMs: number): number {
  * über formatDate() (lib/i18n/format.ts, mit timeZone: "Europe/Zurich")
  * in Schweizer Ortszeit anzeigt: eine Anfrage von 22:30 UTC (00:30 Zürich,
  * Sommerzeit) erscheint dort bereits als "nächster Tag", würde mit den
- * alten UTC-Grenzen aber nicht gefunden. Damit das auch auf einem
- * Produktions-Host mit Server-Zeitzone UTC (Railway-Standard, siehe
- * docs/architektur.md, Abschnitt "Umgebungsvariablen") stimmt, formatiert
- * formatDate() explizit mit Zeitzone statt mit der Server-Zeitzone.
+ * alten UTC-Grenzen aber nicht gefunden.
  */
-function zurichDayBoundsUtc(dateStr: string): { startUtc: string; endUtc: string } {
+function zurichDayBoundsUtc(dateStr: string): { startUtc: Date; endUtc: Date } {
   const [year, month, day] = dateStr.split("-").map(Number);
   const offsetMs = zurichOffsetMs(Date.UTC(year, month - 1, day, 0, 0, 0));
-  const startUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0) - offsetMs).toISOString();
-  const endUtc = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999) - offsetMs).toISOString();
+  const startUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0) - offsetMs);
+  const endUtc = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999) - offsetMs);
   return { startUtc, endUtc };
 }
 
-/**
- * PostgREST-Fehlercode für "Requested range not satisfiable" (siehe
- * https://postgrest.org/en/stable/references/errors.html): tritt auf, wenn
- * .range(from, to) mit einem `from` jenseits der tatsächlichen Zeilenzahl
- * aufgerufen wird - z.B. ?page=99 bei nur zwei vorhandenen Anfragen. Kommt
- * als HTTP 416 zurück (siehe Prüfbefund admin-page, Punkt 2: "PostgREST 416
- * bei page ausserhalb -> Seite 1"), sonst würde listInquiries() hier einen
- * Fehler werfen und die Seite mit einem 500 abstürzen, nur weil jemand eine
- * zu hohe Seitenzahl in die URL geschrieben hat.
- */
-const RANGE_NOT_SATISFIABLE_CODE = "PGRST103";
-
-function buildInquiriesQuery(client: Db, filters: InquiryListFilters, page: number, pageSize: number) {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-
-  let query = client
-    .from("inquiries")
-    .select("*, family:model_families(*), model:models(*)", { count: "exact" })
-    .order("created_at", { ascending: false })
-    .range(from, to);
-
-  if (filters.status && filters.status !== "alle") {
-    query = query.eq("status", filters.status);
-  }
-  if (filters.familyId) {
-    query = query.eq("family_id", filters.familyId);
-  }
-  if (filters.dateFrom) {
-    query = query.gte("created_at", zurichDayBoundsUtc(filters.dateFrom).startUtc);
-  }
-  if (filters.dateTo) {
-    query = query.lte("created_at", zurichDayBoundsUtc(filters.dateTo).endUtc);
-  }
-  const search = filters.search ? sanitizeSearchTerm(filters.search) : "";
-  if (search) {
-    const pattern = `%${search}%`;
-    query = query.or(
-      [
-        `number.ilike.${pattern}`,
-        `first_name.ilike.${pattern}`,
-        `last_name.ilike.${pattern}`,
-        `email.ilike.${pattern}`,
-        `city.ilike.${pattern}`,
-      ].join(","),
-    );
-  }
-
-  return query;
+interface InquiryListDbRow {
+  id: string;
+  number: string;
+  created_at: string;
+  first_name: string | null;
+  last_name: string | null;
+  city: string | null;
+  email: string | null;
+  vehicle_text: string | null;
+  categories: string[];
+  consulting: boolean;
+  estimated_total: number | null;
+  status: string;
+  source: InquirySource;
+  family_brand: string | null;
+  family_name: string | null;
+  family_codes: string[] | null;
+  family_has_pricelist: boolean | null;
+  model_name: string | null;
 }
 
 /**
  * Anfragen für die Übersicht: gefiltert, durchsucht, sortiert (neu zuerst),
- * paginiert (50 pro Seite, siehe INQUIRY_PAGE_SIZE). family/model werden
- * für vehicleLabel() vollständig geladen (siehe lib/mail/render.ts), nicht
- * nur die Anzeigefelder - vehicleLabel() erwartet die vollen Row-Typen.
+ * paginiert (50 pro Seite, siehe INQUIRY_PAGE_SIZE). family/model werden nur
+ * mit den für vehicleLabel() nötigen Feldern geladen (siehe
+ * lib/mail/render.ts / lib/catalog/vehicle-label.ts).
  */
-export async function listInquiries(filters: InquiryListFilters, db?: Db): Promise<InquiryListResult> {
-  const client = await resolveClient(db);
+export async function listInquiries(filters: InquiryListFilters): Promise<InquiryListResult> {
   const pageSize = INQUIRY_PAGE_SIZE;
   let page = Math.max(1, Math.floor(filters.page ?? 1));
 
-  let { data, error, count } = await buildInquiriesQuery(client, filters, page, pageSize);
-  if (error && error.code === RANGE_NOT_SATISFIABLE_CODE && page !== 1) {
-    // Angeforderte Seite liegt jenseits der vorhandenen Zeilen (z.B. Filter
-    // seitdem verschärft, oder eine von Hand eingegebene URL): auf Seite 1
-    // zurückfallen statt der Nutzerin eine kaputte Seite zu zeigen.
-    page = 1;
-    ({ data, error, count } = await buildInquiriesQuery(client, filters, page, pageSize));
-  }
-  if (error) {
-    throw new Error(`listInquiries fehlgeschlagen: ${error.message}`);
+  const statusFilter = filters.status && filters.status !== "alle" ? filters.status : null;
+  const familyIdFilter = filters.familyId ?? null;
+  const fromBound = filters.dateFrom ? zurichDayBoundsUtc(filters.dateFrom).startUtc : null;
+  const toBound = filters.dateTo ? zurichDayBoundsUtc(filters.dateTo).endUtc : null;
+  const searchTerm = filters.search?.trim();
+  const searchPattern = searchTerm ? `%${searchTerm}%` : null;
+
+  async function query(currentPage: number) {
+    const offset = (currentPage - 1) * pageSize;
+    const rows = await sql<InquiryListDbRow[]>`
+      select
+        i.id, i.number, i.created_at, i.first_name, i.last_name, i.city, i.email, i.vehicle_text,
+        i.categories, i.consulting, i.estimated_total, i.status, i.source,
+        f.brand as family_brand, f.name as family_name, f.codes as family_codes, f.has_pricelist as family_has_pricelist,
+        m.name as model_name
+      from inquiries i
+      left join model_families f on f.id = i.family_id
+      left join models m on m.id = i.model_id
+      where (${statusFilter}::text is null or i.status = ${statusFilter})
+        and (${familyIdFilter}::uuid is null or i.family_id = ${familyIdFilter})
+        and (${fromBound}::timestamptz is null or i.created_at >= ${fromBound})
+        and (${toBound}::timestamptz is null or i.created_at <= ${toBound})
+        and (
+          ${searchPattern}::text is null
+          or i.number ilike ${searchPattern}
+          or i.first_name ilike ${searchPattern}
+          or i.last_name ilike ${searchPattern}
+          or i.email ilike ${searchPattern}
+          or i.city ilike ${searchPattern}
+        )
+      order by i.created_at desc
+      limit ${pageSize} offset ${offset}
+    `;
+    const [{ count }] = await sql<{ count: number }[]>`
+      select count(*)::int as count
+      from inquiries i
+      where (${statusFilter}::text is null or i.status = ${statusFilter})
+        and (${familyIdFilter}::uuid is null or i.family_id = ${familyIdFilter})
+        and (${fromBound}::timestamptz is null or i.created_at >= ${fromBound})
+        and (${toBound}::timestamptz is null or i.created_at <= ${toBound})
+        and (
+          ${searchPattern}::text is null
+          or i.number ilike ${searchPattern}
+          or i.first_name ilike ${searchPattern}
+          or i.last_name ilike ${searchPattern}
+          or i.email ilike ${searchPattern}
+          or i.city ilike ${searchPattern}
+        )
+    `;
+    return { rows, total: count };
   }
 
-  const rows: InquiryListRow[] = (
-    (data ?? []) as unknown as (Inquiry & { family: ModelFamily | null; model: Model | null })[]
-  ).map((row) => ({
+  let { rows, total } = await query(page);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  if (rows.length === 0 && page > 1 && page > pageCount) {
+    // Angeforderte Seite liegt jenseits der vorhandenen Zeilen (z.B. Filter
+    // seitdem verschärft, oder eine von Hand eingegebene URL): auf Seite 1
+    // zurückfallen statt der Nutzerin eine leere Seite zu zeigen (siehe
+    // ehemals PostgREST-Fehler PGRST103/HTTP 416, jetzt schlicht eine
+    // zweite Abfrage mit page=1).
+    page = 1;
+    ({ rows, total } = await query(page));
+  }
+
+  const mapped: InquiryListRow[] = rows.map((row) => ({
     id: row.id,
     number: row.number,
     createdAt: row.created_at,
     customerName: [row.first_name, row.last_name].filter(Boolean).join(" "),
     city: row.city,
     email: row.email,
-    vehicleLabel: vehicleLabel({ family: row.family, model: row.model, vehicleText: row.vehicle_text }),
+    // vehicleDisplayLabel() (statt der lib/mail/render.ts-Fassung, die die
+    // vollständigen Row-Typen ModelFamily/Model verlangt) braucht nur
+    // brand/name/codes/has_pricelist bzw. name - genau das, was diese
+    // Übersichtsabfrage per JOIN mitlädt, ohne die übrigen Katalogspalten
+    // extra nachzuladen.
+    vehicleLabel: vehicleDisplayLabel(
+      row.family_brand !== null
+        ? {
+            brand: row.family_brand,
+            name: row.family_name ?? "",
+            codes: row.family_codes ?? [],
+            has_pricelist: row.family_has_pricelist ?? true,
+          }
+        : null,
+      row.model_name !== null ? { name: row.model_name } : null,
+      row.vehicle_text,
+    ),
     categories: row.categories as FlowCategory[],
     consulting: row.consulting,
     estimatedTotal: row.estimated_total,
@@ -276,21 +288,15 @@ export async function listInquiries(filters: InquiryListFilters, db?: Db): Promi
     source: row.source as InquirySource,
   }));
 
-  const total = count ?? rows.length;
-  return { rows, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
+  return { rows: mapped, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
 /** Anzahl Anfragen mit Status "neu", für den Menü-Zähler (components/admin Sidebar). */
-export async function getNewInquiriesCount(db?: Db): Promise<number> {
-  const client = await resolveClient(db);
-  const { count, error } = await client
-    .from("inquiries")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "neu");
-  if (error) {
-    throw new Error(`getNewInquiriesCount fehlgeschlagen: ${error.message}`);
-  }
-  return count ?? 0;
+export async function getNewInquiriesCount(): Promise<number> {
+  const [{ count }] = await sql<{ count: number }[]>`
+    select count(*)::int as count from inquiries where status = 'neu'
+  `;
+  return count;
 }
 
 export interface FamilyFilterOption {
@@ -299,9 +305,8 @@ export interface FamilyFilterOption {
 }
 
 /** Baureihen für den Filter-Select, reiht wie getFamilies() (Marke, dann sort/Name). */
-export async function getFamilyFilterOptions(db?: Db): Promise<FamilyFilterOption[]> {
-  const client = await resolveClient(db);
-  const families = await getFamilies(client);
+export async function getFamilyFilterOptions(): Promise<FamilyFilterOption[]> {
+  const families = await getFamilies();
   return families.map((f) => ({ id: f.id, label: `${f.brand} ${f.name}` }));
 }
 
@@ -325,65 +330,46 @@ export interface InquiryDetail {
  * (lib/inquiry/context.ts) für Anfrage/Familie/Modell/Positionen/
  * Prüfhinweise/Entwurf - dieselben Daten, die auch die Mails verwenden,
  * damit Admin-Ansicht und tatsächlich verschickte Mails nie auseinander-
- * laufen. Lädt zusätzlich Mail-Protokoll und Follow-ups dieser Anfrage.
- *
- * db wird bewusst NICHT an buildMailContext() durchgereicht: dessen
- * Default (Service-Role-Client) ist hier unproblematisch, da requireAdmin()
- * die Session bereits geprüft hat, und vermeidet eine RLS-Select-Kette über
- * vier Tabellen mit dem Session-Client extra nachzubilden.
+ * laufen. Lädt zusätzlich Mail-Protokoll und Follow-ups dieser Anfrage
+ * direkt über sql (eigene, admin-spezifische Abfragen).
  */
-export async function getInquiryDetail(id: string, db?: Db): Promise<InquiryDetail | null> {
-  const client = await resolveClient(db);
-
-  const { data: exists, error: existsError } = await client
-    .from("inquiries")
-    .select("id")
-    .eq("id", id)
-    .maybeSingle();
-  if (existsError) throw new Error(`getInquiryDetail fehlgeschlagen: ${existsError.message}`);
+export async function getInquiryDetail(id: string): Promise<InquiryDetail | null> {
+  const [exists] = await sql<{ id: string }[]>`select id from inquiries where id = ${id}`;
   if (!exists) return null;
 
-  const [ctx, outboundRes, followUpRes] = await Promise.all([
+  const [ctx, outboundEmails, followUpRows] = await Promise.all([
     buildMailContext(id),
-    client
-      .from("outbound_emails")
-      .select("*")
-      .eq("inquiry_id", id)
-      .order("created_at", { ascending: false }),
-    client
-      .from("follow_ups")
-      .select("*, rule:follow_up_rules(name, subject)")
-      .eq("inquiry_id", id)
-      .order("scheduled_for", { ascending: true }),
+    sql<OutboundEmail[]>`
+      select * from outbound_emails where inquiry_id = ${id} order by created_at desc
+    `,
+    sql<(FollowUp & { rule_name: string | null; rule_subject: string | null })[]>`
+      select fu.*, r.name as rule_name, r.subject as rule_subject
+      from follow_ups fu
+      left join follow_up_rules r on r.id = fu.rule_id
+      where fu.inquiry_id = ${id}
+      order by fu.scheduled_for asc
+    `,
   ]);
 
-  if (outboundRes.error) throw new Error(`getInquiryDetail (Mail-Protokoll) fehlgeschlagen: ${outboundRes.error.message}`);
-  if (followUpRes.error) throw new Error(`getInquiryDetail (Follow-ups) fehlgeschlagen: ${followUpRes.error.message}`);
+  const followUps: InquiryFollowUp[] = followUpRows.map((f) => ({
+    ...f,
+    ruleName: f.rule_name,
+    ruleSubject: f.rule_subject,
+  }));
 
-  const followUps: InquiryFollowUp[] = (
-    (followUpRes.data ?? []) as unknown as (FollowUp & { rule: { name: string; subject: string } | null })[]
-  ).map((f) => ({ ...f, ruleName: f.rule?.name ?? null, ruleSubject: f.rule?.subject ?? null }));
-
-  return { ctx, outboundEmails: outboundRes.data ?? [], followUps };
+  return { ctx, outboundEmails, followUps };
 }
 
 // ---------------------------------------------------------------------------
 // Mutationen (von app/admin/actions/inquiries.ts nach requireAdmin() aufgerufen)
 // ---------------------------------------------------------------------------
 
-export async function setInquiryStatus(id: string, status: InquiryStatus, db?: Db): Promise<void> {
-  const client = await resolveClient(db);
-  const { error } = await client.from("inquiries").update({ status }).eq("id", id);
-  if (error) throw new Error(`setInquiryStatus fehlgeschlagen: ${error.message}`);
+export async function setInquiryStatus(id: string, status: InquiryStatus): Promise<void> {
+  await sql`update inquiries set status = ${status} where id = ${id}`;
 }
 
-export async function saveDraft(id: string, subject: string, body: string, db?: Db): Promise<void> {
-  const client = await resolveClient(db);
-  const { error } = await client
-    .from("inquiries")
-    .update({ draft_subject: subject, draft_reply: body })
-    .eq("id", id);
-  if (error) throw new Error(`saveDraft fehlgeschlagen: ${error.message}`);
+export async function saveDraft(id: string, subject: string, body: string): Promise<void> {
+  await sql`update inquiries set draft_subject = ${subject}, draft_reply = ${body} where id = ${id}`;
 }
 
 /**
@@ -432,32 +418,27 @@ function parseStoredSelections(raw: unknown): StoredSelection[] {
  * Anfrage erzeugt hätte (siehe lib/inquiry/create.ts, Schritt 6), auf Basis
  * des aktuellen Anfrage-/Einstellungsstands. Persistiert NICHTS - die
  * Admin-Detailseite füllt damit nur die Textarea neu, "Speichern" ist ein
- * eigener, expliziter Schritt (siehe Aufgabenstellung: "«Entwurf neu
- * erzeugen» = buildDraft erneut" getrennt von "speichern per Server
- * Action").
+ * eigener, expliziter Schritt.
  */
-export async function regenerateDraft(id: string, db?: Db): Promise<{ subject: string; body: string }> {
-  const client = await resolveClient(db);
-
-  const { data: inquiry, error } = await client.from("inquiries").select("*").eq("id", id).maybeSingle();
-  if (error) throw new Error(`regenerateDraft fehlgeschlagen: ${error.message}`);
+export async function regenerateDraft(id: string): Promise<{ subject: string; body: string }> {
+  const [inquiry] = await sql<Inquiry[]>`select * from inquiries where id = ${id}`;
   if (!inquiry) throw new Error(`regenerateDraft: Anfrage ${id} nicht gefunden.`);
 
-  const [familyRes, modelRes, settings] = await Promise.all([
+  const [familyRows, modelRows, settings] = await Promise.all([
     inquiry.family_id
-      ? client.from("model_families").select("*").eq("id", inquiry.family_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null } as const),
+      ? sql<ModelFamily[]>`select * from model_families where id = ${inquiry.family_id}`
+      : Promise.resolve([] as ModelFamily[]),
     inquiry.model_id
-      ? client.from("models").select("*").eq("id", inquiry.model_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null } as const),
+      ? sql<Model[]>`select * from models where id = ${inquiry.model_id}`
+      : Promise.resolve([] as Model[]),
     getSettings(),
   ]);
-  if (familyRes.error) throw new Error(`regenerateDraft (Familie) fehlgeschlagen: ${familyRes.error.message}`);
-  if (modelRes.error) throw new Error(`regenerateDraft (Modell) fehlgeschlagen: ${modelRes.error.message}`);
+  const family = familyRows[0] ?? null;
+  const model = modelRows[0] ?? null;
 
   const stored = parseStoredSelections(inquiry.selections);
   const productIds = stored.map((s) => s.product_id).filter((v): v is string => !!v);
-  const products = productIds.length > 0 ? await getProductsByIds(productIds, client) : [];
+  const products = productIds.length > 0 ? await getProductsByIds(productIds) : [];
   const productById = new Map(products.map((p) => [p.id, p]));
 
   const items: DraftItem[] = stored.map((s) => {
@@ -478,7 +459,7 @@ export async function regenerateDraft(id: string, db?: Db): Promise<{ subject: s
     number: inquiry.number,
     firstName: inquiry.first_name ?? "",
     lastName: inquiry.last_name ?? "",
-    vehicleLabel: vehicleLabel({ family: familyRes.data, model: modelRes.data, vehicleText: inquiry.vehicle_text }),
+    vehicleLabel: vehicleLabel({ family, model, vehicleText: inquiry.vehicle_text }),
     year: inquiry.year,
     // character/timing sind bei einer vollständig übermittelten Anfrage nie
     // null (lib/inquiry/schema.ts verlangt beides), Fallback nur defensiv
@@ -487,7 +468,7 @@ export async function regenerateDraft(id: string, db?: Db): Promise<{ subject: s
     categories: inquiry.categories as FlowCategory[],
     consulting: inquiry.consulting,
     timing: (inquiry.timing as Timing | null) ?? "flexible",
-    hasPricelist: familyRes.data?.has_pricelist ?? false,
+    hasPricelist: family?.has_pricelist ?? false,
     items,
     estimatedTotal: inquiry.estimated_total,
     settings: {
@@ -501,9 +482,4 @@ export async function regenerateDraft(id: string, db?: Db): Promise<{ subject: s
   };
 
   return buildDraft(draftCtx, (inquiry.locale as Locale) ?? "de");
-}
-
-/** Nur für Tests/Scripts: Service-Role-Client, wenn kein Session-Client verfügbar ist. */
-export function defaultAdminDb(): Db {
-  return createAdminClient();
 }

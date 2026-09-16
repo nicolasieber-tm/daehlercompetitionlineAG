@@ -7,7 +7,7 @@
 // Texte (Titel/Beschreibung) kommen aus lib/i18n de.ts/en.ts
 // (steps.category.upsell.<kategorie>), diese Datei liefert nur, WELCHE
 // Zielkategorie vorgeschlagen wird.
-import type { FlowCategory } from "@/lib/supabase/rows";
+import type { FlowCategory } from "@/lib/db/rows";
 
 export const UPSELL_TARGET: Record<FlowCategory, FlowCategory> = {
   motor: "auspuff",

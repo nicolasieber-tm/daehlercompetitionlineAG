@@ -6,26 +6,43 @@
 // product_fitment neu setzen -> pricelist_notes ersetzen. Admin-Felder
 // (photo_url, short_text, sort auf model_families; series_ps, series_nm,
 // photo_url auf models) werden nie in ein Update/Upsert-Payload aufgenommen,
-// dadurch bleiben sie unangetastet (Postgres "on conflict do update set"
-// rührt nur explizit genannte Spalten an).
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/database.types";
-import type { Product, ProductInsert } from "@/lib/supabase/rows";
+// dadurch bleiben sie unangetastet (explizite update-Statements nennen nur
+// die Excel-Felder, keine "update *").
+//
+// Railway-Umbau (docs/umbau-railway.md): Zugriff über den Postgres-Pool
+// (lib/db/client.ts, sql) statt supabase-js. Jede Familie läuft in einer
+// eigenen Transaktion (sql.begin(), "Updates per Transaktion je Familie" -
+// schlägt eine Familie fehl, bleibt der DB-Zustand für sie unverändert,
+// andere Familien sind davon unabhängig, wie schon bisher: applyImport()
+// sammelt Fehler pro Familie statt beim ersten Fehler ganz abzubrechen).
+// abgeleitete Felder (z.B. gearbox) werden bei jedem Import für JEDES
+// gematchte Produkt neu geschrieben, auch bei einem reinen content_hash-
+// Treffer (kein Sonderfall im Code: das Update-Payload enthält immer alle
+// Felder aus der aktuellen Excel-Zeile, unabhängig von matchedBy).
+import { sql } from "@/lib/db/client";
+import { chunk } from "@/lib/db/helpers";
+import type { Product } from "@/lib/db/rows";
 import { SEED_PHOTOS } from "@/lib/catalog/seed-photos";
 import { loadFitsByProductId, matchFamilyProducts } from "./diff";
 import type { ParsedFamily } from "./types";
 
-type Db = SupabaseClient<Database>;
-
-// Prüfung Phase B, Punkt 8: auf 150 begrenzt (vorher 500), siehe
-// lib/pricelist/diff.ts (gleicher Grund, dieselbe Grenze).
-const CHUNK_SIZE = 150;
-
-function chunk<T>(items: T[], size = CHUNK_SIZE): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
-}
+/**
+ * Gemeinsamer Typ für den globalen Pool (sql) und eine laufende Transaktion
+ * (sql.begin()-Callback-Parameter): beide implementieren dieselbe
+ * Abfrage-Schnittstelle zur Laufzeit (ISql), sind aber wegen der von
+ * lib/db/client.ts registrierten Custom-Types (numeric/bigint/timestamp)
+ * als `postgres.ISql<...>` nicht sauber typisierbar - weder mit der
+ * konkreten Custom-Type-Form (die "Dynamic columns"-Query-Helfer, siehe
+ * tx(rows, ...cols) unten, lösen ihre Überladungen dagegen nicht mehr auf)
+ * noch mit `Record<string, unknown>`/`any` als Typparameter (dann fehlt
+ * postgres.js' Mapped-Type `typed` strukturell eine Index-Signatur). `any`
+ * als Typ selbst (statt als Typparameter von ISql) umgeht das: die
+ * Bind-Parameter/Ergebnis-Typen dieser rein internen Helfer sind ohnehin
+ * durch die expliziten Zeilentypen weiter unten (ProductRowFields, sql<T>()
+ * -Aufrufe) abgesichert.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Tx = any;
 
 export interface FamilyApplyResult {
   slug: string;
@@ -70,50 +87,43 @@ export interface ApplyResult {
 // bereits vorhanden, sonst Insert)
 // ---------------------------------------------------------------------------
 
-async function upsertFamily(parsed: ParsedFamily, db: Db): Promise<{ id: string; created: boolean }> {
-  const bySlug = await db.from("model_families").select("id").eq("slug", parsed.slug).maybeSingle();
-  if (bySlug.error) throw new Error(`model_families laden (slug) fehlgeschlagen: ${bySlug.error.message}`);
-
-  let existingId = bySlug.data?.id ?? null;
+async function upsertFamily(parsed: ParsedFamily, tx: Tx): Promise<{ id: string; created: boolean }> {
+  const bySlug = await tx<{ id: string }[]>`select id from model_families where slug = ${parsed.slug}`;
+  let existingId = bySlug[0]?.id ?? null;
   if (!existingId && parsed.sourceFile) {
-    const bySource = await db
-      .from("model_families")
-      .select("id")
-      .eq("source_file", parsed.sourceFile)
-      .maybeSingle();
-    if (bySource.error) {
-      throw new Error(`model_families laden (source_file) fehlgeschlagen: ${bySource.error.message}`);
-    }
-    existingId = bySource.data?.id ?? null;
+    const bySource = await tx<{ id: string }[]>`
+      select id from model_families where source_file = ${parsed.sourceFile}
+    `;
+    existingId = bySource[0]?.id ?? null;
   }
 
-  // Admin-Felder photo_url, short_text, sort bewusst NICHT im Payload:
-  // dadurch lässt "update"/"insert" sie unverändert bzw. auf DB-Default.
-  const payload = {
-    brand: parsed.brand,
-    name: parsed.name,
-    slug: parsed.slug,
-    codes: parsed.codes,
-    pricelist_no: parsed.pricelistNo,
-    source_file: parsed.sourceFile,
-    has_pricelist: true,
-    active: true,
-  };
-
+  // Admin-Felder photo_url, short_text, sort bewusst NICHT im update-
+  // Statement: dadurch bleiben sie unangetastet.
   if (existingId) {
-    const { data, error } = await db
-      .from("model_families")
-      .update(payload)
-      .eq("id", existingId)
-      .select("id")
-      .single();
-    if (error) throw new Error(`model_families update fehlgeschlagen: ${error.message}`);
-    return { id: data.id, created: false };
+    await tx`
+      update model_families set
+        brand = ${parsed.brand},
+        name = ${parsed.name},
+        slug = ${parsed.slug},
+        codes = ${parsed.codes},
+        pricelist_no = ${parsed.pricelistNo},
+        source_file = ${parsed.sourceFile},
+        has_pricelist = true,
+        active = true
+      where id = ${existingId}
+    `;
+    return { id: existingId, created: false };
   }
 
-  const { data, error } = await db.from("model_families").insert(payload).select("id").single();
-  if (error) throw new Error(`model_families insert fehlgeschlagen: ${error.message}`);
-  return { id: data.id, created: true };
+  const inserted = await tx<{ id: string }[]>`
+    insert into model_families (brand, name, slug, codes, pricelist_no, source_file, has_pricelist, active)
+    values (
+      ${parsed.brand}, ${parsed.name}, ${parsed.slug}, ${parsed.codes},
+      ${parsed.pricelistNo}, ${parsed.sourceFile}, true, true
+    )
+    returning id
+  `;
+  return { id: inserted[0].id, created: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -123,7 +133,7 @@ async function upsertFamily(parsed: ParsedFamily, db: Db): Promise<{ id: string;
 async function upsertModels(
   familyId: string,
   parsed: ParsedFamily,
-  db: Db,
+  tx: Tx,
 ): Promise<{ nameToId: Map<string, string>; upserted: number; deactivated: number }> {
   const rows = parsed.models.map((m) => ({
     family_id: familyId,
@@ -136,30 +146,32 @@ async function upsertModels(
   }));
 
   const nameToId = new Map<string, string>();
-  for (const batch of chunk(rows)) {
-    const { data, error } = await db
-      .from("models")
-      .upsert(batch, { onConflict: "family_id,slug" })
-      .select("id, name");
-    if (error) throw new Error(`models upsert fehlgeschlagen: ${error.message}`);
-    for (const r of data ?? []) nameToId.set(r.name, r.id);
+  if (rows.length > 0) {
+    const inserted = await tx<{ id: string; name: string }[]>`
+      insert into models ${tx(rows, "family_id", "name", "slug", "fuel", "sort", "series_ps_suggested", "active")}
+      on conflict (family_id, slug) do update set
+        name = excluded.name,
+        fuel = excluded.fuel,
+        sort = excluded.sort,
+        series_ps_suggested = excluded.series_ps_suggested,
+        active = true
+      returning id, name
+    `;
+    for (const r of inserted) nameToId.set(r.name, r.id);
   }
 
   const parsedSlugs = parsed.models.map((m) => m.slug);
   // Es gibt laut Parser immer mindestens ein Modell je Familie, aber falls
-  // eine Excel-Datei doch mal leer wäre, würde eine leere in-Liste in
-  // PostgREST alles matchen ("()") statt nichts - deshalb der Sonderfall.
+  // eine Excel-Datei doch mal leer wäre, würde ein leeres Array in
+  // "<> all(...)" alles matchen statt nichts - deshalb der Sonderfall.
   let deactivated = 0;
   if (parsedSlugs.length > 0) {
-    const { data, error } = await db
-      .from("models")
-      .update({ active: false })
-      .eq("family_id", familyId)
-      .eq("active", true)
-      .not("slug", "in", `(${parsedSlugs.join(",")})`)
-      .select("id");
-    if (error) throw new Error(`models deaktivieren fehlgeschlagen: ${error.message}`);
-    deactivated = data?.length ?? 0;
+    const rowsDeactivated = await tx<{ id: string }[]>`
+      update models set active = false
+      where family_id = ${familyId} and active = true and slug <> all(${parsedSlugs}::text[])
+      returning id
+    `;
+    deactivated = rowsDeactivated.length;
   }
 
   return { nameToId, upserted: rows.length, deactivated };
@@ -169,14 +181,69 @@ async function upsertModels(
 // Produkte: matchen (wie diff.ts), updaten/einfügen, Rest deaktivieren
 // ---------------------------------------------------------------------------
 
+/** Die per Excel-Import gepflegten Produkt-Spalten (keine Admin-Felder). */
+interface ProductRowFields {
+  family_id: string;
+  category: string;
+  source_category: string | null;
+  group_label: string | null;
+  name: string;
+  description: string | null;
+  article_no: string | null;
+  rc: string | null;
+  price_parts: number | null;
+  price_install: number | null;
+  price_approval: number | null;
+  price_total: number | null;
+  price_status: string;
+  price_note: string | null;
+  ps_base: number[];
+  ps_to: number | null;
+  nm_to: number | null;
+  variant_group: string | null;
+  gearbox: string | null;
+  fits_all: boolean;
+  sort: number;
+  source_row: number | null;
+  content_hash: string | null;
+  active: boolean;
+}
+
+const PRODUCT_ROW_COLUMNS = [
+  "family_id",
+  "category",
+  "source_category",
+  "group_label",
+  "name",
+  "description",
+  "article_no",
+  "rc",
+  "price_parts",
+  "price_install",
+  "price_approval",
+  "price_total",
+  "price_status",
+  "price_note",
+  "ps_base",
+  "ps_to",
+  "nm_to",
+  "variant_group",
+  "gearbox",
+  "fits_all",
+  "sort",
+  "source_row",
+  "content_hash",
+  "active",
+] as const;
+
 interface ProductPlan {
-  toUpdate: { id: string; row: Omit<ProductInsert, "id"> }[];
-  toInsert: { sourceRow: number; row: ProductInsert; fits: string[]; fitsAll: boolean }[];
+  toUpdate: { id: string; row: ProductRowFields }[];
+  toInsert: { row: ProductRowFields; fits: string[]; fitsAll: boolean }[];
   updateFits: { productId: string; fits: string[]; fitsAll: boolean }[];
   removedIds: string[];
 }
 
-function buildProductRow(familyId: string, p: ParsedFamily["products"][number]): ProductInsert {
+function buildProductRow(familyId: string, p: ParsedFamily["products"][number]): ProductRowFields {
   return {
     family_id: familyId,
     category: p.category,
@@ -205,23 +272,24 @@ function buildProductRow(familyId: string, p: ParsedFamily["products"][number]):
   };
 }
 
-async function planProducts(familyId: string, parsed: ParsedFamily, db: Db): Promise<ProductPlan> {
-  const { data, error } = await db
-    .from("products")
-    .select("*")
-    .eq("family_id", familyId)
-    .eq("active", true);
-  if (error) throw new Error(`products laden fehlgeschlagen: ${error.message}`);
-  const dbProducts = (data ?? []) as Product[];
+async function planProducts(familyId: string, parsed: ParsedFamily, tx: Tx): Promise<ProductPlan> {
+  // Explizite Annotation nötig: tx ist als `any` typisiert (siehe Kommentar
+  // zu `Tx` oben), das generische Typargument von tx<Product[]>`...` allein
+  // reicht dadurch nicht, um dbProducts einen konkreten Typ zu geben.
+  const dbProducts: Product[] = await tx<Product[]>`
+    select * from products where family_id = ${familyId} and active = true
+  `;
 
   // Gleiche Match-Logik wie diff.ts (siehe dortiger Kommentar zu Befund #2):
   // drei volle Durchgänge (content_hash -> article_no+name -> name+category)
   // statt zeilenweise, plus Fits VOR dem Matching laden, da
   // matchFamilyProducts() sie zur Kandidaten-Auswahl bei Mehrdeutigkeit
-  // braucht (identisches Fitment als Tie-Breaker neben source_row).
+  // braucht (identisches Fitment als Tie-Breaker neben source_row). Über
+  // dieselbe Transaktion gelesen wie dbProducts (tx statt des globalen
+  // Pools), damit beides denselben, konsistenten Vor-Import-Stand sieht.
   const oldFitsByProductId = await loadFitsByProductId(
-    db,
     dbProducts.map((p) => p.id),
+    tx,
   );
   const { matches, removedProducts } = matchFamilyProducts(parsed.products, dbProducts, oldFitsByProductId);
 
@@ -236,7 +304,7 @@ async function planProducts(familyId: string, parsed: ParsedFamily, db: Db): Pro
       toUpdate.push({ id: match.product.id, row });
       updateFits.push({ productId: match.product.id, fits: p.fits, fitsAll: p.fitsAll });
     } else {
-      toInsert.push({ sourceRow: p.sourceRow, row, fits: p.fits, fitsAll: p.fitsAll });
+      toInsert.push({ row, fits: p.fits, fitsAll: p.fitsAll });
     }
   });
 
@@ -247,40 +315,46 @@ async function planProducts(familyId: string, parsed: ParsedFamily, db: Db): Pro
 
 async function applyProductPlan(
   plan: ProductPlan,
-  db: Db,
+  tx: Tx,
 ): Promise<{ inserted: number; updated: number; deactivated: number; fitment: { productId: string; fits: string[]; fitsAll: boolean }[] }> {
-  for (const batch of chunk(plan.toUpdate)) {
-    const rows = batch.map((u) => ({ id: u.id, ...u.row }));
-    const { error } = await db.from("products").upsert(rows);
-    if (error) throw new Error(`products update fehlgeschlagen: ${error.message}`);
-  }
+  // Ein update-Statement je Zeile, aber alle auf derselben Transaktions-
+  // verbindung gepipelined (postgres.js sendet auf einer Connection immer
+  // in Aufrufreihenfolge, Promise.all serialisiert hier also nicht künstlich
+  // auf einen Round-Trip je Zeile).
+  await Promise.all(
+    plan.toUpdate.map(({ id, row }) =>
+      tx`update products set ${tx(row, ...PRODUCT_ROW_COLUMNS)} where id = ${id}`,
+    ),
+  );
 
-  const insertedFitment: { productId: string; fits: string[]; fitsAll: boolean }[] = [];
-  for (const batch of chunk(plan.toInsert)) {
-    const { data, error } = await db
-      .from("products")
-      .insert(batch.map((b) => b.row))
-      .select("id");
-    if (error) throw new Error(`products insert fehlgeschlagen: ${error.message}`);
+  let insertedFitment: { productId: string; fits: string[]; fitsAll: boolean }[] = [];
+  if (plan.toInsert.length > 0) {
+    const insertedRows: { id: string }[] = await tx<{ id: string }[]>`
+      insert into products ${tx(plan.toInsert.map((b) => b.row), ...PRODUCT_ROW_COLUMNS)}
+      returning id
+    `;
     // Eine einzelne INSERT ... VALUES (...) RETURNING id liefert die Zeilen
     // in derselben Reihenfolge wie die VALUES-Liste (Postgres-Verhalten bei
-    // einem einzelnen Statement, keine parallele Ausführung je Zeile) -
+        // einem einzelnen Statement, keine parallele Ausführung je Zeile) -
     // deshalb per Index statt per Zusatzschlüssel zuordnen.
-    (data ?? []).forEach((row, idx) => {
-      const b = batch[idx];
-      insertedFitment.push({ productId: row.id, fits: b.fits, fitsAll: b.fitsAll });
+    insertedFitment = insertedRows.map((row, idx) => {
+      const b = plan.toInsert[idx];
+      return { productId: row.id, fits: b.fits, fitsAll: b.fitsAll };
     });
   }
 
-  for (const batch of chunk(plan.removedIds)) {
-    const { error } = await db.from("products").update({ active: false }).in("id", batch);
-    if (error) throw new Error(`products deaktivieren fehlgeschlagen: ${error.message}`);
+  let deactivated = 0;
+  if (plan.removedIds.length > 0) {
+    const rows = await tx<{ id: string }[]>`
+      update products set active = false where id = any(${plan.removedIds}::uuid[]) returning id
+    `;
+    deactivated = rows.length;
   }
 
   return {
     inserted: plan.toInsert.length,
     updated: plan.toUpdate.length,
-    deactivated: plan.removedIds.length,
+    deactivated,
     fitment: [...plan.updateFits, ...insertedFitment],
   };
 }
@@ -293,12 +367,11 @@ async function applyProductPlan(
 async function replaceFitment(
   productFits: { productId: string; fits: string[]; fitsAll: boolean }[],
   nameToId: Map<string, string>,
-  db: Db,
+  tx: Tx,
 ): Promise<number> {
   const productIds = productFits.map((f) => f.productId);
-  for (const batch of chunk(productIds)) {
-    const { error } = await db.from("product_fitment").delete().in("product_id", batch);
-    if (error) throw new Error(`product_fitment löschen fehlgeschlagen: ${error.message}`);
+  if (productIds.length > 0) {
+    await tx`delete from product_fitment where product_id = any(${productIds}::uuid[])`;
   }
 
   const rows: { product_id: string; model_id: string }[] = [];
@@ -313,9 +386,14 @@ async function replaceFitment(
     }
   }
 
-  for (const batch of chunk(rows)) {
-    const { error } = await db.from("product_fitment").insert(batch);
-    if (error) throw new Error(`product_fitment einfügen fehlgeschlagen: ${error.message}`);
+  if (rows.length > 0) {
+    // In Häppchen statt einer einzigen riesigen VALUES-Liste (lib/db/
+    // helpers.ts chunk()): bei Familien mit sehr vielen Fitment-Zeilen
+    // (siehe docs/excel-import.md, über 1000 Zeilen bei grossen Familien)
+    // bleibt so die Anzahl der Bind-Parameter je Statement überschaubar.
+    for (const batch of chunk(rows, 500)) {
+      await tx`insert into product_fitment ${tx(batch, "product_id", "model_id")}`;
+    }
   }
 
   return rows.length;
@@ -325,9 +403,8 @@ async function replaceFitment(
 // pricelist_notes ersetzen
 // ---------------------------------------------------------------------------
 
-async function replaceNotes(familyId: string, parsed: ParsedFamily, db: Db): Promise<number> {
-  const { error: deleteError } = await db.from("pricelist_notes").delete().eq("family_id", familyId);
-  if (deleteError) throw new Error(`pricelist_notes löschen fehlgeschlagen: ${deleteError.message}`);
+async function replaceNotes(familyId: string, parsed: ParsedFamily, tx: Tx): Promise<number> {
+  await tx`delete from pricelist_notes where family_id = ${familyId}`;
 
   if (parsed.notes.length === 0) return 0;
 
@@ -337,56 +414,54 @@ async function replaceNotes(familyId: string, parsed: ParsedFamily, db: Db): Pro
     text: n.text,
     sort: n.sort,
   }));
-  for (const batch of chunk(rows)) {
-    const { error } = await db.from("pricelist_notes").insert(batch);
-    if (error) throw new Error(`pricelist_notes einfügen fehlgeschlagen: ${error.message}`);
-  }
+  await tx`insert into pricelist_notes ${tx(rows, "family_id", "category", "text", "sort")}`;
   return rows.length;
 }
 
 // ---------------------------------------------------------------------------
-// Eine Familie komplett anwenden
+// Eine Familie komplett anwenden (eigene Transaktion, siehe Dateikopf)
 // ---------------------------------------------------------------------------
 
-async function applyFamily(parsed: ParsedFamily, db: Db): Promise<FamilyApplyResult> {
-  const { id: familyId, created } = await upsertFamily(parsed, db);
-  const { nameToId, upserted, deactivated: modelsDeactivated } = await upsertModels(familyId, parsed, db);
-  const plan = await planProducts(familyId, parsed, db);
-  const { inserted, updated, deactivated: productsDeactivated, fitment } = await applyProductPlan(plan, db);
-  const fitmentRows = await replaceFitment(fitment, nameToId, db);
-  const notes = await replaceNotes(familyId, parsed, db);
+async function applyFamily(parsed: ParsedFamily): Promise<FamilyApplyResult> {
+  return sql.begin(async (tx) => {
+    const { id: familyId, created } = await upsertFamily(parsed, tx);
+    const { nameToId, upserted, deactivated: modelsDeactivated } = await upsertModels(familyId, parsed, tx);
+    const plan = await planProducts(familyId, parsed, tx);
+    const { inserted, updated, deactivated: productsDeactivated, fitment } = await applyProductPlan(plan, tx);
+    const fitmentRows = await replaceFitment(fitment, nameToId, tx);
+    const notes = await replaceNotes(familyId, parsed, tx);
 
-  return {
-    slug: parsed.slug,
-    name: parsed.name,
-    sourceFile: parsed.sourceFile,
-    familyId,
-    familyCreated: created,
-    modelsUpserted: upserted,
-    modelsDeactivated,
-    productsInserted: inserted,
-    productsUpdated: updated,
-    productsDeactivated,
-    fitmentRows,
-    notes,
-  };
+    return {
+      slug: parsed.slug,
+      name: parsed.name,
+      sourceFile: parsed.sourceFile,
+      familyId,
+      familyCreated: created,
+      modelsUpserted: upserted,
+      modelsDeactivated,
+      productsInserted: inserted,
+      productsUpdated: updated,
+      productsDeactivated,
+      fitmentRows,
+      notes,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Seed-Fotos: nur setzen, wenn photo_url noch null ist
+// Seed-Fotos: nur setzen, wenn photo_url noch null ist (ausserhalb jeder
+// Familien-Transaktion, wirkt familienübergreifend und ist idempotent)
 // ---------------------------------------------------------------------------
 
-async function applySeedPhotos(db: Db): Promise<number> {
+async function applySeedPhotos(): Promise<number> {
   let count = 0;
   for (const seed of SEED_PHOTOS) {
-    const { data, error } = await db
-      .from("model_families")
-      .update({ photo_url: seed.photoUrl })
-      .eq("slug", seed.slug)
-      .is("photo_url", null)
-      .select("id");
-    if (error) throw new Error(`Seed-Foto für ${seed.slug} fehlgeschlagen: ${error.message}`);
-    count += data?.length ?? 0;
+    const rows = await sql<{ id: string }[]>`
+      update model_families set photo_url = ${seed.photoUrl}
+      where slug = ${seed.slug} and photo_url is null
+      returning id
+    `;
+    count += rows.length;
   }
   return count;
 }
@@ -397,7 +472,6 @@ async function applySeedPhotos(db: Db): Promise<number> {
 
 export async function applyImport(
   parsed: ParsedFamily[],
-  db: Db,
   opts: { importId?: string } = {},
 ): Promise<ApplyResult> {
   const families: FamilyApplyResult[] = [];
@@ -405,7 +479,7 @@ export async function applyImport(
 
   for (const family of parsed) {
     try {
-      families.push(await applyFamily(family, db));
+      families.push(await applyFamily(family));
     } catch (err) {
       errors.push({
         slug: family.slug,
@@ -415,7 +489,7 @@ export async function applyImport(
     }
   }
 
-  const photosSeeded = await applySeedPhotos(db);
+  const photosSeeded = await applySeedPhotos();
 
   const totals = families.reduce(
     (acc, f) => {

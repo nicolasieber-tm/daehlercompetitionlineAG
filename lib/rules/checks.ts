@@ -12,7 +12,7 @@ import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { gearboxFor } from "@/lib/catalog/gearbox";
 import { vehicleAmbiguousAlternatives, vehicleLineIsAmbiguous } from "@/lib/catalog/vehicle-label";
-import type { Character, FlowCategory, InquiryGearbox, PriceStatus, Timing } from "@/lib/supabase/rows";
+import type { Character, FlowCategory, InquiryGearbox, PriceStatus, Timing } from "@/lib/db/rows";
 
 /**
  * Ein vom Kunden gewähltes Produkt, wie es die Prüfregeln brauchen. Bewusst

@@ -9,6 +9,8 @@ export default defineConfig({
     // mehrfach (je Test neu), das dauert länger als das vitest-Standardlimit
     // von 5000ms.
     testTimeout: 30000,
+    // Lädt .env und kappt RESEND_API_KEY für alle Tests (siehe tests/setup.ts).
+    setupFiles: ["tests/setup.ts"],
   },
   resolve: {
     alias: {

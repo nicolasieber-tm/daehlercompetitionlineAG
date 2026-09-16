@@ -1,8 +1,11 @@
 // GET /api/catalog: öffentlicher Katalog (aktive Familien mit aktiven
 // Modellen) für den Kundenflow. Siehe docs/architektur.md, Abschnitt
 // "Kundenflow", und lib/catalog/queries.ts.
+//
+// Railway-Umbau (docs/umbau-railway.md): getFamilies() greift direkt über
+// den Postgres-Pool zu (lib/db/client.ts), ein Supabase-Client wird hier
+// nicht mehr gebraucht.
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getFamilies } from "@/lib/catalog/queries";
 
 // Kein next/cache-unstable_cache mehr (Befund #3, Bericht): der Next-
@@ -16,8 +19,7 @@ import { getFamilies } from "@/lib/catalog/queries";
 // HTTP-Cache-Header (s-maxage) unten reicht für CDN/Browser.
 export async function GET() {
   try {
-    const client = await createClient();
-    const families = await getFamilies(client);
+    const families = await getFamilies();
 
     return NextResponse.json(
       { ok: true, families },

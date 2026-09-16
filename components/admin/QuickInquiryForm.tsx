@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { admin, formatMissingFields, missingFieldLabel } from "@/lib/i18n/admin";
 import { tf } from "@/lib/i18n/dictionaries";
 import type { CatalogFamily } from "@/lib/catalog/queries";
-import { FLOW_CATEGORIES, type Channel, type Character, type FlowCategory, type Timing } from "@/lib/supabase/rows";
+import { FLOW_CATEGORIES, type Channel, type Character, type FlowCategory, type Timing } from "@/lib/db/rows";
 import { Button } from "@/components/ui";
 import { FormField } from "./FormField";
 import { Textarea } from "./Textarea";

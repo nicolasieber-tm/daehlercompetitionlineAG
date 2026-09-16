@@ -1,0 +1,25 @@
+# Lokaler Postgres für den Railway-Umbau (siehe docs/umbau-railway.md,
+# Abschnitt "Zielarchitektur"). Ersetzt den lokalen Supabase-Stack
+# (`npx supabase start`) für die Datenzugriffsschicht; Auth/Storage folgen
+# in Phase E2 innerhalb derselben Datenbank (better-auth-Tabellen, Tabelle
+# `photos`), kein eigener Container dafür.
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: daehler
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - daehler-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d daehler"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  daehler-pgdata:

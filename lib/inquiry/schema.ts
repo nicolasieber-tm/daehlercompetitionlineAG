@@ -12,9 +12,9 @@ const CHANNEL_VALUES = ["phone", "email", "whatsapp"] as const;
 const LOCALE_VALUES = ["de", "en"] as const;
 // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
 // Antwort auf die Getriebefrage im Fahrzeug-Schritt. Muss wörtlich mit
-// InquiryGearbox in lib/supabase/rows.ts übereinstimmen.
+// InquiryGearbox in lib/db/rows.ts übereinstimmen.
 const GEARBOX_VALUES = ["manual", "automatic", "unknown"] as const;
-// Muss wörtlich mit FLOW_CATEGORIES in lib/supabase/rows.ts übereinstimmen.
+// Muss wörtlich mit FLOW_CATEGORIES in lib/db/rows.ts übereinstimmen.
 // Nicht von dort importiert (readonly FlowCategory[], keine literale Tupel-
 // Form): z.enum() braucht ein literales Tupel, um die einzelnen Werte als
 // Literal-Union (statt breitem string) zu typisieren - ein Cast auf
@@ -80,9 +80,8 @@ export const InquiryPayloadObjectSchema = z.object({
   // Werten, siehe components/flow/state.ts effectiveSeriesPs()) - wird nach
   // dem Absenden für die Vorher/Nachher-Leistungszeile auf Abschluss-Screen,
   // Teilen-Seite und Bestätigungs-/Zusammenfassungsmail gebraucht
-  // (inquiries.series_ps, siehe supabase/migrations/
-  // 20260916010000_inquiries_series_ps.sql). Optional (Schnellweg/ältere
-  // Aufrufer ohne Chip-UI liefern das Feld gar nicht) - dann null, wie ohne
+  // (inquiries.series_ps, siehe db/migrations/0001_init.sql). Optional
+  // (Schnellweg/ältere Aufrufer ohne Chip-UI liefern das Feld gar nicht) - dann null, wie ohne
   // gewählte Serienleistung.
   seriesPs: z.number().int().min(1).max(2000).nullable().optional().transform((v) => v ?? null),
   categories: z.array(flowCategorySchema).max(FLOW_CATEGORY_VALUES.length),

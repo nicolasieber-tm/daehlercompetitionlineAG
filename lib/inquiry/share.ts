@@ -3,7 +3,7 @@
 // Der Token wird in der App erzeugt (nicht per DB-Funktion generate_share_
 // token(), die laut docs/db.md nur ein optionaler Fallback ist).
 import { nanoid } from "nanoid";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sql } from "@/lib/db/client";
 import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
 
 const SHARE_TOKEN_LENGTH = 22;
@@ -11,10 +11,10 @@ const SHARE_TOKEN_LENGTH = 22;
 /**
  * URL-sicherer, 22-stelliger Token (nanoid-Standardalphabet ist bereits
  * A-Za-z0-9_- , siehe https://github.com/ai/nanoid). inquiries.share_token
- * ist unique (siehe supabase/migrations/20260911000000_init.sql); bei
- * einer der astronomisch unwahrscheinlichen Kollisionen liefert der
- * Insert in lib/inquiry/create.ts einen DB-Fehler statt eine Anfrage mit
- * fremdem Token zu überschreiben.
+ * ist unique (siehe db/migrations/0001_init.sql); bei einer der
+ * astronomisch unwahrscheinlichen Kollisionen liefert der Insert in
+ * lib/inquiry/create.ts einen DB-Fehler statt eine Anfrage mit fremdem
+ * Token zu überschreiben.
  */
 export function generateShareToken(): string {
   return nanoid(SHARE_TOKEN_LENGTH);
@@ -77,49 +77,55 @@ export interface SharedInquiryView {
 /**
  * Lädt die read-only Ansicht per Teilen-Token. null, wenn der Token nicht
  * existiert (dann liefert der Aufrufer 404, siehe
- * app/api/p/[token]/route.ts). Läuft über den Service-Role-Client: die
- * inquiries-Tabelle hat keine anon-Select-Policy (siehe docs/db.md
- * Abschnitt "Sicherheit", inquiries ist "alle Operationen nur für
- * authenticated"), der Teilen-Link ist aber bewusst ohne Login erreichbar
- * (CLAUDE.md: "echter Link auf eine read-only Ansicht der Anfrage") - der
- * Token selbst (22 Zeichen, nicht erratbar) übernimmt die Zugriffskontrolle
- * anstelle von RLS.
+ * app/api/p/[token]/route.ts). Läuft über den einzigen, serverseitigen
+ * Postgres-Pool (kein RLS mehr, siehe docs/umbau-railway.md); der
+ * Teilen-Link ist bewusst ohne Login erreichbar (CLAUDE.md: "echter Link
+ * auf eine read-only Ansicht der Anfrage") - der Token selbst (22 Zeichen,
+ * nicht erratbar) übernimmt die Zugriffskontrolle.
  */
 export async function getInquiryByShareToken(token: string): Promise<SharedInquiryView | null> {
-  const admin = createAdminClient();
-  const { data: inquiry, error } = await admin
-    .from("inquiries")
-    .select(
-      "number, first_name, vehicle_text, year, character, categories, consulting, selections, estimated_total, locale, created_at, family_id, model_id, series_ps",
-    )
-    .eq("share_token", token)
-    .maybeSingle();
-  if (error) throw new Error(`getInquiryByShareToken fehlgeschlagen: ${error.message}`);
+  const [inquiry] = await sql<
+    {
+      number: string;
+      first_name: string | null;
+      vehicle_text: string | null;
+      year: string | null;
+      character: string | null;
+      categories: string[];
+      consulting: boolean;
+      selections: unknown;
+      estimated_total: number | null;
+      locale: string;
+      created_at: string;
+      family_id: string | null;
+      model_id: string | null;
+      series_ps: number | null;
+    }[]
+  >`
+    select number, first_name, vehicle_text, year, character, categories, consulting, selections,
+           estimated_total, locale, created_at, family_id, model_id, series_ps
+    from inquiries
+    where share_token = ${token}
+  `;
   if (!inquiry) return null;
 
   let family: { brand: string; name: string; codes: string[] } | null = null;
   let model: { name: string; series_nm: number | null } | null = null;
   if (inquiry.family_id) {
-    const { data, error: familyError } = await admin
-      .from("model_families")
-      .select("brand, name, codes")
-      .eq("id", inquiry.family_id)
-      .maybeSingle();
-    if (familyError) throw new Error(`getInquiryByShareToken (Familie) fehlgeschlagen: ${familyError.message}`);
-    family = data;
+    const [row] = await sql<{ brand: string; name: string; codes: string[] }[]>`
+      select brand, name, codes from model_families where id = ${inquiry.family_id}
+    `;
+    family = row ?? null;
   }
   if (inquiry.model_id) {
     // series_nm zusätzlich zu name (Rückmeldung zweiter Klicktest, CLAUDE.md
     // Abschnitt "AUFGABE", Punkt 3): statisch je Modell, deshalb per Join
     // statt einer eigenen inquiries-Spalte (anders als series_ps, das die
     // ambivalente Chip-Auswahl im Fahrzeug-Schritt festhält).
-    const { data, error: modelError } = await admin
-      .from("models")
-      .select("name, series_nm")
-      .eq("id", inquiry.model_id)
-      .maybeSingle();
-    if (modelError) throw new Error(`getInquiryByShareToken (Modell) fehlgeschlagen: ${modelError.message}`);
-    model = data;
+    const [row] = await sql<{ name: string; series_nm: number | null }[]>`
+      select name, series_nm from models where id = ${inquiry.model_id}
+    `;
+    model = row ?? null;
   }
 
   // Dieselbe gemeinsame Formel wie überall sonst (Mail, Antwortentwurf,
