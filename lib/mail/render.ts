@@ -396,7 +396,7 @@ function rowCellsHtml(row: BeforeAfterRow): { beforeHtml: string; afterHtml: str
  * "Hochleistungskatalysatoren", 26 Zeichen) können auch so noch mitten im
  * Wort umbrechen; kein `<style>`-Block, keine `@media`-Regel, weiterhin nur
  * EIN Markup pro Zeile (kein Duplikat-Risiko). Die Kopfzeile "Vorher" /
- * "Nachher · by dÄHLer" bleibt zweispaltig (kurze Labels, 50/50) - nur die
+ * "Vorher → Nachher · by dÄHLer" ist eine einzeilige Legende (colspan 2) - nur die
  * Datenzeilen sind jetzt volle Breite. Verifiziert mit
  * `scratchpad/verify-mail-ba/wrap.ts` (Playwright, `Range.getClientRects`
  * pro Wort) über die gerenderte confirmation von 2026-0272: siehe
@@ -410,11 +410,15 @@ export function beforeAfterTable(rows: BeforeAfterRow[], locale: Locale): MailBl
   const dict = getDictionary(locale);
   const ba = dict.steps.done.beforeAfter;
 
-  const headCell = (text: string, color: string) =>
-    `<td width="50%" style="width:50%;padding:9px 8px;text-align:left;vertical-align:top;border-bottom:1px solid ${BORDER};font-family:${FONT};font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:bold;color:${color};">${escapeHtml(
-      text,
-    )}</td>`;
-  const head = `<tr>${headCell(ba.before, MUTED)}${headCell(ba.after, BRAND_RED)}</tr>`;
+  // Einzeilige Legende über die volle Breite (die Zeilen darunter sind
+  // gestapelt, eine zweispaltige Kopfzeile hätte dort keinen Bezug):
+  // "Vorher → Nachher · by dÄHLer", der Nachher-Teil in Rot wie im Flow.
+  const head =
+    `<tr><td colspan="2" style="padding:9px 8px;text-align:left;vertical-align:top;border-bottom:1px solid ${BORDER};font-family:${FONT};font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:bold;">` +
+    `<span style="color:${MUTED};">${escapeHtml(ba.before)}</span>` +
+    ` <span style="color:${DIM};">&#8594;</span> ` +
+    `<span style="color:${BRAND_RED};">${escapeHtml(ba.after)}</span>` +
+    `</td></tr>`;
 
   // Pro Zeile: Kategorie-Label als eigene Zeile (volle Breite), darunter
   // "Vorher → Nachher" ebenfalls über die volle Breite als ein
