@@ -341,6 +341,7 @@ export const en: Dictionary = {
       wishLabel: "Wish",
       timingLabel: "Timing",
       channelLabel: "Contact",
+      nowText: "Your request has been received and logged.",
     },
     inbox: {
       subject: "New request {number}: {vehicle}, {name}",

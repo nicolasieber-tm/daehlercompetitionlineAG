@@ -370,6 +370,9 @@ export const de = {
       wishLabel: "Wunsch",
       timingLabel: "Termin",
       channelLabel: "Kontakt",
+      // Erster Schritt der «nächsten Schritte» in der Mail: nicht «Bestätigung
+      // ist unterwegs» (der Kunde liest sie gerade), sondern der Eingang.
+      nowText: "Ihre Anfrage ist bei uns eingegangen und notiert.",
     },
     // Interne Mail an settings.mail_inbox (nicht an den Kunden, siehe
     // docs/architektur.md, Abschnitt "Anfrage anlegen"): strukturierte
