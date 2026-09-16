@@ -9,7 +9,7 @@ import { BeforeAfter, PowerAfterValue, PowerBeforeValue, Summary } from "@/compo
 import { getInquiryByShareToken } from "@/lib/inquiry/share";
 import { getDictionary, isLocale, tf } from "@/lib/i18n/dictionaries";
 import { chfFrom } from "@/lib/i18n/format";
-import { buildBeforeAfterRows } from "@/components/flow/beforeAfter";
+import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import type { FlowCategory } from "@/lib/supabase/rows";
 
@@ -84,46 +84,45 @@ export default async function SharedInquiryPage({
     });
   }
 
-  const beforeAfterRows = buildBeforeAfterRows(
-    {
-      categories,
-      items: inquiry.items.map((i) => ({
-        category: i.category as FlowCategory,
-        name: i.name,
-        description: i.description,
-        psTo: i.psTo,
-        nmTo: i.nmTo,
-        variantGroup: i.variantGroup,
-      })),
-      consulting: inquiry.consulting,
-      character: inquiry.character,
-      seriesPs: inquiry.seriesPs,
-      seriesNm: inquiry.seriesNm,
-    },
-    t,
+  const beforeAfterRows = buildBeforeAfterRows({
+    categories,
+    consulting: inquiry.consulting,
+    items: inquiry.items.map((i) => ({
+      category: i.category,
+      name: i.name,
+      description: i.description,
+      variant_group: i.variantGroup,
+      ps_to: i.psTo,
+      nm_to: i.nmTo,
+    })),
+    character: inquiry.character,
+    seriesPs: inquiry.seriesPs,
+    seriesNm: inquiry.seriesNm,
     locale,
-  );
+  });
   // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
   // dieselbe grosse Zahlen-Darstellung wie der Abschluss-Screen (siehe
   // components/flow/steps/DoneStep.tsx), hier ebenfalls aus der reinen
-  // Datenfunktion buildBeforeAfterRows() abgeleitet. Befund Prüfer (Beleg
+  // Datenfunktion buildBeforeAfterRows() (lib/catalog/before-after.ts, seit
+  // Kundenwunsch "Vorher/Nachher auch in den Mails" die gemeinsame Basis
+  // für Flow, Teilen-Seite UND Mails) abgeleitet. Befund Prüfer (Beleg
   // Anfrage 2026-0293): row.extras bleibt angehängt, sonst verschwinden
   // weitere gewählte Motor-Optionen aus der Zeile, sobald eine Stufe
-  // gewählt ist.
-  const beforeAfterRowsForDisplay = beforeAfterRows.map((row) =>
-    row.power
-      ? {
-          ...row,
-          before: <PowerBeforeValue power={row.power} />,
-          after: (
-            <>
-              <PowerAfterValue power={row.power} />
-              {row.extras ? ` · ${row.extras}` : null}
-            </>
-          ),
-        }
-      : row,
-  );
+  // gewählt ist. id/label -> key/category: components/ui/BeforeAfter.tsx
+  // erwartet weiterhin die bisherigen Feldnamen (ReactNode-Werte).
+  const beforeAfterRowsForDisplay = beforeAfterRows.map((row) => ({
+    key: row.id,
+    category: row.label,
+    before: row.power ? <PowerBeforeValue power={row.power} /> : row.before,
+    after: row.power ? (
+      <>
+        <PowerAfterValue power={row.power} />
+        {row.extras ? ` · ${row.extras}` : null}
+      </>
+    ) : (
+      row.after
+    ),
+  }));
 
   return (
     <main className="min-h-screen bg-bg px-4 py-10 text-text sm:px-6">

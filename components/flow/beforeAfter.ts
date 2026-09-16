@@ -6,9 +6,18 @@
 // Server Component, nur mit den schlankeren Feldern aus
 // lib/inquiry/share.ts SharedInquiryView) verwendet - daher sind die
 // "reichen" Felder (seriesPs/seriesNm, psTo/nmTo je Position) optional.
+//
+// Kundenwunsch (CLAUDE.md Abschnitt "AUFGABE"): dieselbe Vorher/Nachher-
+// Übersicht soll auch in den Kundenmails erscheinen. Die eigentliche
+// Zeilen-Herleitung liegt seither in lib/catalog/before-after.ts (dieselbe
+// Semantik, DB-nahe/snake_case Feldnamen, direkt aus MailInquiryItem[]
+// aufrufbar) - diese Datei bleibt als schlanker Adapter auf das bisherige,
+// camelCase FlowCategory-Format bestehen (Signatur/Ausgabe unverändert,
+// bestehende Aufrufer/Tests bleiben unberührt), damit
+// components/flow/steps/DoneStep.tsx nicht angepasst werden muss.
 import type { Dictionary, Locale } from "@/lib/i18n/dictionaries";
-import { isStageItem, normalizeNbsp, productDisplay } from "@/lib/catalog/product-display";
-import { buildPowerBeforeAfter } from "@/lib/catalog/power-before-after";
+import { buildBeforeAfterRows as buildSharedBeforeAfterRows } from "@/lib/catalog/before-after";
+import type { BeforeAfterItemInput as SharedBeforeAfterItemInput } from "@/lib/catalog/before-after";
 import type { PowerBeforeAfter } from "@/lib/catalog/power-before-after";
 import type { FlowCategory } from "@/lib/supabase/rows";
 
@@ -58,111 +67,32 @@ export interface BeforeAfterRowData {
   extras?: string;
 }
 
-function itemsOf(input: BeforeAfterInput, category: FlowCategory): BeforeAfterItemInput[] {
-  return input.items.filter((i) => i.category === category);
-}
-
-// Nachzug Prüfung Phase D, Punkt 1: derselbe kurze, unterscheidbare Titel
-// wie in der Kachel (CategoryStep.tsx displayTitle()) und in den Mails
-// (displayItemFields()), statt des rohen Excel-Namens - vorher blieb hier
-// z.B. "Stufe 1: (Basis 460 PS) 590PS / 720Nm (M6 & A8-Getriebe)" stehen.
-// Nur der TITEL (nicht die volle "Name (Subtitle, Detail)"-Form aus
-// displayItemFields()): die Vorher/Nachher-Zeile ist knapp gehalten (mehrere
-// Namen mit ", " verbunden), die PS/Nm-Werte der Hauptstufe stehen für die
-// Motor-Zeile ohnehin schon separat als Zahlen (siehe unten).
-function displayName(item: BeforeAfterItemInput, locale: Locale): string {
-  if (!isStageItem({ name: item.name, variant_group: item.variantGroup, ps_to: item.psTo })) {
-    return normalizeNbsp(item.name);
-  }
-  return productDisplay(
-    { name: item.name, description: item.description, variant_group: item.variantGroup, ps_to: item.psTo, nm_to: item.nmTo },
-    locale,
-  ).title;
-}
-
-function joinNames(items: BeforeAfterItemInput[], adviceValue: string, locale: Locale): string {
-  return items.length > 0 ? items.map((i) => displayName(i, locale)).join(", ") : adviceValue;
-}
-
-/** Baut die Vorher/Nachher-Zeilen aus dem gewählten Paket, siehe docs/vorschau.html beforeAfter(). */
+/**
+ * Mappt auf lib/catalog/before-after.ts buildBeforeAfterRows() (dieselbe
+ * Zeilen-Herleitung, siehe dortiger Dateikommentar) und zurück auf das
+ * bisherige key/category-Format. `t` bleibt Teil der Signatur für
+ * bestehende Aufrufer (DoneStep.tsx) - die eigentliche Übersetzung
+ * übernimmt die gemeinsame Funktion selbst über `locale`
+ * (lib/i18n/dictionaries.ts getDictionary(), dasselbe Dictionary-Objekt).
+ */
 export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary, locale: Locale): BeforeAfterRowData[] {
-  const rows: BeforeAfterRowData[] = [];
-  const b = t.steps.done.beforeAfter;
-  const advice = b.adviceValue;
-
-  if (input.categories.includes("motor")) {
-    const motorItems = itemsOf(input, "motor");
-    const stage = motorItems.find((i) => i.variantGroup === "leistung" && i.psTo != null);
-    const extras = motorItems.filter((i) => i !== stage);
-    const before =
-      input.seriesPs != null && input.seriesNm != null
-        ? `${input.seriesPs} PS · ${input.seriesNm} Nm`
-        : b.seriesValue;
-    let after: string;
-    const extraNames = extras.map((i) => displayName(i, locale)).join(", ");
-    if (stage) {
-      after = `${stage.psTo} PS · ${stage.nmTo ?? "?"} Nm${extraNames ? " · " + extraNames : ""}`;
-    } else if (motorItems.length > 0) {
-      after = motorItems.map((i) => displayName(i, locale)).join(", ");
-    } else {
-      after = advice;
-    }
-    const power = buildPowerBeforeAfter(input.seriesPs, input.seriesNm, stage?.psTo, stage?.nmTo) ?? undefined;
-    rows.push({ key: "leistung", category: b.rows.leistung, before, after, power, extras: stage ? extraNames : undefined });
-  }
-
-  if (input.categories.includes("auspuff")) {
-    rows.push({
-      key: "sound",
-      category: b.rows.sound,
-      before: b.seriesExhaustValue,
-      after: joinNames(itemsOf(input, "auspuff"), advice, locale),
-    });
-  }
-
-  if (input.categories.includes("fahrwerk")) {
-    rows.push({
-      key: "fahrwerk",
-      category: b.rows.fahrwerk,
-      before: b.seriesHeightValue,
-      after: joinNames(itemsOf(input, "fahrwerk"), advice, locale),
-    });
-  }
-
-  if (input.categories.includes("raeder")) {
-    rows.push({
-      key: "raeder",
-      category: b.rows.raeder,
-      before: b.seriesWheelsValue,
-      after: joinNames(itemsOf(input, "raeder"), advice, locale),
-    });
-  }
-
-  if (input.categories.includes("exterieur")) {
-    rows.push({
-      key: "exterieur",
-      category: b.rows.exterieur,
-      before: b.seriesValue,
-      after: joinNames(itemsOf(input, "exterieur"), advice, locale),
-    });
-  }
-
-  if (input.categories.includes("interieur")) {
-    rows.push({
-      key: "interieur",
-      category: b.rows.interieur,
-      before: b.seriesValue,
-      after: joinNames(itemsOf(input, "interieur"), advice, locale),
-    });
-  }
-
-  const characterOption = t.steps.character.options.find((o) => o.id === input.character);
-  rows.push({
-    key: "charakter",
-    category: b.rows.charakter,
-    before: b.seriesFactoryValue,
-    after: characterOption ? characterOption.title : advice,
+  void t;
+  const items: SharedBeforeAfterItemInput[] = input.items.map((item) => ({
+    category: item.category,
+    name: item.name,
+    description: item.description,
+    variant_group: item.variantGroup,
+    ps_to: item.psTo,
+    nm_to: item.nmTo,
+  }));
+  const rows = buildSharedBeforeAfterRows({
+    categories: input.categories,
+    consulting: input.consulting,
+    items,
+    character: input.character,
+    seriesPs: input.seriesPs,
+    seriesNm: input.seriesNm,
+    locale,
   });
-
-  return rows;
+  return rows.map((r) => ({ key: r.id, category: r.label, before: r.before, after: r.after, power: r.power, extras: r.extras }));
 }

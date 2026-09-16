@@ -12,7 +12,8 @@ import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { chf, chfFrom } from "@/lib/i18n/format";
 import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
-import { buildPowerBeforeAfter, formatPowerLine } from "@/lib/catalog/power-before-after";
+import { formatPowerPlusText } from "@/lib/catalog/power-before-after";
+import type { BeforeAfterRow } from "@/lib/catalog/before-after";
 import type { Model, ModelFamily } from "@/lib/supabase/rows";
 import type { MailInquiryItem } from "./types";
 
@@ -25,6 +26,14 @@ const BORDER = "#e6e6e6";
 const PANEL = "#f7f7f7";
 const FONT = "Arial, Helvetica, sans-serif";
 const MONO = "'Courier New', Courier, monospace";
+// Wie das Display-Font (Barlow Condensed) im Flow (docs/architektur.md,
+// Abschnitt "Design"), mit Arial/Helvetica-Fallback: Mailclients laden
+// keine Google Fonts zuverlässig, Barlow steht deshalb nur an erster
+// Stelle für Clients, die die Schrift lokal kennen oder <style>@font-face
+// unterstützen - alle anderen fallen unverändert auf FONT zurück.
+const DISPLAY_FONT = "'Barlow Condensed', Arial, Helvetica, sans-serif";
+const OK_GREEN_TEXT = "#1f7a4d";
+const OK_GREEN_BG = "#e7f8ef";
 
 export interface MailBlock {
   html: string;
@@ -199,27 +208,6 @@ export function itemLineText(item: MailInquiryItem, locale: Locale): string {
   return tf(dict.draft.itemLine, { category, name, description, price });
 }
 
-/**
- * Klartext-Zeile "460 PS → 620 PS / 740 Nm (+160 PS)" für die Bestätigungs-/
- * Zusammenfassungsmail (Rückmeldung zweiter Klicktest, CLAUDE.md Abschnitt
- * "AUFGABE", Punkt 3, siehe lib/catalog/power-before-after.ts und
- * components/flow/beforeAfter.ts, dieselbe Herleitung für Abschluss-Screen/
- * Teilen-Seite). null, wenn keine Leistungsstufe gewählt wurde oder die
- * Serienleistung nicht bekannt ist - dann bleibt die Zeile ganz weg, wie
- * beim Text-Fallback der Vorher/Nachher-Tabelle ohne gewählte Stufe.
- */
-export function motorPowerLine(params: {
-  seriesPs: number | null;
-  seriesNm: number | null;
-  items: MailInquiryItem[];
-}): string | null {
-  const stage = params.items.find(
-    (i) => i.category === "motor" && i.variant_group === "leistung" && i.ps_to != null,
-  );
-  const power = buildPowerBeforeAfter(params.seriesPs, params.seriesNm, stage?.ps_to, stage?.nm_to);
-  return power ? formatPowerLine(power) : null;
-}
-
 // --- Bausteine ---------------------------------------------------------------
 
 export function paragraph(text: string): MailBlock {
@@ -309,40 +297,185 @@ export function itemList(items: MailInquiryItem[], locale: Locale): MailBlock {
   return { html, text };
 }
 
-/** Vorher/Nachher-Tabelle wie im Kundenflow (docs/vorschau.html, beforeAfter()). */
-export interface BeforeAfterRow {
-  label: string;
-  before: string;
-  after: string;
+/**
+ * Kleine Zwischenüberschrift vor einem Block, z.B. "Vorher / Nachher"
+ * (mail.shared.beforeAfterTitle) vor beforeAfterTable() unten.
+ */
+export function sectionHeading(text: string): MailBlock {
+  if (!text) return { html: "", text: "" };
+  return {
+    html: `<div style="margin:0 0 8px;font-family:${FONT};font-size:13px;font-weight:bold;color:${BRAND_DARK};">${escapeHtml(
+      text,
+    )}</div>`,
+    text: `${text}:`,
+  };
 }
 
+/**
+ * Grosse Zahlen-Zelle für die "Leistung"-Zeile der Vorher/Nachher-Tabelle
+ * unten, wie .stat b / .delta .n in docs/vorschau.html und
+ * components/ui/PowerValue.tsx im Flow: Zahl gross/fett in der
+ * Display-Schrift, Einheit klein.
+ */
+function powerCellHtml(ps: number, nm: number | null, numberColor: string, unitColor: string): string {
+  const unit = nm != null ? `PS · ${nm} Nm` : "PS";
+  return (
+    `<span style="font-family:${DISPLAY_FONT};font-size:28px;font-weight:bold;line-height:1;color:${numberColor};">${ps}</span>` +
+    ` <span style="font-family:${DISPLAY_FONT};font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:.04em;color:${unitColor};white-space:nowrap;">${escapeHtml(
+      unit,
+    )}</span>`
+  );
+}
+
+function powerTextValue(ps: number, nm: number | null): string {
+  return nm != null ? `${ps} PS · ${nm} Nm` : `${ps} PS`;
+}
+
+/** Vorher/Nachher-Zellinhalt einer Zeile, für die dreispaltige und die gestapelte Variante gleichermassen (siehe beforeAfterTable() unten). */
+function rowCellsHtml(row: BeforeAfterRow): { beforeHtml: string; afterHtml: string } {
+  if (!row.power) {
+    return { beforeHtml: escapeHtml(row.before), afterHtml: escapeHtml(row.after) };
+  }
+  const plus = formatPowerPlusText(row.power);
+  const extrasHtml = row.extras
+    ? `<br><span style="font-family:${FONT};font-size:12px;font-weight:normal;color:${MUTED};">${escapeHtml(
+        row.extras,
+      )}</span>`
+    : "";
+  return {
+    beforeHtml: powerCellHtml(row.power.beforePs, row.power.beforeNm, DIM, DIM),
+    afterHtml:
+      powerCellHtml(row.power.afterPs, row.power.afterNm, TEXT, MUTED) +
+      ` <span style="display:inline-block;padding:2px 7px;border-radius:3px;background:${OK_GREEN_BG};color:${OK_GREEN_TEXT};font-family:${MONO};font-size:12px;font-weight:bold;">${escapeHtml(
+        plus,
+      )}</span>` +
+      extrasHtml,
+  };
+}
+
+/**
+ * Vorher/Nachher-Tabelle wie im Kundenflow (docs/vorschau.html,
+ * beforeAfter(); components/ui/BeforeAfter.tsx), hier für die
+ * Kundenmails (Kundenwunsch, siehe CLAUDE.md Abschnitt "AUFGABE"):
+ * Bestätigung, Zusammenfassung, und (als kompakter Klartext-Block, siehe
+ * monoBlock() unten) die interne Anfrage-Mail. `rows` kommt aus der
+ * gemeinsamen Zeilen-Herleitung lib/catalog/before-after.ts
+ * buildBeforeAfterRows() (dieselbe Semantik wie im Flow).
+ *
+ * Tabellen-Layout, ausschliesslich Inline-Styles auf `<table>`/`<td>` (wie
+ * die übrigen Bausteine hier, z.B. definitionList()/estimateBox()) - KEIN
+ * `<style>`-Block. **Korrektur 16.09.2026** (Prüfer-Befund, Beleg Anfrage
+ * 2026-0272): eine frühere Fassung hielt zwei fertige Markup-Varianten pro
+ * Zeile vor (dreispaltig + bereits gestapelt) und blendete die passende
+ * über einen `<style>`-Block mit `@media`-Regel ein/aus. Mailclients, die
+ * `<style>` verwerfen statt nur `@media` zu ignorieren (z.B. die Gmail-App
+ * bei Nicht-Google-Konten, Gmail-Webmail, diverse Webmailer), zeigten dann
+ * BEIDE Varianten gleichzeitig - jede Zeile doppelt, ohne die rote
+ * "Nachher"-Kopfzeile und ohne die Spaltenbreiten aus dem verworfenen
+ * `<style>`-Block, bei 2026-0272 dazu ein horizontaler Overflow bei 375px
+ * (die gestapelte Variante war ohne dessen `word-wrap`-Regel ungebrochen
+ * breit). Danach genau EINE Markup-Variante, aber als dreispaltige Tabelle
+ * mit Prozentbreiten (Label 34%, Vorher/Nachher je 33%) - das behob
+ * Verdopplung und Overflow, liess der Vorher/Nachher-Wertspalte auf
+ * iPhone-Breiten (375-430px) aber nur ~74-92px Innenbreite. Mit der realen
+ * Anfrage 2026-0272 brach dort ein grosser Teil der Wörter mitten im Wort
+ * um, ohne Trennstrich ("Serienanla/ge", "Kompletta/nlage",
+ * "Hochleistungskatalysat/oren") - zweiter Prüfer-Befund, siehe
+ * docs/architektur.md.
+ *
+ * **Korrektur 2 (16.09.2026)**, Prüfer-Vorschlag: jede Zeile bekommt statt
+ * dreier schmaler Spalten EINE volle Zeile für Kategorie-Label
+ * (Kopfzeile), gefolgt von EINER weiteren vollen Zeile für den fliessenden
+ * Text "Vorher → Nachher" (`colspan="2"`, wie components/ui/BeforeAfter.tsx
+ * unter 600px stapelt: Kategorie als Überschrift, darunter Vorher/Nachher
+ * in freiem Fliesstext statt in zwei starren Hälften). Dadurch steht auf
+ * jeder Breite die GESAMTE Innenbreite der Mail (bei 375px rund 270-290px
+ * statt zuvor 74-92px je Spalte) für den Umbruch zur Verfügung, echte
+ * Leerzeichen-Wortgrenzen greifen also fast immer zuerst - nur einzelne,
+ * sehr lange deutsche Komposita ohne Leerzeichen (z.B.
+ * "Hochleistungskatalysatoren", 26 Zeichen) können auch so noch mitten im
+ * Wort umbrechen; kein `<style>`-Block, keine `@media`-Regel, weiterhin nur
+ * EIN Markup pro Zeile (kein Duplikat-Risiko). Die Kopfzeile "Vorher" /
+ * "Nachher · by dÄHLer" bleibt zweispaltig (kurze Labels, 50/50) - nur die
+ * Datenzeilen sind jetzt volle Breite. Verifiziert mit
+ * `scratchpad/verify-mail-ba/wrap.ts` (Playwright, `Range.getClientRects`
+ * pro Wort) über die gerenderte confirmation von 2026-0272: siehe
+ * docs/architektur.md für die gemessenen Werte. Das `class="ba-tbl"`-
+ * Attribut auf dem `<table>` unten trägt bewusst KEIN CSS mehr (kein
+ * Stylesheet definiert diese Klasse) - reiner, stabiler Hook für
+ * Tests/Sichtprüfung, um die Tabelle im Markup zu finden.
+ */
 export function beforeAfterTable(rows: BeforeAfterRow[], locale: Locale): MailBlock {
   if (rows.length === 0) return { html: "", text: "" };
   const dict = getDictionary(locale);
   const ba = dict.steps.done.beforeAfter;
-  const head = `<tr><td style="padding:6px 8px 8px;"></td><td style="padding:6px 8px 8px;color:${MUTED};font-size:12px;text-transform:uppercase;">${escapeHtml(
-    ba.before,
-  )}</td><td style="padding:6px 8px 8px;color:${TEXT};font-size:12px;text-transform:uppercase;font-weight:bold;">${escapeHtml(
-    ba.after,
-  )}</td></tr>`;
-  const body = rows
-    .map(
-      (r) =>
-        `<tr><td style="padding:6px 8px;border-top:1px solid ${BORDER};color:${MUTED};font-size:13px;white-space:nowrap;">${escapeHtml(
-          r.label,
-        )}</td><td style="padding:6px 8px;border-top:1px solid ${BORDER};font-size:13px;color:${MUTED};">${escapeHtml(
-          r.before,
-        )}</td><td style="padding:6px 8px;border-top:1px solid ${BORDER};font-size:13px;color:${TEXT};font-weight:bold;">${escapeHtml(
-          r.after,
-        )}</td></tr>`,
-    )
+
+  const headCell = (text: string, color: string) =>
+    `<td width="50%" style="width:50%;padding:9px 8px;text-align:left;vertical-align:top;border-bottom:1px solid ${BORDER};font-family:${FONT};font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:bold;color:${color};">${escapeHtml(
+      text,
+    )}</td>`;
+  const head = `<tr>${headCell(ba.before, MUTED)}${headCell(ba.after, BRAND_RED)}</tr>`;
+
+  // Pro Zeile: Kategorie-Label als eigene Zeile (volle Breite), darunter
+  // "Vorher → Nachher" ebenfalls über die volle Breite als ein
+  // zusammenhängender Fliesstext (nicht in zwei starre Hälften geteilt) -
+  // siehe Doc-Kommentar oben ("Korrektur 2").
+  const bodyRows = rows
+    .map((row) => {
+      const { beforeHtml, afterHtml } = rowCellsHtml(row);
+      const labelHtml = `<div style="font-family:${DISPLAY_FONT};font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:${MUTED};font-weight:bold;margin:0 0 4px;">${escapeHtml(
+        row.label,
+      )}</div>`;
+      const valueHtml =
+        `<div style="font-family:${FONT};font-size:14px;line-height:1.5;">` +
+        `<span style="color:${DIM};">${beforeHtml}</span>` +
+        ` <span style="color:${DIM};">&#8594;</span> ` +
+        `<span style="color:${TEXT};font-weight:bold;">${afterHtml}</span>` +
+        `</div>`;
+      return (
+        `<tr><td colspan="2" style="padding:9px 8px;text-align:left;vertical-align:top;border-top:1px solid ${BORDER};word-wrap:break-word;overflow-wrap:break-word;">` +
+        labelHtml +
+        valueHtml +
+        `</td></tr>`
+      );
+    })
     .join("");
-  const html = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;border-collapse:collapse;">${head}${body}</table>`;
-  const text = [
-    `${ba.header}:`,
-    ...rows.map((r) => `${r.label}: ${r.before} -> ${r.after}`),
-  ].join("\n");
+
+  const html =
+    `<table role="presentation" class="ba-tbl" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;border-collapse:collapse;margin:0 0 16px;table-layout:fixed;">` +
+    `${head}${bodyRows}</table>`;
+
+  const LABEL_WIDTH = 12;
+  const text = rows
+    .map((row) => {
+      if (row.power) {
+        const beforeText = powerTextValue(row.power.beforePs, row.power.beforeNm);
+        const afterText = powerTextValue(row.power.afterPs, row.power.afterNm);
+        const plus = formatPowerPlusText(row.power);
+        const extras = row.extras ? ` · ${row.extras}` : "";
+        return `${row.label.padEnd(LABEL_WIDTH)}${beforeText}  →  ${afterText} (${plus})${extras}`;
+      }
+      return `${row.label.padEnd(LABEL_WIDTH)}${row.before}  →  ${row.after}`;
+    })
+    .join("\n");
+
   return { html, text };
+}
+
+/**
+ * Klartext-Block in Monospace, z.B. für die kompakte Vorher/Nachher-
+ * Übersicht in der internen Anfrage-Mail (inbox.ts, "damit dÄHLer dasselbe
+ * sieht" wie der Kunde) - dieselben Zeilen wie beforeAfterTable().text
+ * oben, hier ohne die farbige HTML-Tabelle.
+ */
+export function monoBlock(text: string): MailBlock {
+  if (!text) return { html: "", text: "" };
+  return {
+    html: `<pre style="margin:0 0 16px;padding:12px 14px;background:${PANEL};border:1px solid ${BORDER};font-family:${MONO};font-size:12px;line-height:1.5;color:${TEXT};white-space:pre-wrap;overflow-x:auto;">${escapeHtml(
+      text,
+    )}</pre>`,
+    text,
+  };
 }
 
 /** Richtpreis-Box: Summe der gewählten Positionen, unverbindlich. */

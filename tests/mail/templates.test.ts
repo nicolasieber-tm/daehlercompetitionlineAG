@@ -10,6 +10,7 @@ import { buildInbox } from "@/lib/mail/templates/inbox";
 import { buildReply } from "@/lib/mail/templates/reply";
 import { buildFollowUp } from "@/lib/mail/templates/follow_up";
 import { itemLineText, vehicleLabel } from "@/lib/mail/render";
+import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
 import type { MailCheck, MailFollowUpContext, MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
 import type { Inquiry, Model, ModelFamily } from "@/lib/supabase/rows";
 import type { Locale } from "@/lib/i18n/dictionaries";
@@ -205,10 +206,16 @@ function expectWellFormed(result: { subject: string; html: string; text: string 
   // Text-Variante ohne HTML-Tags.
   expect(result.text).not.toMatch(/<[a-zA-Z!/][^>]*>/);
 
-  // Platzhalter vollständig ersetzt: kein "{" (deckt auch "{{...}}" ab) mehr im Ergebnis.
-  expect(result.subject).not.toContain("{");
-  expect(result.html).not.toContain("{");
-  expect(result.text).not.toContain("{");
+  // Platzhalter vollständig ersetzt: kein "{wort}" (deckt auch "{{wort}}" ab)
+  // mehr im Ergebnis. Nicht mehr ein blosses "kein { im Ergebnis" - das
+  // Inline-CSS in den style-Attributen der Bausteine (z.B.
+  // beforeAfterTable(), lib/mail/render.ts) enthält "{"/"}" nirgends,
+  // trotzdem bleibt der engere Regex bestehen, falls ein künftiger
+  // Baustein doch wieder geschweifte Klammern braucht.
+  const PLACEHOLDER_RE = /\{[a-zA-Z_]+\}/;
+  expect(result.subject).not.toMatch(PLACEHOLDER_RE);
+  expect(result.html).not.toMatch(PLACEHOLDER_RE);
+  expect(result.text).not.toMatch(PLACEHOLDER_RE);
 
   // Keine Gedankenstriche.
   expect(result.subject).not.toMatch(DASH_RE);
@@ -736,45 +743,183 @@ describe("Klicktest-Rückmeldung: Getriebe-Zeile und Positionsdarstellung", () =
     expect(vehicleLine).toContain("Baureihe: 3er G20, G21 · Motorisierung: M3 Touring");
   });
 
+  // Mit variant_group "leistung" (heutige, seit Korrektur 15.09.2026
+  // gespeicherte Anfragen tragen das Feld immer): sowohl die Positionsliste
+  // (displayItemFields()) als auch die Vorher/Nachher-Zeile
+  // (lib/catalog/before-after.ts, productDisplay()) falten konsistent -
+  // ohne variant_group (nur bei älteren, vor der Korrektur gespeicherten
+  // Anfragen) greift für die Vorher/Nachher-Zeile nur der lockere,
+  // ps_to-basierte isStageItem()-Fallback, productDisplay() selbst faltet
+  // dort NICHT (siehe dessen eigener variant_group==="leistung"-Check) -
+  // wie im Flow (components/flow/beforeAfter.ts, dieselbe Semantik),
+  // ausserhalb dieser Aufgabe.
   it("buildConfirmation zeigt den gefalteten Positionsnamen (kein voller Excel-Rohname)", () => {
-    const result = buildConfirmation(m2Ctx());
+    const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
+    const result = buildConfirmation(ctx);
     expect(result.text).toContain("Motor: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe)");
     expect(result.text).not.toContain("(Basis 480 PS)");
   });
 
   it("buildSummary zeigt denselben gefalteten Positionsnamen", () => {
-    const result = buildSummary(m2Ctx());
+    const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
+    const result = buildSummary(ctx);
     expect(result.text).toContain("Motor: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe)");
     expect(result.text).not.toContain("(Basis 480 PS)");
   });
 
-  // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
-  // "Leistung"-Zeile "460 PS → 620 PS / 740 Nm (+160 PS)" in der Bestätigungs-/
-  // Zusammenfassungsmail, nur bei gewählter Leistungsstufe (variant_group
-  // "leistung") mit bekannter Serienleistung (inquiries.series_ps).
-  it("buildConfirmation zeigt die Vorher/Nachher-Leistungszeile bei gewählter Stufe", () => {
+  // Kundenwunsch (CLAUDE.md Abschnitt "AUFGABE"): die Vorher/Nachher-Zeile
+  // "Leistung" steht jetzt in der (farblich hervorgehobenen) Vorher/
+  // Nachher-Tabelle (lib/mail/render.ts beforeAfterTable(), Text-Variante),
+  // nicht mehr als einzelne "Leistung: ..."-Zeile in der definitionList -
+  // nur bei gewählter Leistungsstufe (variant_group "leistung") mit
+  // bekannter Serienleistung (inquiries.series_ps).
+  it("buildConfirmation zeigt die Vorher/Nachher-Leistungszeile in der Tabelle bei gewählter Stufe", () => {
     const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
     const result = buildConfirmation({ ...ctx, inquiry: { ...ctx.inquiry, series_ps: 480 } });
     // baseModel() liefert series_nm 650 (siehe Fixture oben).
-    expect(result.text).toContain("Leistung: 480 PS / 650 Nm → 620 PS / 740 Nm (+140 PS / +90 Nm)");
+    expect(result.text).toContain("480 PS · 650 Nm  →  620 PS · 740 Nm (+140 PS / +90 Nm)");
+    expect(result.html).toContain("28px");
   });
 
-  it("buildSummary zeigt dieselbe Vorher/Nachher-Leistungszeile", () => {
+  it("buildSummary zeigt dieselbe Vorher/Nachher-Leistungszeile in der Tabelle", () => {
     const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
     const result = buildSummary({ ...ctx, inquiry: { ...ctx.inquiry, series_ps: 480 } });
-    expect(result.text).toContain("Leistung: 480 PS / 650 Nm → 620 PS / 740 Nm (+140 PS / +90 Nm)");
+    expect(result.text).toContain("480 PS · 650 Nm  →  620 PS · 740 Nm (+140 PS / +90 Nm)");
   });
 
-  it("ohne gewählte Leistungsstufe (variant_group nicht 'leistung') keine Leistungszeile", () => {
+  it("ohne gewählte Leistungsstufe (variant_group nicht 'leistung') keine Leistungszeile mit Zahlen/Plus", () => {
     // stufe1 im Standard-m2Ctx() trägt kein variant_group (siehe oben).
     const ctx = m2Ctx();
     const result = buildConfirmation({ ...ctx, inquiry: { ...ctx.inquiry, series_ps: 480 } });
-    expect(result.text).not.toMatch(/^Leistung: /m);
+    expect(result.text).not.toMatch(/\(\+\d+ PS/);
+    expect(result.html).not.toContain("font-size:28px");
   });
 
-  it("ohne bekannte Serienleistung (inquiries.series_ps null) keine Leistungszeile", () => {
+  it("ohne bekannte Serienleistung (inquiries.series_ps null) keine Leistungszeile mit Zahlen/Plus", () => {
     const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
     const result = buildConfirmation(ctx); // baseInquiry(): series_ps null
-    expect(result.text).not.toMatch(/^Leistung: /m);
+    expect(result.text).not.toMatch(/\(\+\d+ PS/);
+    expect(result.html).not.toContain("font-size:28px");
+  });
+});
+
+// Kundenwunsch (CLAUDE.md Abschnitt "AUFGABE"): dieselbe, farblich
+// hervorgehobene Vorher/Nachher-Übersicht wie im Abschluss-Screen soll auch
+// in confirmation/summary erscheinen (inbox als Klartext-Block, eigene
+// Prüfung unten) - nicht mehr die einzelne "Leistung: ..."-Zeile.
+describe("beforeAfterTable in den Kundenmails", () => {
+  const ctx = makeContext({ locale: "de", items: itemsWithPrices, withModel: true });
+
+  it("confirmation zeigt die Tabelle mit Vorher/Nachher-Kopf, Kategorie-Zeilen und Überschrift", () => {
+    const result = buildConfirmation(ctx);
+    expect(result.html).toContain('class="ba-tbl"');
+    expect(result.html).toContain(">Vorher<");
+    expect(result.html).toContain("Nachher · by dÄHLer");
+    expect(result.html).toContain(">Sound<");
+    expect(result.text).toContain("Vorher / Nachher:");
+  });
+
+  // Prüfer-Befund (Beleg Anfrage 2026-0272): eine frühere Fassung hielt
+  // pro Zeile zwei fertige Markup-Varianten vor und blendete die passende
+  // über einen <style>-Block mit @media-Regel ein/aus - Mailclients, die
+  // <style> ganz verwerfen (z.B. die Gmail-App bei Nicht-Google-Konten),
+  // zeigten dann BEIDE Varianten, jede Zeilenbeschriftung also doppelt.
+  // Jetzt genau eine Markup-Variante, rein mit Inline-Styles: kein
+  // <style>-Block, jede Zeilenbeschriftung erscheint genau einmal.
+  it("confirmation: HTML-Fassung ohne <style>-Block, jede Zeilenbeschriftung genau einmal", () => {
+    const result = buildConfirmation(ctx);
+    expect(result.html).not.toContain("<style>");
+    expect(result.html).not.toContain("@media");
+    const rows = buildBeforeAfterRows({
+      categories: ctx.inquiry.categories,
+      consulting: ctx.inquiry.consulting,
+      items: ctx.items,
+      character: ctx.inquiry.character,
+      seriesPs: ctx.inquiry.series_ps,
+      seriesNm: ctx.model?.series_nm ?? null,
+      locale: ctx.locale,
+    });
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const occurrences = result.html.split(`>${row.label}<`).length - 1;
+      expect(occurrences).toBe(1);
+    }
+  });
+
+  it("summary zeigt dieselbe Tabelle", () => {
+    const result = buildSummary(ctx);
+    expect(result.html).toContain('class="ba-tbl"');
+    expect(result.text).toContain("Vorher / Nachher:");
+  });
+
+  // Leistungsstufe im Fixture itemsWithPrices ("Stufe 1"), aber ohne
+  // gesetztes series_ps -> kein power, die Tabelle zeigt trotzdem die
+  // Text-Fallback-Zeile für "Leistung" (before/after als Text).
+  it("confirmation: Text-Variante enthält je gewählter Kategorie eine ausgerichtete Zeile", () => {
+    const result = buildConfirmation(ctx);
+    expect(result.text).toMatch(/Leistung\s+.+\s+→\s+.+/);
+    expect(result.text).toMatch(/Sound\s+Serienanlage\s+→\s+Klappenauspuffanlage/);
+  });
+
+  // Mit gewählter Leistungsstufe UND bekannter Serienleistung: grosse
+  // Zahlen (28px) und grüner Plus-Badge in der HTML-Fassung, wie
+  // components/ui/PowerValue.tsx im Flow.
+  it("confirmation zeigt bei gewählter Stufe grosse Zahlen und einen grünen Plus-Badge", () => {
+    const ctxWithSeries = makeContext({ locale: "de", items: itemsWithPrices, withModel: true });
+    const result = buildConfirmation({
+      ...ctxWithSeries,
+      inquiry: { ...ctxWithSeries.inquiry, series_ps: 480 },
+      items: [{ ...itemsWithPrices[0], variant_group: "leistung", ps_to: 620, nm_to: 740 }, itemsWithPrices[1]],
+    });
+    expect(result.html).toContain("font-size:28px");
+    expect(result.html).toContain("background:#e7f8ef"); // Plus-Badge-Hintergrund (grün)
+    expect(result.text).toMatch(/\(\+\d+ PS/);
+  });
+
+  it("reply zeigt die Tabelle NICHT (nur der bearbeitete Antwortentwurf)", () => {
+    const result = buildReply(ctx);
+    expect(result.html).not.toContain('class="ba-tbl"');
+    expect(result.text).not.toContain("Vorher / Nachher:");
+  });
+
+  // Alte einzelne "Leistung: ..."-Zeile (frühere definitionList()-Zeile,
+  // vor der Tabelle) darf nicht mehr auftauchen - keine Doppelung.
+  it("keine Doppelung der alten 'Leistung: ...'-Zeile aus der definitionList", () => {
+    const ctxWithSeries = makeContext({ locale: "de", items: itemsWithPrices, withModel: true });
+    const result = buildConfirmation({ ...ctxWithSeries, inquiry: { ...ctxWithSeries.inquiry, series_ps: 480 } });
+    expect(result.text).not.toContain("Leistung: ");
+    expect(result.html).not.toContain(">Leistung:<");
+  });
+
+  // Kurzablauf (Punkt 3): ohne Kategorien und ohne Komplettpaket keine
+  // Tabelle.
+  it("ohne Kategorien und ohne Komplettpaket: keine Tabelle", () => {
+    const ctxEmpty = makeContext({ locale: "de", items: [], withModel: true });
+    const result = buildConfirmation({
+      ...ctxEmpty,
+      inquiry: { ...ctxEmpty.inquiry, categories: [], consulting: false },
+    });
+    expect(result.html).not.toContain('class="ba-tbl"');
+    expect(result.text).not.toContain("Vorher / Nachher:");
+  });
+
+  // Kurzablauf mit gewählten Kategorien, aber ganz ohne Produkte (z.B.
+  // Wiesmann, Familie ohne Preisliste): Tabelle zeigt "Serie -> Beratung"
+  // je gewählter Kategorie, wie im Flow.
+  it("Kurzablauf mit Kategorien ohne Produkte: Tabelle zeigt Serie -> Beratung", () => {
+    const ctxQuick = makeContext({ locale: "en", items: [], withModel: false });
+    const result = buildConfirmation(ctxQuick);
+    expect(result.html).toContain('class="ba-tbl"');
+    expect(result.text).toMatch(/Power\s+Standard\s+→\s+Advice/);
+  });
+
+  it("inbox zeigt die Übersicht als kompakten Klartext-Block (Monospace), nach GESCHÄTZTES PAKET", () => {
+    const result = buildInbox(ctx);
+    expect(result.html).toContain("<pre");
+    expect(result.text).toContain("VORHER / NACHHER");
+    const packageIdx = result.text.indexOf("GESCHÄTZTES PAKET");
+    const baIdx = result.text.indexOf("VORHER / NACHHER");
+    expect(packageIdx).toBeGreaterThan(-1);
+    expect(baIdx).toBeGreaterThan(packageIdx);
   });
 });

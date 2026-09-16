@@ -5,17 +5,19 @@
 // shareUrl, "nächste Schritte".
 import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
+import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
 import type { MailInquiryContext, MailInquiryItem } from "../types";
 import {
+  beforeAfterTable,
   buttonLink,
   categoryLabel,
   definitionList,
   estimateBox,
   itemList,
-  motorPowerLine,
   optionLabel,
   paragraph,
   renderMail,
+  sectionHeading,
   vehicleLabel,
 } from "../render";
 
@@ -58,13 +60,22 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
   const timing = optionLabel(dict.steps.timing.options, ctx.inquiry.timing);
   const channel = optionLabel(dict.steps.contact.channels, ctx.inquiry.channel);
   const hasOnRequest = ctx.items.some((item) => item.price_status !== "priced");
-  // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
-  // "460 PS → 620 PS / 740 Nm (+160 PS)", nur bei gewählter Leistungsstufe
-  // mit bekannter Serienleistung (siehe lib/mail/render.ts motorPowerLine()).
-  const powerLine = motorPowerLine({
+  // Kundenwunsch (CLAUDE.md Abschnitt "AUFGABE"): dieselbe Vorher/Nachher-
+  // Übersicht wie im Abschluss-Screen des Flows (components/ui/BeforeAfter.tsx),
+  // farblich hervorgehoben, hier über die gemeinsame Zeilen-Herleitung
+  // lib/catalog/before-after.ts (ersetzt die bisherige einzelne
+  // "Leistung: ..."-Zeile in der definitionList oben, keine Doppelung).
+  // Kurzablauf ohne Kategorien und ohne Komplettpaket: keine Tabelle (leere
+  // rows sonst nur die immer vorhandene Charakter-Zeile ohne Bezug).
+  const showBeforeAfter = ctx.inquiry.categories.length > 0 || ctx.inquiry.consulting;
+  const beforeAfterRows = buildBeforeAfterRows({
+    categories: ctx.inquiry.categories,
+    consulting: ctx.inquiry.consulting,
+    items: ctx.items,
+    character: ctx.inquiry.character,
     seriesPs: ctx.inquiry.series_ps,
     seriesNm: ctx.model?.series_nm ?? null,
-    items: ctx.items,
+    locale: ctx.locale,
   });
 
   const blocks = [
@@ -73,10 +84,12 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
     definitionList([
       { label: dict.mail.confirmation.vehicleLabel, value: model },
       { label: dict.mail.confirmation.wishLabel, value: wish },
-      ...(powerLine ? [{ label: dict.steps.done.beforeAfter.rows.leistung, value: powerLine }] : []),
       { label: dict.mail.confirmation.timingLabel, value: timing ?? "" },
       { label: dict.mail.confirmation.channelLabel, value: channel ?? "" },
     ]),
+    ...(showBeforeAfter
+      ? [sectionHeading(dict.mail.shared.beforeAfterTitle), beforeAfterTable(beforeAfterRows, ctx.locale)]
+      : []),
     itemList(customerItems(ctx.items, ctx.locale), ctx.locale),
     estimateBox({ estimatedTotal: ctx.estimatedTotal, hasOnRequest, locale: ctx.locale }),
     buttonLink(dict.mail.shared.viewPackageButton, ctx.shareUrl),

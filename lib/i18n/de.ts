@@ -354,6 +354,10 @@ export const de = {
     // Bausteine, die in mehreren Vorlagen vorkommen (lib/mail/render.ts).
     shared: {
       viewPackageButton: "Ihr Paket ansehen",
+      // Überschrift über der Vorher/Nachher-Tabelle in confirmation/summary
+      // (lib/mail/render.ts beforeAfterTable(), Kundenwunsch: dieselbe
+      // Übersicht wie im Abschluss-Screen des Flows auch in den Mails).
+      beforeAfterTitle: "Vorher / Nachher",
     },
     confirmation: {
       subject: "Ihre Anfrage für den {model}, Nr. {number}",

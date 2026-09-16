@@ -16,14 +16,17 @@ import { formatDate, inquiryNumberLabel } from "@/lib/i18n/format";
 import { goalText } from "@/lib/inquiry/summary";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import { vehicleInternalLine } from "@/lib/catalog/vehicle-label";
+import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
 import type { MailInquiryContext, MailInquiryItem } from "../types";
 import {
+  beforeAfterTable,
   buttonLink,
   categoryLabel,
   checklist,
   definitionList,
   estimateBox,
   itemList,
+  monoBlock,
   optionLabel,
   paragraph,
   quote,
@@ -151,6 +154,22 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
   const character = characterLabel(inquiry.character) ?? t.none;
   const timing = optionLabel(de.steps.timing.options, inquiry.timing) ?? t.none;
   const hasOnRequest = ctx.items.some((item) => item.price_status !== "priced");
+  // Kundenwunsch (CLAUDE.md Abschnitt "AUFGABE"): dieselbe Vorher/Nachher-
+  // Übersicht wie in der Kundenmail (confirmation.ts/summary.ts), hier als
+  // kompakter Klartext-Block (monoBlock(), keine farbige HTML-Tabelle),
+  // "damit dÄHLer dasselbe sieht" wie der Kunde. Nur die .text-Fassung von
+  // beforeAfterTable() wird verwendet (dieselben Zeilen wie in der
+  // Kundenmail), die farbige .html-Fassung bleibt dem Kunden vorbehalten.
+  const showBeforeAfter = inquiry.categories.length > 0 || inquiry.consulting;
+  const beforeAfterRows = buildBeforeAfterRows({
+    categories: inquiry.categories,
+    consulting: inquiry.consulting,
+    items: ctx.items,
+    character: inquiry.character,
+    seriesPs: inquiry.series_ps,
+    seriesNm: ctx.model?.series_nm ?? null,
+    locale: LOCALE,
+  });
 
   const blocks = [
     paragraph(de.mail.inbox.intro),
@@ -168,6 +187,9 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
     paragraph(t.package),
     itemList(inboxItems(ctx.items), LOCALE),
     estimateBox({ estimatedTotal: ctx.estimatedTotal, hasOnRequest, locale: LOCALE }),
+    ...(showBeforeAfter
+      ? [paragraph(t.beforeAfter), monoBlock(beforeAfterTable(beforeAfterRows, LOCALE).text)]
+      : []),
     ...(ctx.checks.length > 0
       ? [paragraph(t.checks), checklist(ctx.checks.map((c) => c.text))]
       : []),

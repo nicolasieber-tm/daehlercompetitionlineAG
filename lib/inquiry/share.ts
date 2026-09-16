@@ -45,8 +45,8 @@ export interface SharedInquiryView {
    * Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
    * die effektiv wirksame Serienleistung zum Zeitpunkt der Anfrage
    * (inquiries.series_ps, siehe lib/inquiry/create.ts) - für die Vorher-
-   * Zahl der Vorher/Nachher-Leistungszeile (components/flow/beforeAfter.ts
-   * buildBeforeAfterRows()).
+   * Zahl der Vorher/Nachher-Leistungszeile (lib/catalog/before-after.ts
+   * buildBeforeAfterRows(), verwendet von app/p/[token]/page.tsx).
    */
   seriesPs: number | null;
   /** models.series_nm des gewählten Modells, nur wenn bekannt (statisch je Modell, deshalb hier per Join statt eigener inquiries-Spalte). */
@@ -134,9 +134,9 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
   // Positionsdarstellung wie im Antwortentwurf/den Mails ab ("Stufe 1 (590
   // PS / 720 Nm, M6 & A8-Getriebe)" statt des vollen, mehrdeutigen
   // Excel-Namens, über displayItemFields()/productDisplay() mit Locale),
-  // sowohl für die Summary als auch für Vorher/Nachher (components/flow/
-  // beforeAfter.ts, das dafür ebenfalls variantGroup/psTo/nmTo braucht,
-  // nicht nur den fertig gefalteten Namen).
+  // sowohl für die Summary als auch für Vorher/Nachher
+  // (lib/catalog/before-after.ts, das dafür ebenfalls variantGroup/psTo/
+  // nmTo braucht, nicht nur den fertig gefalteten Namen).
   const items = (Array.isArray(inquiry.selections) ? inquiry.selections : []).map((s) => {
     const row = s as unknown as Record<string, unknown>;
     return {

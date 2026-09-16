@@ -552,6 +552,11 @@ export const admin = {
         character: "CHARAKTER",
         timing: "TERMIN",
         package: "GESCHÄTZTES PAKET",
+        // Überschrift über dem Klartext-Block der Vorher/Nachher-Übersicht
+        // (lib/mail/render.ts monoBlock()), direkt nach GESCHÄTZTES PAKET -
+        // Kundenwunsch (CLAUDE.md Abschnitt "AUFGABE"): dÄHLer soll intern
+        // dasselbe Vorher/Nachher sehen wie der Kunde in der Mail.
+        beforeAfter: "VORHER / NACHHER",
         checks: "ZU PRÜFEN",
         customerWrites: "KUNDE SCHREIBT",
         viaWeb: "via daehler.com",

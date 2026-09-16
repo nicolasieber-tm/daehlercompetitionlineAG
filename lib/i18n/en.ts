@@ -330,6 +330,7 @@ export const en: Dictionary = {
   mail: {
     shared: {
       viewPackageButton: "View your package",
+      beforeAfterTitle: "Before / After",
     },
     confirmation: {
       subject: "Your request for the {model}, No. {number}",
