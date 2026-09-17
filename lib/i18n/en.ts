@@ -285,15 +285,6 @@ export const en: Dictionary = {
             subtitle: "Send it to the friend who has been thinking about it for a while too.",
           },
         },
-        mail: {
-          title: "Send me the summary",
-          subtitle: "As an email, with everything you have just chosen.",
-          success: {
-            title: "On its way to {email}",
-            subtitle:
-              "Before/after, your package and the indicative price. To show, to consider, to forward.",
-          },
-        },
       },
       package: {
         header: "Your package",
@@ -325,7 +316,6 @@ export const en: Dictionary = {
     privacyRequired: "Please accept the privacy policy.",
     loadFailed: "The products could not be loaded.",
     shareCopyFailed: "The link could not be copied.",
-    summaryMailFailed: "The summary could not be sent.",
     phoneRequiredForChannel: "Phone is required when contacting you by phone or WhatsApp.",
   },
 
@@ -351,12 +341,6 @@ export const en: Dictionary = {
     },
     reply: {
       footer: "This indicative price is non binding, compatibility will be checked.",
-    },
-    summary: {
-      subject: "Your summary, No. {number}",
-      intro: "Dear {first},",
-      body: "Here is the summary of your request for your {model}, to show, to consider or to forward.",
-      closing: "Kind regards from Belp",
     },
     follow_up: {
       subject: "Your request for the {model}, No. {number}",

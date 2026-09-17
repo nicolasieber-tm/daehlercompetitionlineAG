@@ -8,7 +8,6 @@ import type { SendMailResult } from "./resend";
 import { getSettings } from "./settings";
 import type { MailFollowUpContext, MailInquiryContext } from "./types";
 import { buildConfirmation } from "./templates/confirmation";
-import { buildSummary } from "./templates/summary";
 import { buildInbox } from "./templates/inbox";
 import { buildReply } from "./templates/reply";
 import { buildFollowUp } from "./templates/follow_up";
@@ -18,12 +17,12 @@ export * from "./render";
 export { sendMail, resetResendClient } from "./resend";
 export type { SendMailInput, SendMailResult } from "./resend";
 export { getSettings, clearSettingsCache } from "./settings";
-export { buildConfirmation, buildSummary, buildInbox, buildReply, buildFollowUp };
+export { buildConfirmation, buildInbox, buildReply, buildFollowUp };
 
 /**
  * Baut die passende Vorlage für `type` und verschickt sie über sendMail().
  * Der Empfänger ergibt sich aus dem Typ, kein eigener to-Parameter nötig:
- * confirmation, summary, reply und follow_up gehen an die E-Mail-Adresse der
+ * confirmation, reply und follow_up gehen an die E-Mail-Adresse der
  * Anfrage, inbox an settings.mail_inbox (siehe lib/mail/settings.ts).
  *
  * follow_up braucht einen eigenen Kontext (MailFollowUpContext, siehe
@@ -31,7 +30,7 @@ export { buildConfirmation, buildSummary, buildInbox, buildReply, buildFollowUp 
  * lib/draft.
  */
 export async function sendInquiryMail(
-  type: "confirmation" | "summary" | "reply" | "inbox",
+  type: "confirmation" | "reply" | "inbox",
   ctx: MailInquiryContext,
 ): Promise<SendMailResult>;
 export async function sendInquiryMail(type: "follow_up", ctx: MailFollowUpContext): Promise<SendMailResult>;
@@ -65,9 +64,6 @@ export async function sendInquiryMail(
   switch (type) {
     case "confirmation":
       built = buildConfirmation(iCtx);
-      break;
-    case "summary":
-      built = buildSummary(iCtx);
       break;
     case "reply":
       built = buildReply(iCtx);

@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 // Sendet die Mails zu einer bestehenden Anfrage erneut (Bestätigung an den
-// Kunden, Zusammenfassung an den Kunden, interne Anfrage-Mail an den
-// Posteingang). Gedacht für Tests und für den Fall, dass der Versand beim
-// Anlegen fehlgeschlagen ist (z. B. Resend-Fehler); jeder Versand wird wie
-// gewohnt in outbound_emails protokolliert.
+// Kunden, interne Anfrage-Mail an den Posteingang). Gedacht für Tests und
+// für den Fall, dass der Versand beim Anlegen fehlgeschlagen ist (z. B.
+// Resend-Fehler); jeder Versand wird wie gewohnt in outbound_emails
+// protokolliert.
 //
-// Aufruf: npx tsx scripts/send-inquiry-mails.ts <Nummer, z. B. 2026-0272> [confirmation,summary,inbox]
+// Aufruf: npx tsx scripts/send-inquiry-mails.ts <Nummer, z. B. 2026-0272> [confirmation,inbox]
 // MAIL_TO_OVERRIDE und RESEND_FROM_OVERRIDE aus .env oder der Umgebung gelten.
 export {};
 
@@ -15,7 +15,7 @@ try {
   // .env nicht vorhanden: process.env muss die Variablen dann schon enthalten.
 }
 
-type MailType = "confirmation" | "summary" | "inbox";
+type MailType = "confirmation" | "inbox";
 
 async function main() {
   // Dynamischer Import, NACH process.loadEnvFile(): ein statischer
@@ -29,12 +29,12 @@ async function main() {
   const { sendInquiryMail } = await import("@/lib/mail");
 
   const number = process.argv[2];
-  const types = (process.argv[3] || "confirmation,summary,inbox")
+  const types = (process.argv[3] || "confirmation,inbox")
     .split(",")
     .map((t) => t.trim())
-    .filter((t): t is MailType => t === "confirmation" || t === "summary" || t === "inbox");
+    .filter((t): t is MailType => t === "confirmation" || t === "inbox");
   if (!number || types.length === 0) {
-    console.error("Aufruf: npx tsx scripts/send-inquiry-mails.ts <Nummer> [confirmation,summary,inbox]");
+    console.error("Aufruf: npx tsx scripts/send-inquiry-mails.ts <Nummer> [confirmation,inbox]");
     process.exit(1);
   }
 

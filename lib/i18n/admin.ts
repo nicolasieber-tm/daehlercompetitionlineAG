@@ -79,6 +79,15 @@ export const admin = {
   list: {
     title: "Anfragen",
     subtitle: "Alle eingegangenen Anfragen, neueste zuerst.",
+    // Live-Refresh (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
+    // components/admin/LiveRefresh.tsx.
+    live: {
+      refresh: "Aktualisieren",
+      refreshing: "Aktualisiert …",
+      lastUpdated: "zuletzt aktualisiert {time}",
+      toastOne: "1 neue Anfrage",
+      toastMany: "{count} neue Anfragen",
+    },
     columns: {
       number: "Nummer",
       date: "Datum",

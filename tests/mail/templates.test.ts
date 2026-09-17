@@ -5,7 +5,6 @@
 // HTML-Tags.
 import { describe, expect, it } from "vitest";
 import { buildConfirmation } from "@/lib/mail/templates/confirmation";
-import { buildSummary } from "@/lib/mail/templates/summary";
 import { buildInbox } from "@/lib/mail/templates/inbox";
 import { buildReply } from "@/lib/mail/templates/reply";
 import { buildFollowUp } from "@/lib/mail/templates/follow_up";
@@ -261,18 +260,6 @@ describe("Mailvorlagen: gemeinsame Anforderungen", () => {
           }
         });
 
-        it("summary", () => {
-          const result = buildSummary(ctx);
-          expectWellFormed(result);
-          for (const item of variant.items) {
-            expect(result.html).toContain(item.name);
-            expect(result.text).toContain(item.name);
-          }
-          if (variant.label === "mit Preisen") {
-            expectChfFormat(result);
-          }
-        });
-
         it("inbox (immer Deutsch)", () => {
           const result = buildInbox(ctx);
           expectWellFormed(result);
@@ -301,11 +288,6 @@ describe("Mailvorlagen: gemeinsame Anforderungen", () => {
         const result = buildConfirmation(ctxNoModel);
         expectWellFormed(result);
         expect(result.subject).toContain("BMW 3er");
-      });
-
-      it("summary ohne Modell/Positionen", () => {
-        const result = buildSummary(ctxNoModel);
-        expectWellFormed(result);
       });
 
       it("inbox ohne Modell/Positionen", () => {
@@ -351,7 +333,7 @@ describe("Mailvorlagen: gemeinsame Anforderungen", () => {
 // --- Korrektur 15.09.2026 (Prüfung Modul Produkte, Befund 2): eine
 // Leistungsstufe ohne ps_to (13 aktive, echte Produkte im Bestand, z.B. 5er
 // G60/G61 "(Basis 208 PS)  PS / Nm B48", noch unbepreiste Platzhalter) wurde
-// in confirmation/summary/inbox bisher über die veraltete `ps_to !=
+// in confirmation/inbox bisher über die veraltete `ps_to !=
 // null`-Herleitung NICHT als Stufe erkannt (isStage=false) und zeigte den
 // rohen, mehrdeutigen Excel-Namen inkl. "(Basis ...)"-Rest, während Kachel
 // und Antwortentwurf (die bereits variant_group nutzten) "Leistungssteigerung
@@ -373,12 +355,6 @@ describe("Mailvorlagen: Leistungsstufe ohne ps_to (Prüfung Modul Produkte, Befu
 
   it("confirmation: 'Leistungssteigerung (B48)' statt des rohen '(Basis 208 PS)  PS / Nm B48'-Excel-Namens", () => {
     const result = buildConfirmation(ctx);
-    expect(result.text).toContain("Leistungssteigerung (B48)");
-    expect(result.text).not.toContain("(Basis 208 PS)");
-  });
-
-  it("summary: dieselbe Herleitung wie confirmation", () => {
-    const result = buildSummary(ctx);
     expect(result.text).toContain("Leistungssteigerung (B48)");
     expect(result.text).not.toContain("(Basis 208 PS)");
   });
@@ -761,13 +737,6 @@ describe("Klicktest-Rückmeldung: Getriebe-Zeile und Positionsdarstellung", () =
     expect(result.text).not.toContain("(Basis 480 PS)");
   });
 
-  it("buildSummary zeigt denselben gefalteten Positionsnamen", () => {
-    const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
-    const result = buildSummary(ctx);
-    expect(result.text).toContain("Motor: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe)");
-    expect(result.text).not.toContain("(Basis 480 PS)");
-  });
-
   // Kundenwunsch (CLAUDE.md Abschnitt "AUFGABE"): die Vorher/Nachher-Zeile
   // "Leistung" steht jetzt in der (farblich hervorgehobenen) Vorher/
   // Nachher-Tabelle (lib/mail/render.ts beforeAfterTable(), Text-Variante),
@@ -780,12 +749,6 @@ describe("Klicktest-Rückmeldung: Getriebe-Zeile und Positionsdarstellung", () =
     // baseModel() liefert series_nm 650 (siehe Fixture oben).
     expect(result.text).toMatch(/Leistung\n  Vorher: 480 PS · 650 Nm\n  Nachher · by dÄHLer: 620 PS · 740 Nm \(\+140 PS \/ \+90 Nm\)/);
     expect(result.html).toContain("28px");
-  });
-
-  it("buildSummary zeigt dieselbe Vorher/Nachher-Leistungszeile in der Tabelle", () => {
-    const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
-    const result = buildSummary({ ...ctx, inquiry: { ...ctx.inquiry, series_ps: 480 } });
-    expect(result.text).toMatch(/Leistung\n  Vorher: 480 PS · 650 Nm\n  Nachher · by dÄHLer: 620 PS · 740 Nm \(\+140 PS \/ \+90 Nm\)/);
   });
 
   it("ohne gewählte Leistungsstufe (variant_group nicht 'leistung') keine Leistungszeile mit Zahlen/Plus", () => {
@@ -806,7 +769,7 @@ describe("Klicktest-Rückmeldung: Getriebe-Zeile und Positionsdarstellung", () =
 
 // Kundenwunsch (CLAUDE.md Abschnitt "AUFGABE"): dieselbe, farblich
 // hervorgehobene Vorher/Nachher-Übersicht wie im Abschluss-Screen soll auch
-// in confirmation/summary erscheinen (inbox als Klartext-Block, eigene
+// in confirmation erscheinen (inbox als Klartext-Block, eigene
 // Prüfung unten) - nicht mehr die einzelne "Leistung: ..."-Zeile.
 describe("beforeAfterTable in den Kundenmails", () => {
   const ctx = makeContext({ locale: "de", items: itemsWithPrices, withModel: true });
@@ -845,12 +808,6 @@ describe("beforeAfterTable in den Kundenmails", () => {
       const occurrences = result.html.split(`>${row.label}<`).length - 1;
       expect(occurrences).toBe(1);
     }
-  });
-
-  it("summary zeigt dieselbe Tabelle", () => {
-    const result = buildSummary(ctx);
-    expect(result.html).toContain('class="ba-tbl"');
-    expect(result.text).toContain("Vorher / Nachher:");
   });
 
   // Leistungsstufe im Fixture itemsWithPrices ("Stufe 1"), aber ohne

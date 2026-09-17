@@ -38,7 +38,6 @@ export function DoneStep({
     status: "idle",
     url: null,
   });
-  const [summaryState, setSummaryState] = useState<"idle" | "pending" | "success" | "error">("idle");
 
   async function handleShareLink() {
     if (typeof window === "undefined") return;
@@ -58,21 +57,6 @@ export function DoneStep({
       setShareState({ status: "success", url });
     } catch {
       setShareState({ status: "error", url: null });
-    }
-  }
-
-  async function handleSummaryMail() {
-    setSummaryState("pending");
-    try {
-      const res = await fetch(`/api/inquiries/${result.id}/summary-mail`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shareToken: result.shareToken }),
-      });
-      const data = (await res.json()) as { ok: boolean };
-      setSummaryState(data.ok ? "success" : "error");
-    } catch {
-      setSummaryState("error");
     }
   }
 
@@ -201,13 +185,13 @@ export function DoneStep({
         rows={beforeAfterRowsForDisplay}
       />
 
-      <div className="mt-5 grid grid-cols-1 gap-2.5 xs:grid-cols-2">
+      <div className="mt-5">
         <button
           type="button"
           onClick={handleShareLink}
           aria-live="polite"
           className={[
-            "flex flex-col gap-1 border bg-panel px-4 py-4 text-left transition-colors duration-150 hover:border-red-bright",
+            "flex w-full flex-col gap-1 border bg-panel px-4 py-4 text-left transition-colors duration-150 hover:border-red-bright xs:max-w-sm",
             shareState.status === "success" ? "border-ok" : "border-line-alt",
           ].join(" ")}
         >
@@ -224,34 +208,6 @@ export function DoneStep({
               <b className="font-display text-lg font-semibold uppercase tracking-[0.06em]">{t.steps.done.share.link.title}</b>
               <span className="text-[13px] text-muted">{t.steps.done.share.link.subtitle}</span>
               {shareState.status === "error" ? <span className="text-[13px] text-warn">{t.errors.shareCopyFailed}</span> : null}
-            </>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={handleSummaryMail}
-          disabled={summaryState === "pending"}
-          aria-live="polite"
-          className={[
-            "flex flex-col gap-1 border bg-panel px-4 py-4 text-left transition-colors duration-150 hover:border-red-bright disabled:cursor-not-allowed",
-            summaryState === "success" ? "border-ok" : "border-line-alt",
-          ].join(" ")}
-        >
-          {summaryState === "success" ? (
-            <>
-              <b className="font-display text-lg font-semibold uppercase tracking-[0.06em] text-ok">
-                {tf(t.steps.done.share.mail.success.title, { email: state.contact.email })}
-              </b>
-              <span className="text-[13px] text-muted">{t.steps.done.share.mail.success.subtitle}</span>
-            </>
-          ) : (
-            <>
-              <b className="font-display text-lg font-semibold uppercase tracking-[0.06em]">{t.steps.done.share.mail.title}</b>
-              <span className="text-[13px] text-muted">
-                {summaryState === "pending" ? "…" : t.steps.done.share.mail.subtitle}
-              </span>
-              {summaryState === "error" ? <span className="text-[13px] text-warn">{t.errors.summaryMailFailed}</span> : null}
             </>
           )}
         </button>

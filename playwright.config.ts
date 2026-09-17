@@ -50,6 +50,9 @@ export default defineConfig({
         // zeigen (nicht auf .env / .env.example, die localhost:3000 als
         // Vorgabe für den Dev-Server des Nutzers tragen), sonst verwirft
         // better-auth den Admin-Login im Test als fremden Origin.
-        env: { ...process.env, RESEND_API_KEY: "", BETTER_AUTH_URL: baseURL },
+        // ADMIN_POLL_MS: Live-Refresh der Anfragen-Übersicht (CLAUDE.md
+        // Abschnitt "AUFGABE", Punkt 1/4) pollt damit alle 3s statt der
+        // produktiven 30s, tests/e2e/admin.spec.ts wartet sonst zu lange.
+        env: { ...process.env, RESEND_API_KEY: "", BETTER_AUTH_URL: baseURL, ADMIN_POLL_MS: process.env.ADMIN_POLL_MS ?? "3000" },
       },
 });

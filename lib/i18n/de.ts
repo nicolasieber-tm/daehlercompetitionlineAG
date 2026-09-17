@@ -310,15 +310,6 @@ export const de = {
             subtitle: "Schicken Sie ihn dem Kollegen, der auch schon lange überlegt.",
           },
         },
-        mail: {
-          title: "Zusammenfassung an mich senden",
-          subtitle: "Als Mail, mit allem, was Sie gerade gewählt haben.",
-          success: {
-            title: "Unterwegs an {email}",
-            subtitle:
-              "Vorher/Nachher, Ihr Paket und der Richtpreis. Zum Zeigen, zum Überlegen, zum Weiterleiten.",
-          },
-        },
       },
       package: {
         header: "Ihr Paket",
@@ -351,7 +342,6 @@ export const de = {
     privacyRequired: "Bitte akzeptieren Sie die Datenschutzbestimmungen.",
     loadFailed: "Die Produkte konnten nicht geladen werden.",
     shareCopyFailed: "Der Link konnte nicht kopiert werden.",
-    summaryMailFailed: "Die Zusammenfassung konnte nicht gesendet werden.",
     // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
     // Punkt 2): Telefon ist nur bei Kanal Telefon/WhatsApp Pflicht.
     phoneRequiredForChannel: "Telefon ist bei Kontakt per Telefon oder WhatsApp ein Pflichtfeld.",
@@ -361,7 +351,7 @@ export const de = {
     // Bausteine, die in mehreren Vorlagen vorkommen (lib/mail/render.ts).
     shared: {
       viewPackageButton: "Ihr Paket ansehen",
-      // Überschrift über der Vorher/Nachher-Tabelle in confirmation/summary
+      // Überschrift über der Vorher/Nachher-Tabelle in confirmation
       // (lib/mail/render.ts beforeAfterTable(), Kundenwunsch: dieselbe
       // Übersicht wie im Abschluss-Screen des Flows auch in den Mails).
       beforeAfterTitle: "Vorher / Nachher",
@@ -392,12 +382,6 @@ export const de = {
     // Text wie im Antwortentwurf). Nur die Fussnote ist eigens für die Mail.
     reply: {
       footer: "Dieser Richtpreis ist unverbindlich, die Kompatibilität wird geprüft.",
-    },
-    summary: {
-      subject: "Ihre Zusammenfassung, Nr. {number}",
-      intro: "Guten Tag {first},",
-      body: "Gerne senden wir Ihnen die Zusammenfassung Ihrer Anfrage für Ihren {model} zum Zeigen, zum Überlegen oder zum Weiterleiten.",
-      closing: "Sportliche Grüsse aus Belp",
     },
     follow_up: {
       subject: "Ihre Anfrage für den {model}, Nr. {number}",

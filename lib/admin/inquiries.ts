@@ -301,6 +301,35 @@ export async function getNewInquiriesCount(): Promise<number> {
   return count;
 }
 
+/**
+ * Leichtgewichtige Kennzahlen für den Live-Refresh der Übersicht
+ * (GET /api/admin/inquiries/heartbeat, components/admin/LiveRefresh.tsx):
+ * Gesamtzahl und jüngste created_at ALLER Anfragen sowie die Anzahl Status
+ * "neu" - unabhängig von den Filtern der Übersicht (das Polling soll auch
+ * eine neue Anfrage bemerken, die die aktuell aktiven Filter gar nicht
+ * zeigen würden). Eine einzige, kleine Aggregat-Abfrage, kein Join.
+ */
+export interface InquiriesHeartbeat {
+  count: number;
+  latestCreatedAt: string | null;
+  newCount: number;
+}
+
+export async function getInquiriesHeartbeat(): Promise<InquiriesHeartbeat> {
+  const [row] = await sql<{ count: number; latest_created_at: string | null; new_count: number }[]>`
+    select
+      count(*)::int as count,
+      max(created_at) as latest_created_at,
+      count(*) filter (where status = 'neu')::int as new_count
+    from inquiries
+  `;
+  return {
+    count: row?.count ?? 0,
+    latestCreatedAt: row?.latest_created_at ?? null,
+    newCount: row?.new_count ?? 0,
+  };
+}
+
 export interface FamilyFilterOption {
   id: string;
   label: string;
