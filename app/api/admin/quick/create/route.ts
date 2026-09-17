@@ -34,6 +34,14 @@ const overridesSchema = z.object({
   locale: z.enum(["de", "en"]).optional(),
   familySlug: z.string().min(1).nullable().optional(),
   modelSlug: z.string().min(1).nullable().optional(),
+  // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+  // Motorisierungen, das Modell ist X1 oder X2"): vom Admin im Modell-
+  // Dropdown gewählte/korrigierte Alternative bei mehrdeutiger Baureihe
+  // (vehicleLineOptions()-id, z.B. "x2"), siehe lib/ai/to-payload.ts
+  // QuickOverrides.line. Prüfbefund 17.09.2026: fehlte hier, zod entfernt
+  // unbekannte Keys still, das Dropdown in QuickInquiryForm.tsx blieb
+  // dadurch wirkungslos.
+  line: z.string().trim().min(1).nullable().optional(),
   vehicleText: z.string().nullable().optional(),
   year: z.string().nullable().optional(),
   beenHere: z.boolean().optional(),

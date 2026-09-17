@@ -67,6 +67,13 @@ export const de = {
       gearboxAutomatic: "Automat",
       gearboxUnknown: "Weiss ich nicht",
       gearboxRequired: "Bitte wählen Sie Ihr Getriebe, damit wir passende Optionen zeigen können.",
+      // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+      // Motorisierungen, das Modell ist X1 oder X2"): nur sichtbar, wenn
+      // die Baureihe für die gewählte Motorisierung mehrdeutig ist
+      // (lib/catalog/vehicle-label.ts vehicleLineOptions()), Pflicht vor
+      // "Weiter" wie Serienleistung/Getriebe oben.
+      lineQuestion: "Welches Modell fahren Sie?",
+      lineRequired: "Bitte wählen Sie Ihr Modell, damit wir es richtig bezeichnen können.",
       photoHint: "Preise hinterlegt",
       photoFallback: "Foto folgt",
       carShotCaption: "{model} by dÄHLer",

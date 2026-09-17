@@ -65,6 +65,8 @@ export const en: Dictionary = {
       gearboxAutomatic: "Automatic",
       gearboxUnknown: "I don't know",
       gearboxRequired: "Please select your gearbox so we can show the right options.",
+      lineQuestion: "Which model do you drive?",
+      lineRequired: "Please select your model so we can name it correctly.",
       photoHint: "Prices on file",
       photoFallback: "Photo coming soon",
       carShotCaption: "{model} by dÄHLer",

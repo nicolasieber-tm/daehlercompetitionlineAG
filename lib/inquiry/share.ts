@@ -100,10 +100,11 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
       family_id: string | null;
       model_id: string | null;
       series_ps: number | null;
+      line: string | null;
     }[]
   >`
     select number, first_name, vehicle_text, year, character, categories, consulting, selections,
-           estimated_total, locale, created_at, family_id, model_id, series_ps
+           estimated_total, locale, created_at, family_id, model_id, series_ps, line
     from inquiries
     where share_token = ${token}
   `;
@@ -131,7 +132,7 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
   // Dieselbe gemeinsame Formel wie überall sonst (Mail, Antwortentwurf,
   // Kundenflow), siehe lib/catalog/vehicle-label.ts und docs/architektur.md
   // Abschnitt "Fahrzeugbezeichnung".
-  const vehicleLabel = vehicleDisplayLabel(family, model, inquiry.vehicle_text);
+  const vehicleLabel = vehicleDisplayLabel(family, model, inquiry.vehicle_text, inquiry.line);
 
   // Nachzug Prüfung Phase D, Punkt 1: name/description/variantGroup/psTo/
   // nmTo werden ROH aus inquiries.selections durchgereicht (variant_group

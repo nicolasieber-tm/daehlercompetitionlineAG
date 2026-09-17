@@ -74,6 +74,15 @@ export const InquiryPayloadObjectSchema = z.object({
   // sie auch kein Pflichtfeld (siehe FlowNav canNext in components/flow/
   // Flow.tsx, das die Frage nur bei hasGearboxSpecificProducts erzwingt).
   gearbox: z.enum(GEARBOX_VALUES).nullable(),
+  // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+  // Motorisierungen, das Modell ist X1 oder X2"): gewählte Alternative bei
+  // mehrdeutiger Baureihe (lib/catalog/vehicle-label.ts
+  // vehicleLineOptions()-id, z.B. "x2"), null wenn die Frage nicht gestellt
+  // wurde. lib/inquiry/create.ts prüft sie erneut gegen die aktuellen
+  // Optionen (könnten sich seit dem Laden des Flows geändert haben) und
+  // speichert bei einem ungültigen Wert null statt eines manipulierten
+  // Strings.
+  line: z.string().trim().max(40).nullable().optional().transform((v) => (v && v.length > 0 ? v : null)),
   // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
   // die im Fahrzeug-Schritt effektiv wirksame Serienleistung (models.
   // series_ps, sonst die Chip-Auswahl bei mehreren series_ps_suggested-

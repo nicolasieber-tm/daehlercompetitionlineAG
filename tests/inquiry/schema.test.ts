@@ -135,3 +135,37 @@ describe("InquiryPayloadSchema: Telefon nur bei Kanal phone/whatsapp Pflicht", (
     if (parsed.success) expect(parsed.data.phone).toBeNull();
   });
 });
+
+// Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+// Motorisierungen, das Modell ist X1 oder X2"): line ist optional, max 40
+// Zeichen, leer/fehlend -> null (analog vehicleText/city).
+describe("InquiryPayloadSchema: line", () => {
+  it("fehlendes line ist gültig und wird zu null", () => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload({ line: undefined }));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.line).toBeNull();
+  });
+
+  it("null ist gültig", () => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload({ line: null }));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.line).toBeNull();
+  });
+
+  it("leerer String wird zu null", () => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload({ line: "" }));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.line).toBeNull();
+  });
+
+  it("ein gesetzter Wert bleibt erhalten", () => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload({ line: "x2" }));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.line).toBe("x2");
+  });
+
+  it("über 40 Zeichen ist ungültig", () => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload({ line: "x".repeat(41) }));
+    expect(parsed.success).toBe(false);
+  });
+});

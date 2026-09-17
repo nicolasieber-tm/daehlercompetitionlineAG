@@ -6,7 +6,7 @@ import { Card } from "./Card";
 
 export function VehicleCard({ ctx }: { ctx: MailInquiryContext }) {
   const { inquiry, family, model } = ctx;
-  const label = vehicleLabel({ family, model, vehicleText: inquiry.vehicle_text });
+  const label = vehicleLabel({ family, model, vehicleText: inquiry.vehicle_text, line: inquiry.line });
 
   return (
     <Card title={admin.detail.vehicle.title}>
@@ -49,7 +49,7 @@ export function VehicleCard({ ctx }: { ctx: MailInquiryContext }) {
           vehicleLabel() oben - damit dÄHLer die Excel-Preisliste (benannt
           nach dem rohen Familiennamen) sofort zuordnen kann. */}
       {family && (
-        <p className="mt-2 text-xs text-dim">{vehicleInternalLine(family, model)}</p>
+        <p className="mt-2 text-xs text-dim">{vehicleInternalLine(family, model, inquiry.line)}</p>
       )}
     </Card>
   );

@@ -16,6 +16,10 @@
 import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
 
-export function vehicleDisplayName(family: CatalogFamily, model: CatalogModel | null): string {
-  return vehicleDisplayLabel({ brand: family.brand, name: family.name, codes: family.codes }, model, null);
+export function vehicleDisplayName(
+  family: CatalogFamily,
+  model: CatalogModel | null,
+  lineId?: string | null,
+): string {
+  return vehicleDisplayLabel({ brand: family.brand, name: family.name, codes: family.codes }, model, null, lineId);
 }

@@ -46,6 +46,10 @@ export default defineConfig({
         // E2E-Läufe dürfen keine echten Mails über Resend auslösen (Tages-
         // kontingent des Testkontos): ohne API-Key protokolliert sendMail()
         // jeden Versuch als "failed" in outbound_emails, mehr nicht.
-        env: { ...process.env, RESEND_API_KEY: "" },
+        // BETTER_AUTH_URL muss auf den von Playwright gestarteten Server
+        // zeigen (nicht auf .env / .env.example, die localhost:3000 als
+        // Vorgabe für den Dev-Server des Nutzers tragen), sonst verwirft
+        // better-auth den Admin-Login im Test als fremden Origin.
+        env: { ...process.env, RESEND_API_KEY: "", BETTER_AUTH_URL: baseURL },
       },
 });

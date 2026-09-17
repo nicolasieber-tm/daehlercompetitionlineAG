@@ -20,6 +20,7 @@ function ctx(overrides: Partial<CheckContext> = {}): CheckContext {
       timing: null,
       year: null,
       gearbox: null,
+      line: null,
       ...overrides.inquiry,
     },
     family: overrides.family !== undefined ? overrides.family : family(),
@@ -326,6 +327,38 @@ describe("modell_mehrdeutig", () => {
   it("feuert nicht ohne gewähltes Modell", () => {
     const c = ctx({ family: family({ brand: "BMW", name: "X1 U11 / X2 U10", codes: ["U11", "U10"] }), model: null });
     expect(rule.when(c)).toBe(false);
+  });
+
+  // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+  // Motorisierungen, das Modell ist X1 oder X2"): der Hinweis feuert nur
+  // noch ohne gültige gespeicherte line (der Flow selbst erzwingt die Wahl
+  // bereits, siehe CarStep.tsx - der Hinweis bleibt nur für Fälle ohne
+  // Angabe, z.B. Schnellweg).
+  it("feuert nicht mit gültiger line ('x2')", () => {
+    const c = ctx({
+      family: family({ brand: "BMW", name: "X1 U11 / X2 U10", codes: ["U11", "U10"] }),
+      model: { id: "m1", name: "20d" },
+      inquiry: { line: "x2" } as CheckContext["inquiry"],
+    });
+    expect(rule.when(c)).toBe(false);
+  });
+
+  it("feuert weiterhin mit einer ungültigen/veralteten line", () => {
+    const c = ctx({
+      family: family({ brand: "BMW", name: "X1 U11 / X2 U10", codes: ["U11", "U10"] }),
+      model: { id: "m1", name: "20d" },
+      inquiry: { line: "x9" } as CheckContext["inquiry"],
+    });
+    expect(rule.when(c)).toBe(true);
+  });
+
+  it("feuert weiterhin ohne line (Frage nicht gestellt, z.B. Schnellweg)", () => {
+    const c = ctx({
+      family: family({ brand: "BMW", name: "X1 U11 / X2 U10", codes: ["U11", "U10"] }),
+      model: { id: "m1", name: "20d" },
+      inquiry: { line: null } as CheckContext["inquiry"],
+    });
+    expect(rule.when(c)).toBe(true);
   });
 
   // Ausnahme 8er/M8 (Ergänzung 15.09.2026, Feinschliff-Prüfung): "M8"

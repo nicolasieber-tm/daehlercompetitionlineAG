@@ -95,6 +95,7 @@ function basePayload(overrides: Partial<InquiryPayload> = {}): InquiryPayload {
     year: "2025",
     beenHere: false,
     gearbox: "manual",
+    line: null,
     seriesPs: 480,
     categories: ["motor", "auspuff", "fahrwerk"],
     consulting: false,

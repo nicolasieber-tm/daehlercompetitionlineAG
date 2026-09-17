@@ -207,6 +207,7 @@ interface UpcomingRow {
   first_name: string | null;
   last_name: string | null;
   vehicle_text: string | null;
+  line: string | null;
   family: ModelFamily | null;
   model: Model | null;
 }
@@ -221,7 +222,7 @@ export async function listUpcomingFollowUps(windowDays: number = UPCOMING_WINDOW
     select
       fu.id, fu.scheduled_for, fu.inquiry_id,
       r.name as rule_name,
-      i.number, i.first_name, i.last_name, i.vehicle_text,
+      i.number, i.first_name, i.last_name, i.vehicle_text, i.line,
       case when f.id is null then null else to_jsonb(f.*) end as family,
       case when m.id is null then null else to_jsonb(m.*) end as model
     from follow_ups fu
@@ -245,7 +246,7 @@ export async function listUpcomingFollowUps(windowDays: number = UPCOMING_WINDOW
       inquiryNumber: r.number,
       ruleName: r.rule_name,
       customerName,
-      vehicleLabel: vehicleLabel({ family: r.family, model: r.model, vehicleText: r.vehicle_text }),
+      vehicleLabel: vehicleLabel({ family: r.family, model: r.model, vehicleText: r.vehicle_text, line: r.line }),
     };
   });
 }

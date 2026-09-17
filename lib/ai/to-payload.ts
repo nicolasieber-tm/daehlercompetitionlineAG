@@ -29,6 +29,7 @@
 // daten, siehe QuickInquiryPayloadSchema unten).
 import { z } from "zod";
 import { getFamilyBySlug } from "@/lib/catalog/queries";
+import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import {
   InquiryPayloadObjectSchema,
   withInquiryPayloadRefinements,
@@ -115,6 +116,12 @@ export interface QuickOverrides {
   vehicleText?: string | null;
   year?: string | null;
   beenHere?: boolean;
+  /** Kundenentscheid 17.09.2026: vom Admin gewählte Alternative bei
+   * mehrdeutiger Baureihe (vehicleLineOptions()-id, z.B. "x2"), aus dem
+   * Modell-Dropdown in QuickInquiryForm.tsx. Ohne Override versucht
+   * toInquiryPayload() zuerst einen automatischen Abgleich über
+   * extraction.vehicle.line (Label-Vergleich, siehe dort). */
+  line?: string | null;
   categories?: FlowCategory[];
   consulting?: boolean;
   selections?: { productId: string }[];
@@ -137,6 +144,8 @@ interface DraftFields {
   vehicleText: string | null;
   year: string | null;
   beenHere: boolean;
+  /** Aufgelöste lineId (vehicleLineOptions()-id), siehe QuickOverrides.line. */
+  line: string | null;
   categories: FlowCategory[];
   consulting: boolean;
   selections: { productId: string }[];
@@ -159,6 +168,10 @@ function buildDraft(extraction: Extraction, overrides?: QuickOverrides): DraftFi
     vehicleText: extraction.vehicle.free_text || null,
     year: extraction.year,
     beenHere: false,
+    // Wird unten in toInquiryPayload() aufgelöst (Label-Vergleich gegen
+    // extraction.vehicle.line, siehe dort); die Extraction selbst kennt
+    // keine lineId (nur den freien Modellnamen aus dem Text).
+    line: null,
     categories: extraction.categories,
     consulting: extraction.consulting,
     selections: extraction.selections
@@ -223,12 +236,42 @@ export async function toInquiryPayload(
 
   let familyId: string | null = null;
   let modelId: string | null = null;
+  // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+  // Motorisierungen, das Modell ist X1 oder X2"): ohne Admin-Override
+  // (draft.line, siehe QuickOverrides.line) wird der vom Sprachmodell frei
+  // erkannte Modellname (extraction.vehicle.line, z.B. "X2") per
+  // Label-Vergleich einer Alternative zugeordnet - nur möglich, sobald
+  // familyId/modelId feststehen (vehicleLineOptions() braucht Familie UND
+  // Motorisierung).
+  let lineId: string | null = draft.line;
   if (draft.familySlug) {
     const family = await getFamilyBySlug(draft.familySlug);
     familyId = family?.id ?? null;
     if (family && draft.modelSlug) {
-      modelId = family.models.find((m) => m.slug === draft.modelSlug)?.id ?? null;
+      const model = family.models.find((m) => m.slug === draft.modelSlug);
+      modelId = model?.id ?? null;
+      if (model) {
+        const options = vehicleLineOptions(
+          { brand: family.brand, name: family.name, codes: family.codes },
+          { name: model.name },
+        );
+        if (lineId) {
+          // Admin-Override gegen die aktuellen Optionen prüfen, statt ihn
+          // ungeprüft zu übernehmen (analog lib/inquiry/create.ts).
+          if (!options.some((o) => o.id === lineId)) lineId = null;
+        } else if (extraction.vehicle.line) {
+          const norm = (value: string) => value.trim().toLowerCase();
+          const match = options.find((o) => norm(o.label) === norm(extraction.vehicle.line as string));
+          lineId = match?.id ?? null;
+        }
+      } else {
+        lineId = null;
+      }
+    } else {
+      lineId = null;
     }
+  } else {
+    lineId = null;
   }
 
   const candidate = {
@@ -238,6 +281,7 @@ export async function toInquiryPayload(
     vehicleText: draft.vehicleText,
     year: draft.year ?? "",
     beenHere: draft.beenHere,
+    line: lineId,
     // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
     // der Schnellweg hat keinen Fahrzeug-Schritt mit Getriebe-Chips, die
     // Extraction liefert dafür keinen Wert - null (Frage nicht gestellt),

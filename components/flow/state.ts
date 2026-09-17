@@ -50,6 +50,12 @@ export interface FlowState {
    * Frage für dieses Modell gar nicht gestellt wird. Rückmeldung erster
    * Klicktest, CLAUDE.md Abschnitt "AUFGABE", Punkt 3. */
   gearboxChoice: InquiryGearbox | null;
+  /** Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+   * Motorisierungen, das Modell ist X1 oder X2"): gewählte Alternative bei
+   * mehrdeutiger Baureihe (vehicleLineOptions()-id, z.B. "x2"), null solange
+   * unbeantwortet bzw. wenn die Baureihe für die gewählte Motorisierung
+   * nicht mehrdeutig ist (siehe CarStep.tsx). */
+  line: string | null;
   year: string;
   beenHere: boolean;
 
@@ -97,6 +103,7 @@ export function initialFlowState(): FlowState {
     modelId: null,
     seriesPsChoice: null,
     gearboxChoice: null,
+    line: null,
     year: YEAR_OPTIONS_BASE[0],
     beenHere: false,
 
@@ -239,6 +246,7 @@ export type FlowAction =
   | { type: "SELECT_MODEL"; modelId: string }
   | { type: "SET_SERIES_PS"; ps: number }
   | { type: "SET_GEARBOX"; gearbox: InquiryGearbox }
+  | { type: "SET_LINE"; line: string }
   | { type: "SET_YEAR"; year: string }
   | { type: "SET_BEEN_HERE"; beenHere: boolean }
   | { type: "PRODUCTS_LOADING" }
@@ -279,6 +287,7 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
         modelId: null,
         seriesPsChoice: null,
         gearboxChoice: null,
+        line: null,
         productsStatus: "idle",
         productsError: null,
         productGroups: [],
@@ -294,6 +303,7 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
         modelId: action.modelId,
         seriesPsChoice: null,
         gearboxChoice: null,
+        line: null,
         productsStatus: "idle",
         productsError: null,
         productGroups: [],
@@ -338,6 +348,9 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
       ) as FlowState["selections"];
       return { ...state, gearboxChoice: action.gearbox, selections };
     }
+
+    case "SET_LINE":
+      return { ...state, line: action.line };
 
     case "SET_YEAR":
       return { ...state, year: action.year };

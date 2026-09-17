@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { admin, formatMissingFields, missingFieldLabel } from "@/lib/i18n/admin";
 import { tf } from "@/lib/i18n/dictionaries";
 import type { CatalogFamily } from "@/lib/catalog/queries";
+import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import { FLOW_CATEGORIES, type Channel, type Character, type FlowCategory, type Timing } from "@/lib/db/rows";
 import { Button } from "@/components/ui";
 import { FormField } from "./FormField";
@@ -28,7 +29,7 @@ const tf2 = admin.quick.form;
 // ---------------------------------------------------------------------------
 
 interface ExtractionResponse {
-  vehicle: { family_slug: string | null; model_slug: string | null; free_text: string; confidence: number };
+  vehicle: { family_slug: string | null; model_slug: string | null; free_text: string; line: string | null; confidence: number };
   year: string | null;
   categories: FlowCategory[];
   selections: { product_id: string | null; name_as_written: string; confidence: number }[];
@@ -85,6 +86,7 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
 
   const [familySlug, setFamilySlug] = useState<string | null>(null);
   const [modelSlug, setModelSlug] = useState<string | null>(null);
+  const [lineId, setLineId] = useState<string | null>(null);
   const [vehicleText, setVehicleText] = useState("");
   const [year, setYear] = useState("");
   const [categories, setCategories] = useState<FlowCategory[]>([]);
@@ -106,6 +108,19 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
 
   const family = useMemo(() => families.find((f) => f.slug === familySlug) ?? null, [families, familySlug]);
   const model = useMemo(() => family?.models.find((m) => m.slug === modelSlug) ?? null, [family, modelSlug]);
+
+  // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+  // Motorisierungen, das Modell ist X1 oder X2"): Dropdown nur bei
+  // mehrdeutiger Baureihe (lib/ai/to-payload.ts hat bereits versucht, den
+  // erkannten Modellnamen automatisch zuzuordnen, siehe applyExtraction()).
+  const lineOptions = useMemo(
+    () => (family && model ? vehicleLineOptions(family, model) : []),
+    [family, model],
+  );
+  useEffect(() => {
+    if (!lineOptions.some((o) => o.id === lineId)) setLineId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineOptions]);
 
   // Produkte des gewählten Modells nachladen (GET /api/catalog/products?model=<uuid>),
   // gleiche Route wie der Kundenflow-Kategorie-Schritt (lib/catalog/queries.ts getProductsForModel()).
@@ -133,6 +148,21 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
     setExtraction(data);
     setFamilySlug(data.vehicle.family_slug);
     setModelSlug(data.vehicle.model_slug);
+    // Kundenentscheid 17.09.2026: bereits hier per Label-Vergleich
+    // versuchen zuzuordnen (state family/model wäre erst nach dem nächsten
+    // Render aktuell) - lineOptions oben validiert danach jede weitere
+    // Änderung an familySlug/modelSlug erneut.
+    const extractedFamily = families.find((f) => f.slug === data.vehicle.family_slug) ?? null;
+    const extractedModel = extractedFamily?.models.find((m) => m.slug === data.vehicle.model_slug) ?? null;
+    if (extractedFamily && extractedModel && data.vehicle.line) {
+      const norm = (v: string) => v.trim().toLowerCase();
+      const match = vehicleLineOptions(extractedFamily, extractedModel).find(
+        (o) => norm(o.label) === norm(data.vehicle.line as string),
+      );
+      setLineId(match?.id ?? null);
+    } else {
+      setLineId(null);
+    }
     setVehicleText(data.vehicle.free_text ?? "");
     setYear(data.year ?? "");
     setCategories(data.categories);
@@ -193,6 +223,7 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
               locale: extraction.language,
               familySlug: familySlug || null,
               modelSlug: modelSlug || null,
+              line: lineId,
               vehicleText: vehicleText.trim() || null,
               year: year.trim() || null,
               categories,
@@ -312,6 +343,23 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
                       </option>
                     ))}
                   </FormField>
+                  {lineOptions.length > 0 && (
+                    <FormField
+                      label={tf2.line}
+                      as="select"
+                      inputProps={{
+                        value: lineId ?? "",
+                        onChange: (e) => setLineId(e.target.value || null),
+                      }}
+                    >
+                      <option value="">{tf2.lineNone}</option>
+                      {lineOptions.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </FormField>
+                  )}
                   <FormField
                     label={tf2.vehicleText}
                     inputProps={{ value: vehicleText, onChange: (e) => setVehicleText(e.target.value) }}

@@ -118,7 +118,7 @@ function goalLine(ctx: MailInquiryContext): string {
 
 export function buildInbox(ctx: MailInquiryContext): { subject: string; html: string; text: string } {
   const { inquiry } = ctx;
-  const vehicle = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: inquiry.vehicle_text });
+  const vehicle = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: inquiry.vehicle_text, line: inquiry.line });
   const name = [inquiry.first_name, inquiry.last_name].filter(Boolean).join(" ");
   const subject = tf(de.mail.inbox.subject, { number: inquiry.number, vehicle, name });
 
@@ -142,7 +142,7 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
   // 5): "Baureihe: ... · Motorisierung: ..." roh angehängt, damit dÄHLer die
   // Excel-Preisliste sofort zuordnen kann.
   const gearboxText = gearboxValue(inquiry.gearbox);
-  const internalLine = ctx.family ? ` · ${vehicleInternalLine(ctx.family, ctx.model)}` : "";
+  const internalLine = ctx.family ? ` · ${vehicleInternalLine(ctx.family, ctx.model, inquiry.line)}` : "";
   const vehicleLine = `${vehicle}${inquiry.year ? ` · Baujahr ${inquiry.year}` : ""}${seriesText}${
     gearboxText ? ` · Getriebe: ${gearboxText}` : ""
   }${internalLine}`;

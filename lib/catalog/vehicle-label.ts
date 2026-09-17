@@ -321,6 +321,23 @@ function chooseSegmentIndex(segments: FamilySegment[], motorisierung: string | n
 }
 
 /**
+ * URL-/ID-taugliches Kürzel eines Alternativ-Namens ("X2" -> "x2", "Grand
+ * Coupé" -> "grand-coupe"), für inquiries.line (vehicleLineOptions()-IDs)
+ * und deren Rückauflösung in vehicleDisplayLabel()/vehicleInternalLine().
+ * Diakritika werden entfernt (NFD + Combining-Marks-Filter), damit "é"
+ * nicht als eigenes Zeichen im Slug landet.
+ */
+function slugifyLine(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
  * Kern von vehicleLineIsAmbiguous() (siehe dort), auf bereits zerlegten
  * Segmenten statt einem rohen Familiennamen - so kann vehicleDisplayLabel()
  * dieselbe analyzeFamily()-Zerlegung wiederverwenden, statt sie doppelt
@@ -372,6 +389,83 @@ export function vehicleAmbiguousAlternatives(family: VehicleLabelFamily, model: 
   const { segments } = analyzeFamily(family.name, family.codes);
   if (!isAmbiguousSegments(segments, model.name)) return [];
   return applicableSegments(segments, model.name).map((segment) => segment.name);
+}
+
+/** Eine Modellwahl-Option für eine mehrdeutige Baureihe (Kundenentscheid
+ * 17.09.2026: "bei X1 und X2 gibt es dieselben Motorisierungen, das Modell
+ * ist X1 oder X2" - Frage im Flow statt Excel-Änderung, siehe
+ * docs/architektur.md Abschnitt "Fahrzeugbezeichnung"). */
+export interface VehicleLineOption {
+  /** Slug des Labels (vehicleDisplayLabel()s lineId-Parameter, inquiries.line). */
+  id: string;
+  /** Alternativ-Name wie im Familientext, z.B. "X2", "Grand Coupé". */
+  label: string;
+  /** Eigene Codes dieser Alternative (siehe resolveCodes()), leer wenn keine eigenen Codes im Text stehen. */
+  codes: string[];
+}
+
+/**
+ * Gemeinsamer Kern von vehicleLineOptions() und vehicleInternalLine(): baut
+ * die Optionsliste aus Familienname/Codes + Motorisierung, ohne die volle
+ * VehicleLabelFamily (mit brand) zu verlangen - vehicleInternalLine() kennt
+ * die Marke nicht (Pick<..., "name" | "codes">).
+ */
+function lineOptionsFor(
+  family: Pick<VehicleLabelFamily, "name" | "codes">,
+  model: VehicleLabelModel,
+): VehicleLineOption[] {
+  const { segments, explicitList } = analyzeFamily(family.name, family.codes);
+  if (!isAmbiguousSegments(segments, model.name)) return [];
+  const candidates = applicableSegments(segments, model.name);
+  return candidates.map((segment, index) => ({
+    id: slugifyLine(segment.name),
+    label: segment.name,
+    codes: resolveCodes(candidates, index, explicitList),
+  }));
+}
+
+/**
+ * Die wählbaren Alternativen einer Baureihe für den Kundenflow ("Welches
+ * Modell fahren Sie?", CarStep.tsx) bzw. den Schnellweg
+ * (QuickInquiryForm.tsx), z.B. für die Familie "X1 U11 / X2 U10" mit
+ * Motorisierung "20i": [{id:"x1",label:"X1",codes:["U11"]},
+ * {id:"x2",label:"X2",codes:["U10"]}]. Leeres Array, wenn die Familie für
+ * dieses Modell NICHT mehrdeutig ist (vehicleLineIsAmbiguous(), z.B. M2 G87,
+ * 8er/M8 mit "40i", M5/M6) oder ohne Modell (Kurzablauf/Platzhalter - ohne
+ * Motorisierung lässt sich Mehrdeutigkeit nicht beurteilen, siehe
+ * isAmbiguousSegments()).
+ */
+export function vehicleLineOptions(family: VehicleLabelFamily, model: VehicleLabelModel | null): VehicleLineOption[] {
+  if (!model) return [];
+  return lineOptionsFor(family, model);
+}
+
+/**
+ * Baureihen-Token wie "4er", "3er", "5er": steht ein solches Token als
+ * erstes Wort des ERSTEN Segments einer Familie (z.B. "4er Coupé G22,
+ * Cabrio G23, Grand Coupé G26"), tragen die Folgesegmente es im Text NICHT
+ * noch einmal mit ("Cabrio", "Grand Coupé" statt "4er Cabrio", "4er Grand
+ * Coupé") - für die Chip-Beschriftung (vehicleLineOptions()) reicht das,
+ * aber die kundensichtbare Bezeichnung nach einer Modellwahl (Regel 6) soll
+ * die Baureihe weiterhin nennen (docs/architektur.md, Abschnitt
+ * "Fahrzeugbezeichnung", Regel 6: "BMW 4er Cabrio 20i (G23)", nicht "BMW
+ * Cabrio 20i (G23)"). Prüfbefund 17.09.2026 (Modellwahl): vorher fehlte das
+ * Token bei jeder Alternative ausser der ersten.
+ */
+const BAUREIHE_TOKEN_RE = /^\d+er$/i;
+
+/**
+ * Stellt den Baureihen-Token des ersten Segments vor `chosenName`, falls
+ * dieses ihn nicht bereits selbst als erstes Wort trägt (Vergleich ohne
+ * Gross-/Kleinschreibung). Ohne einen solchen Token am ersten Segment (z.B.
+ * "X1"/"X2", kein "...er"-Muster) bleibt `chosenName` unverändert.
+ */
+function inheritBaureiheToken(segments: FamilySegment[], chosenName: string): string {
+  const firstWord = segments[0]?.name.trim().split(/\s+/)[0];
+  if (!firstWord || !BAUREIHE_TOKEN_RE.test(firstWord)) return chosenName;
+  const chosenFirstWord = chosenName.trim().split(/\s+/)[0];
+  if (chosenFirstWord && chosenFirstWord.toLowerCase() === firstWord.toLowerCase()) return chosenName;
+  return `${firstWord} ${chosenName}`;
 }
 
 // --- Motorisierung anhängen (Regel 2) ---------------------------------------
@@ -492,6 +586,16 @@ export function vehicleDisplayLabel(
   family: VehicleLabelFamily | null,
   model: VehicleLabelModel | null,
   vehicleText: string | null,
+  /**
+   * Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+   * Motorisierungen, das Modell ist X1 oder X2"): die im Flow gewählte
+   * Alternative (vehicleLineOptions()-id, z.B. "x2"), nur bei einer
+   * mehrdeutigen Baureihe wirksam. Ungültig/unbekannt (kein Treffer unter
+   * den aktuellen Optionen, z.B. eine Baureihe, die inzwischen nicht mehr
+   * mehrdeutig ist) verhält sich wie null - das bisherige Verhalten
+   * (ALLE Alternativen zeigen) bleibt der sichere Rückfall.
+   */
+  lineId?: string | null,
 ): string {
   const text = vehicleText?.trim() || null;
 
@@ -515,6 +619,19 @@ export function vehicleDisplayLabel(
   // "BMW X1 / X2 20i (U11, U10)" statt fälschlich "BMW X1 20i (U11)".
   if (isAmbiguousSegments(segments, model.name)) {
     const candidates = applicableSegments(segments, model.name);
+
+    if (lineId) {
+      const chosenIndex = candidates.findIndex((segment) => slugifyLine(segment.name) === lineId);
+      if (chosenIndex !== -1) {
+        const chosen = candidates[chosenIndex];
+        const codes = resolveCodes(candidates, chosenIndex, explicitList);
+        const chosenName = inheritBaureiheToken(segments, chosen.name);
+        const withMotorisierung = appendMotorisierung(chosenName, model.name);
+        const withBrand = prependBrand(withMotorisierung, family.brand);
+        return appendCodes(withBrand, codes);
+      }
+    }
+
     const jointLine = candidates.map((segment) => segment.name).join(" / ");
     const withMotorisierung = appendMotorisierung(jointLine, model.name);
     const withBrand = prependBrand(withMotorisierung, family.brand);
@@ -538,8 +655,14 @@ export function vehicleDisplayLabel(
  * bleibt die Motorisierung weg statt eines leeren/erfundenen Werts.
  */
 export function vehicleInternalLine(
-  family: Pick<VehicleLabelFamily, "name">,
+  family: Pick<VehicleLabelFamily, "name" | "codes">,
   model: VehicleLabelModel | null,
+  /** Wie vehicleDisplayLabel()s lineId, ergänzt bei einer mehrdeutigen
+   * Baureihe mit gültiger Wahl "· Modell: X2" (Kundenentscheid 17.09.2026). */
+  lineId?: string | null,
 ): string {
-  return model ? `Baureihe: ${family.name} · Motorisierung: ${model.name}` : `Baureihe: ${family.name}`;
+  const base = model ? `Baureihe: ${family.name} · Motorisierung: ${model.name}` : `Baureihe: ${family.name}`;
+  if (!model || !lineId) return base;
+  const chosen = lineOptionsFor(family, model).find((option) => option.id === lineId);
+  return chosen ? `${base} · Modell: ${chosen.label}` : base;
 }

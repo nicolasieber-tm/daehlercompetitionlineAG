@@ -56,6 +56,7 @@ interface DueFollowUpRow {
   inquiry_email: string | null;
   inquiry_locale: string | null;
   inquiry_vehicle_text: string | null;
+  inquiry_line: string | null;
   family_brand: string | null;
   family_name: string | null;
   family_codes: string[] | null;
@@ -206,6 +207,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
       i.answer_received_at as inquiry_answer_received_at,
       i.first_name as inquiry_first_name, i.last_name as inquiry_last_name,
       i.email as inquiry_email, i.locale as inquiry_locale, i.vehicle_text as inquiry_vehicle_text,
+      i.line as inquiry_line,
       mf.brand as family_brand, mf.name as family_name, mf.codes as family_codes,
       m.name as model_name,
       r.subject as rule_subject, r.body as rule_body, r.active as rule_active
@@ -252,6 +254,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
             email: row.inquiry_email,
             locale: row.inquiry_locale,
             vehicle_text: row.inquiry_vehicle_text,
+            line: row.inquiry_line,
             model_families: row.family_brand !== null ? { brand: row.family_brand, name: row.family_name, codes: row.family_codes } : null,
             models: row.model_name !== null ? { name: row.model_name } : null,
           }
@@ -384,6 +387,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
         family: inquiry.model_families as ModelFamily | null,
         model: inquiry.models as Model | null,
         vehicleText: inquiry.vehicle_text,
+        line: inquiry.line,
       });
       const locale: Locale = inquiry.locale === "en" ? "en" : "de";
 

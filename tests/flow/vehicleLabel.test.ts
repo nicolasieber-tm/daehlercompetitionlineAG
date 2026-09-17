@@ -15,6 +15,7 @@ import {
   vehicleFamilyLine,
   vehicleInternalLine,
   vehicleLineIsAmbiguous,
+  vehicleLineOptions,
 } from "@/lib/catalog/vehicle-label";
 import type { VehicleLabelFamily, VehicleLabelModel } from "@/lib/catalog/vehicle-label";
 import { vehicleDisplayName } from "@/components/flow/vehicleLabel";
@@ -407,6 +408,109 @@ describe("vehicleDisplayLabel: mehrdeutige Baureihen zeigen alle Alternativen + 
     expect(vehicleDisplayLabel(f("BMW", "X3M F97, X4M F98", ["F97", "F98"]), m("X3 M"), null)).toBe(
       "BMW X3 M (F97)",
     );
+  });
+});
+
+// --- vehicleLineOptions (Kundenentscheid 17.09.2026: "bei X1 und X2 gibt --
+// es dieselben Motorisierungen, das Modell ist X1 oder X2" - Frage im Flow
+// statt Excel-Änderung, siehe docs/architektur.md Abschnitt
+// "Fahrzeugbezeichnung").
+describe("vehicleLineOptions", () => {
+  it("X1/X2: id, label, eigene Codes je Alternative", () => {
+    expect(vehicleLineOptions(f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]), m("20i"))).toEqual([
+      { id: "x1", label: "X1", codes: ["U11"] },
+      { id: "x2", label: "X2", codes: ["U10"] },
+    ]);
+  });
+
+  it("X3/X4", () => {
+    expect(vehicleLineOptions(f("BMW", "X3 G01, X4 G02", ["G01", "G02"]), m("20i"))).toEqual([
+      { id: "x3", label: "X3", codes: ["G01"] },
+      { id: "x4", label: "X4", codes: ["G02"] },
+    ]);
+  });
+
+  it("X5/X6", () => {
+    expect(vehicleLineOptions(f("BMW", "X5 G05, X6 G06", ["G05", "G06"]), m("40i"))).toEqual([
+      { id: "x5", label: "X5", codes: ["G05"] },
+      { id: "x6", label: "X6", codes: ["G06"] },
+    ]);
+  });
+
+  it('4er Coupé/Cabrio/Grand Coupé: id ist der Slug des vollen Segmentnamens ("4er Coupé" -> "4er-coupe"), Diakritika entfernt ("Grand Coupé" -> "grand-coupe")', () => {
+    expect(
+      vehicleLineOptions(
+        f("BMW", "4er Coupé G22, Cabrio G23, Grand Coupé G26", ["G22", "G23", "G26"]),
+        m("20i"),
+      ),
+    ).toEqual([
+      { id: "4er-coupe", label: "4er Coupé", codes: ["G22"] },
+      { id: "cabrio", label: "Cabrio", codes: ["G23"] },
+      { id: "grand-coupe", label: "Grand Coupé", codes: ["G26"] },
+    ]);
+  });
+
+  it("leer für M2 G87 (nicht mehrdeutig)", () => {
+    expect(vehicleLineOptions(f("BMW", "M2 G87", ["G87"]), m("M2"))).toEqual([]);
+  });
+
+  it("leer für 8er/M8 mit '40i' (Ausnahme 8er/M8: 'M8' scheidet aus, nur 'Achter' bleibt - eindeutig)", () => {
+    const ACHTER_M8 = f("BMW", "8er G14, G15, G16 / M8 F91, F92, F93", ["G14", "G15", "G16", "F91", "F92", "F93"]);
+    expect(vehicleLineOptions(ACHTER_M8, m("40i"))).toEqual([]);
+  });
+
+  it("leer für M8 selbst (eindeutig aufgelöst)", () => {
+    const ACHTER_M8 = f("BMW", "8er G14, G15, G16 / M8 F91, F92, F93", ["G14", "G15", "G16", "F91", "F92", "F93"]);
+    expect(vehicleLineOptions(ACHTER_M8, m("M8"))).toEqual([]);
+  });
+
+  it("leer ohne Modell (Kurzablauf/Platzhalter) - Mehrdeutigkeit lässt sich ohne Motorisierung nicht beurteilen", () => {
+    expect(vehicleLineOptions(f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]), null)).toEqual([]);
+  });
+});
+
+// --- vehicleDisplayLabel mit lineId (Kundenentscheid 17.09.2026) -----------
+describe("vehicleDisplayLabel: lineId löst eine mehrdeutige Baureihe auf die gewählte Alternative auf", () => {
+  it('BMW X2 20i (U10): lineId "x2" statt "BMW X1 / X2 20i (U11, U10)"', () => {
+    const X1_X2 = f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]);
+    expect(vehicleDisplayLabel(X1_X2, m("20i"), null, "x2")).toBe("BMW X2 20i (U10)");
+    expect(vehicleDisplayLabel(X1_X2, m("20i"), null, "x1")).toBe("BMW X1 20i (U11)");
+  });
+
+  it('BMW 4er Cabrio 20i (G23): lineId "cabrio" wählt die mittlere Alternative; der Baureihen-Token "4er" des ersten Segments wird vererbt (Prüfbefund 17.09.2026, sonst "BMW Cabrio 20i" ohne Baureihe, siehe docs/architektur.md Regel 6)', () => {
+    const VIERER = f("BMW", "4er Coupé G22, Cabrio G23, Grand Coupé G26", ["G22", "G23", "G26"]);
+    expect(vehicleDisplayLabel(VIERER, m("20i"), null, "cabrio")).toBe("BMW 4er Cabrio 20i (G23)");
+    expect(vehicleDisplayLabel(VIERER, m("20i"), null, "grand-coupe")).toBe("BMW 4er Grand Coupé 20i (G26)");
+    expect(vehicleDisplayLabel(VIERER, m("20i"), null, "4er-coupe")).toBe("BMW 4er Coupé 20i (G22)");
+  });
+
+  it("ungültige/unbekannte lineId verhält sich wie ohne lineId (alle Alternativen)", () => {
+    const X1_X2 = f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]);
+    expect(vehicleDisplayLabel(X1_X2, m("20i"), null, "x3")).toBe("BMW X1 / X2 20i (U11, U10)");
+    expect(vehicleDisplayLabel(X1_X2, m("20i"), null, null)).toBe("BMW X1 / X2 20i (U11, U10)");
+  });
+
+  it("lineId ohne mehrdeutige Baureihe bleibt wirkungslos (M2 G87)", () => {
+    expect(vehicleDisplayLabel(f("BMW", "M2 G87", ["G87"]), m("M2"), null, "x2")).toBe("BMW M2 (G87)");
+  });
+});
+
+describe("vehicleInternalLine: lineId ergänzt '· Modell: X2'", () => {
+  it("mit gültiger lineId", () => {
+    const X1_X2 = f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]);
+    expect(vehicleInternalLine(X1_X2, m("20i"), "x2")).toBe(
+      "Baureihe: X1 U11 / X2 U10 · Motorisierung: 20i · Modell: X2",
+    );
+  });
+
+  it("ohne lineId bleibt es bei der bisherigen Zeile", () => {
+    const X1_X2 = f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]);
+    expect(vehicleInternalLine(X1_X2, m("20i"))).toBe("Baureihe: X1 U11 / X2 U10 · Motorisierung: 20i");
+  });
+
+  it("ungültige lineId bleibt ohne Zusatz", () => {
+    const X1_X2 = f("BMW", "X1 U11 / X2 U10", ["U11", "U10"]);
+    expect(vehicleInternalLine(X1_X2, m("20i"), "x3")).toBe("Baureihe: X1 U11 / X2 U10 · Motorisierung: 20i");
   });
 });
 

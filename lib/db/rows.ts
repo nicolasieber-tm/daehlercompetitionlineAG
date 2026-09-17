@@ -176,6 +176,10 @@ export interface Inquiry {
   ai_extraction: Json;
   gearbox: string | null;
   series_ps: number | null;
+  /** Kundenentscheid 17.09.2026: gewählte Alternative bei mehrdeutiger
+   * Baureihe (vehicleLineOptions()-id, z.B. "x2"), sonst null. Siehe
+   * db/migrations/0004_inquiries_line.sql. */
+  line: string | null;
   replied_at: string | null;
   answer_received_at: string | null;
   created_at: string;

@@ -98,6 +98,28 @@ describe("flowReducer SELECT_MODEL/SELECT_FAMILY: selections werden beim Wechsel
   });
 });
 
+// Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+// Motorisierungen, das Modell ist X1 oder X2").
+describe("flowReducer SET_LINE", () => {
+  it("setzt state.line", () => {
+    const state = initialFlowState();
+    const next = flowReducer(state, { type: "SET_LINE", line: "x2" });
+    expect(next.line).toBe("x2");
+  });
+
+  it("SELECT_FAMILY setzt eine bereits gewählte line zurück", () => {
+    const state = { ...initialFlowState(), line: "x2" };
+    const next = flowReducer(state, { type: "SELECT_FAMILY", familyId: "other-family", hasPricelist: true });
+    expect(next.line).toBeNull();
+  });
+
+  it("SELECT_MODEL setzt eine bereits gewählte line zurück", () => {
+    const state = { ...initialFlowState(), line: "x2" };
+    const next = flowReducer(state, { type: "SELECT_MODEL", modelId: "other-model" });
+    expect(next.line).toBeNull();
+  });
+});
+
 // Rückmeldung erster Klicktest (Kundenflow M2 G87), siehe CLAUDE.md
 // Abschnitt "AUFGABE", Punkt 3.
 describe("flowReducer SET_GEARBOX", () => {

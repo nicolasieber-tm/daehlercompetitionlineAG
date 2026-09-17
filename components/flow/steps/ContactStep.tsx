@@ -144,7 +144,7 @@ export function ContactStep({
             className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-red"
           />
           <span>
-            {tf(t.steps.contact.privacyNote, { model: family ? vehicleDisplayName(family, model) : "" })}
+            {tf(t.steps.contact.privacyNote, { model: family ? vehicleDisplayName(family, model, state.line) : "" })}
           </span>
         </label>
         {showPrivacyError ? <p className="text-[13px] text-warn">{t.errors.privacyRequired}</p> : null}

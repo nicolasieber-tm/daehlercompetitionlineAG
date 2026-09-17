@@ -112,8 +112,13 @@ export function vehicleLabel(params: {
   family: ModelFamily | null;
   model: Model | null;
   vehicleText: string | null;
+  /** Kundenentscheid 17.09.2026: gewählte Alternative bei mehrdeutiger
+   * Baureihe (inquiries.line), siehe vehicleDisplayLabel(). Optional
+   * (Aufrufer ohne Anfrage-Kontext, z.B. Follow-up-Vorschau, liefern sie
+   * nicht mit - verhält sich dann wie bisher). */
+  line?: string | null;
 }): string {
-  return vehicleDisplayLabel(params.family, params.model, params.vehicleText);
+  return vehicleDisplayLabel(params.family, params.model, params.vehicleText, params.line);
 }
 
 /**

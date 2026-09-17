@@ -4,15 +4,35 @@
 // Anfragen tragen eine @e2e.test E-Mail-Adresse, damit sie danach gezielt
 // wieder gelöscht werden können (siehe Bericht: Aufräum-Skript).
 import { test, expect, type Page } from "@playwright/test";
+import postgres from "postgres";
 
 function uniqueEmail(tag: string): string {
   return `e2e-${tag}-${Date.now()}@e2e.test`;
+}
+
+// .env selbst laden (wie scripts/migrate.ts): der Playwright-Testrunner-
+// Prozess bekommt .env sonst nicht automatisch (nur der von webServer
+// gestartete `next dev`-Prozess erbt process.env). Nur für den direkten
+// DB-Check unten (inquiries.line) nötig.
+try {
+  process.loadEnvFile(".env");
+} catch {
+  // .env nicht vorhanden: process.env muss DATABASE_URL dann schon enthalten.
 }
 
 /** Öffnet die Startseite und wartet auf den ersten Schritt (Marken-Chips). */
 async function openFlow(page: Page) {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Welches Fahrzeug fahren Sie?" })).toBeVisible();
+}
+
+/** Meldet sich im Admin an (scripts/create-admin-users.ts, lokaler Dev-Fallback), für die Schnellweg-API-Tests unten. */
+async function adminLogin(page: Page) {
+  await page.goto("/admin/login");
+  await page.getByLabel("E-Mail").fill("admin@trendingmedia.ch");
+  await page.getByLabel("Passwort").fill(process.env.ADMIN_TRENDINGMEDIA_PASSWORD ?? "daehler-admin-2026!");
+  await page.getByRole("button", { name: "Anmelden" }).click();
+  await page.waitForURL((u) => u.pathname.startsWith("/admin") && !u.pathname.includes("login"), { timeout: 30000 });
 }
 
 // Prüfung, Befund 1 (major): next/font setzt die Variablen-Klassen
@@ -392,5 +412,158 @@ test.describe("V/max-Doppelung und Vorher/Nachher-Leistung (Rückmeldung zweiter
     // "Leistung"-Zeile stehen bleiben, nicht nur im "Ihr Paket"-Summary.
     const leistungRow = page.locator("div.border-b.border-line.px-4.py-\\[11px\\]", { hasText: "Leistung" });
     await expect(leistungRow).toContainText("Sportluftfilter Satz");
+  });
+});
+
+// Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+// Motorisierungen, das Modell ist X1 oder X2"), siehe CLAUDE.md Abschnitt
+// "AUFGABE" und docs/architektur.md Abschnitt "Fahrzeugbezeichnung". Familie
+// "X1 U11 / X2 U10" (Excel-Import, lib/catalog/vehicle-label.ts
+// vehicleLineIsAmbiguous()) ist für die Motorisierung "20i" mehrdeutig
+// (teilt mit keiner der beiden Alternativen ein Wort) - der Flow fragt
+// deshalb "Welches Modell fahren Sie?", die Wahl "X2" wird gespeichert und
+// löst die Bezeichnung auf "BMW X2 20i (U10)" auf, statt der bisherigen
+// "BMW X1 / X2 20i (U11, U10)"-Sammelform.
+test.describe("Kundenflow: mehrdeutige Baureihe X1/X2, Modellwahl X2", () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test("BMW X1 U11 / X2 U10, 20i, Modell X2 -> Abschluss und Teilen-Seite zeigen 'BMW X2 20i (U10)'", async ({ page }) => {
+    await openFlow(page);
+
+    await page.getByRole("button", { name: "BMW", exact: true }).click();
+    await page.getByRole("button", { name: /^X1 U11 \/ X2 U10/ }).click();
+    await page.getByRole("button", { name: "20i", exact: true }).click();
+
+    // Das Modell "20i" hat ein getriebespezifisches Produkt (Automat) -
+    // die Getriebefrage ist Pflicht vor "Weiter" (siehe CarStep.tsx).
+    await page.getByRole("button", { name: "Weiss ich nicht", exact: true }).click();
+
+    // "Welches Modell fahren Sie?" - nur sichtbar, weil die Baureihe für
+    // "20i" mehrdeutig ist (vehicleLineOptions()). "Weiter" bleibt ohne
+    // Auswahl gesperrt (siehe Flow.tsx canNext).
+    await expect(page.getByText("Welches Modell fahren Sie?")).toBeVisible();
+    const weiter = page.getByRole("button", { name: "Weiter →" });
+    await expect(weiter).toBeDisabled();
+    await page.getByRole("button", { name: "X2", exact: true }).click();
+    await expect(weiter).toBeEnabled();
+    await weiter.click();
+
+    // Wunsch: Komplettpaket ("beraten Sie mich") statt einzelner
+    // Kategorien - hält den Test unabhängig von den konkreten Produkten
+    // dieser Baureihe (nicht Gegenstand dieser Aufgabe).
+    await expect(page.getByRole("heading", { name: "Was darf es sein?" })).toBeVisible();
+    await page.getByRole("button", { name: "Beraten lassen" }).click();
+    await page.getByRole("button", { name: "Weiter →" }).click();
+
+    await expect(page.getByRole("heading", { name: /wirken/ })).toBeVisible();
+    await page.getByRole("button", { name: "Sportlich" }).click();
+    await page.getByRole("button", { name: "Weiter →" }).click();
+
+    await expect(page.getByRole("heading", { name: "Wann passt es Ihnen?" })).toBeVisible();
+    await page.getByLabel("Vorname").fill("Nina");
+    await page.getByLabel("Name", { exact: true }).fill("X-Zwei");
+    await page.getByLabel("Telefon").fill("079 111 22 33");
+    const email = uniqueEmail("x1-x2-linie");
+    await page.getByLabel("E-Mail").fill(email);
+    await page.getByRole("checkbox").check();
+    await page.getByRole("button", { name: "Anfrage senden →" }).click();
+
+    await expect(page.getByText(/Nr\. \d{4}-\d{4}/)).toBeVisible({ timeout: 15000 });
+
+    // Abschluss zeigt die aufgelöste Bezeichnung, nicht mehr die
+    // Sammelform mit beiden Alternativen/Codes.
+    await expect(page.getByText("BMW X2 20i (U10)").first()).toBeVisible();
+    await expect(page.getByText("X1 / X2")).toHaveCount(0);
+
+    // Teilen-Link: dieselbe Bezeichnung auf der read-only Seite.
+    await page.getByRole("button", { name: /Ihr Paket als Link/ }).click();
+    const code = page.locator("code");
+    await expect(code).toBeVisible();
+    const shareUrl = (await code.textContent())?.trim();
+    expect(shareUrl).toBeTruthy();
+
+    const sharePage = await page.context().newPage();
+    await sharePage.goto(shareUrl!);
+    await expect(sharePage.getByRole("heading", { name: /Ihr Paket/ })).toBeVisible();
+    await expect(sharePage.getByText("BMW X2 20i (U10)").first()).toBeVisible();
+    await expect(sharePage.getByText("X1 / X2")).toHaveCount(0);
+    await sharePage.close();
+
+    // inquiries.line = 'x2' (vehicleLineOptions()-id), direkt in der DB.
+    const sql = postgres(process.env.DATABASE_URL!, { max: 1 });
+    try {
+      const [row] = await sql<{ line: string | null }[]>`
+        select line from inquiries where email = ${email}
+      `;
+      expect(row?.line).toBe("x2");
+    } finally {
+      await sql.end();
+    }
+  });
+});
+
+// Prüfbefund 17.09.2026 (major): overridesSchema in
+// app/api/admin/quick/create/route.ts kannte kein Feld "line" - zod
+// entfernte den vom Admin-Dropdown geschickten Wert (QuickInquiryForm.tsx
+// overrides.line) stillschweigend, die Anfrage landete ohne Modellwahl und
+// feuerte weiterhin den Prüfhinweis "modell_mehrdeutig". Nur der
+// automatische Abgleich über extraction.vehicle.line funktionierte. Deckt
+// alle drei Wege ab: ohne jede Angabe (Hinweis feuert), automatischer
+// Abgleich über extraction.vehicle.line (Hinweis feuert nicht), und die
+// manuelle Korrektur über overrides.line allein (Befund selbst).
+test.describe("Schnellweg: Modellwahl bei mehrdeutiger Baureihe (Admin-API)", () => {
+  test("overrides.line kommt in inquiries.line an, wie extraction.vehicle.line", async ({ page }) => {
+    await adminLogin(page);
+
+    const baseExtraction = (line: string | null) => ({
+      vehicle: { family_slug: "x1-u11-x2-u10", model_slug: "20i", free_text: "BMW X1/X2 20i", line, confidence: 0.9 },
+      year: "2024",
+      categories: ["auspuff"],
+      selections: [],
+      consulting: false,
+      character: "sportlich",
+      timing: "flexible",
+      contact: { first_name: "Quick", last_name: "Test", city: null, phone: "079 000 00 00", email: null, channel: "phone" },
+      message: "",
+      open_questions: [],
+      language: "de",
+      uncertain: [],
+    });
+
+    async function create(line: string | null, overrides: Record<string, unknown>) {
+      const email = uniqueEmail(`quick-line-${overrides.line ?? "none"}`);
+      const res = await page.request.post("/api/admin/quick/create", {
+        data: { text: `Testnotiz Schnellweg-Modellwahl ${email}`, extraction: baseExtraction(line), overrides: { ...overrides, email } },
+      });
+      const json = (await res.json()) as { ok: boolean; id?: string };
+      expect(json.ok, JSON.stringify(json)).toBe(true);
+      return { id: json.id!, email };
+    }
+
+    const none = await create(null, {});
+    const auto = await create("X2", {});
+    const override = await create(null, { line: "x2" });
+
+    const sql = postgres(process.env.DATABASE_URL!, { max: 1 });
+    try {
+      const rows = await sql<{ id: string; line: string | null; checks: { id: string }[] }[]>`
+        select id, line, checks from inquiries where id in (${none.id}, ${auto.id}, ${override.id})
+      `;
+      const by = (id: string) => rows.find((r) => r.id === id)!;
+
+      expect(by(none.id).line).toBeNull();
+      expect(by(none.id).checks.map((c) => c.id)).toContain("modell_mehrdeutig");
+
+      expect(by(auto.id).line).toBe("x2");
+      expect(by(auto.id).checks.map((c) => c.id)).not.toContain("modell_mehrdeutig");
+
+      // Der eigentliche Befund: die Admin-Korrektur über overrides.line
+      // (ohne automatischen Treffer aus der Extraction) muss ebenso
+      // ankommen wie der automatische Abgleich oben.
+      expect(by(override.id).line).toBe("x2");
+      expect(by(override.id).checks.map((c) => c.id)).not.toContain("modell_mehrdeutig");
+    } finally {
+      await sql.end();
+    }
   });
 });

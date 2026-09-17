@@ -8,6 +8,7 @@ import type { Dispatch } from "react";
 import { Chip, Field, Question, StepLabel, Tile } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
+import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import type { Brand, Fuel } from "@/lib/db/rows";
 import type { FlowAction, FlowState } from "../state";
 import { YEAR_OPTIONS_BASE, effectiveSeriesPs } from "../state";
@@ -62,6 +63,12 @@ export function CarStep({
     { value: "automatic", label: t.steps.car.gearboxAutomatic },
     { value: "unknown", label: t.steps.car.gearboxUnknown },
   ];
+
+  // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+  // Motorisierungen, das Modell ist X1 oder X2"): Frage nur bei mehrdeutiger
+  // Baureihe (vehicleLineOptions() liefert dann die Alternativen, sonst
+  // leer), Pflicht vor "Weiter" wie Serienleistung/Getriebe oben.
+  const lineOptions = selectedFamily && selectedModel ? vehicleLineOptions(selectedFamily, selectedModel) : [];
 
   return (
     <div>
@@ -164,10 +171,33 @@ export function CarStep({
         </div>
       ) : null}
 
+      {lineOptions.length > 0 ? (
+        <div className="mt-6">
+          <StepLabel>{t.steps.car.lineQuestion}</StepLabel>
+          <div className="flex flex-wrap gap-2" role="group" aria-label={t.steps.car.lineQuestion}>
+            {lineOptions.map((option) => (
+              <Chip
+                key={option.id}
+                active={state.line === option.id}
+                onClick={() => dispatch({ type: "SET_LINE", line: option.id })}
+              >
+                {option.label}
+              </Chip>
+            ))}
+          </div>
+          {/* Pflicht vor "Weiter" (siehe Flow.tsx canNext), analog Serienleistung/Getriebe oben. */}
+          {state.line === null ? (
+            <p className="mt-2 text-[13px] text-muted" aria-live="polite">
+              {t.steps.car.lineRequired}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {selectedFamily && selectedFamily.photoUrl ? (
         <div className="relative mt-[18px] aspect-[21/9] overflow-hidden border border-line bg-panel-alt bg-cover bg-center" style={{ backgroundImage: `url(${selectedFamily.photoUrl})` }}>
           <span className="absolute bottom-3 left-3.5 bg-bg/75 px-2.5 py-1 font-display text-[13px] uppercase tracking-[0.08em] text-white">
-            {tf(t.steps.car.carShotCaption, { model: vehicleDisplayName(selectedFamily, selectedModel) })}
+            {tf(t.steps.car.carShotCaption, { model: vehicleDisplayName(selectedFamily, selectedModel, state.line) })}
           </span>
         </div>
       ) : null}

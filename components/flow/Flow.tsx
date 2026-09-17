@@ -9,6 +9,7 @@ import type { FormEvent, ReactNode } from "react";
 import { Progress } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import type { CatalogFamily, CategoryNote, ProductGroup } from "@/lib/catalog/queries";
+import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import { Hero } from "./Hero";
 import { FlowNav } from "./FlowNav";
 import { CarStep } from "./steps/CarStep";
@@ -87,6 +88,13 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
         if (selectedModel?.hasGearboxSpecificProducts && state.gearboxChoice === null) {
           return false;
         }
+        // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+        // Motorisierungen, das Modell ist X1 oder X2"): Modellwahl Pflicht
+        // vor "Weiter", wenn die Baureihe für die Motorisierung mehrdeutig
+        // ist (siehe CarStep.tsx lineOptions).
+        if (selectedFamily && selectedModel && vehicleLineOptions(selectedFamily, selectedModel).length > 0 && state.line === null) {
+          return false;
+        }
         return true;
       }
       case "wish":
@@ -110,6 +118,12 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
       year: state.year,
       beenHere: state.beenHere,
       gearbox: state.gearboxChoice,
+      // Kundenentscheid 17.09.2026: gewählte Alternative bei mehrdeutiger
+      // Baureihe (lib/catalog/vehicle-label.ts vehicleLineOptions()-id),
+      // null wenn die Frage nicht gestellt wurde. lib/inquiry/create.ts
+      // prüft sie erneut gegen die aktuellen Optionen, bevor sie
+      // gespeichert wird.
+      line: state.line,
       // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
       // Punkt 3): effektiv wirksame Serienleistung (siehe seriesPs oben,
       // effectiveSeriesPs()) - wird für die Vorher/Nachher-Leistungszeile

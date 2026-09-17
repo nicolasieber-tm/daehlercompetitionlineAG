@@ -5,6 +5,7 @@
 // dieser Aufgabe).
 import { sql } from "@/lib/db/client";
 import { getProductsByIds, getProductsForModel } from "@/lib/catalog/queries";
+import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import { getSettings, sendInquiryMail, vehicleLabel } from "@/lib/mail";
 import type { Character, FlowCategory, Model, ModelFamily, PriceStatus, Timing } from "@/lib/db/rows";
 import { runChecks } from "@/lib/rules/checks";
@@ -137,6 +138,22 @@ export async function createInquiry(
     throw new InvalidSelectionError();
   }
 
+  // 3b. Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+  // Motorisierungen, das Modell ist X1 oder X2"): payload.line erneut gegen
+  // die AKTUELLEN Optionen prüfen (können sich seit dem Laden des Flows
+  // geändert haben, z.B. durch einen neuen Import) statt ihn ungeprüft zu
+  // übernehmen - ein ungültiger/veralteter Wert wird zu null (verhält sich
+  // dann wie unbeantwortet, siehe vehicleDisplayLabel()/runChecks()).
+  const line =
+    payload.line && model
+      ? (vehicleLineOptions(
+          { brand: family.brand, name: family.name, codes: family.codes },
+          { name: model.name },
+        ).some((option) => option.id === payload.line)
+          ? payload.line
+          : null)
+      : null;
+
   // 4. Prüfhinweise.
   const checkCtx: CheckContext = {
     inquiry: {
@@ -146,6 +163,7 @@ export async function createInquiry(
       timing: payload.timing as Timing,
       year: payload.year,
       gearbox: payload.gearbox,
+      line,
     },
     family: { hasPricelist: family.has_pricelist, brand: family.brand, name: family.name, codes: family.codes },
     model: model ? { id: model.id, name: model.name } : null,
@@ -239,7 +257,7 @@ export async function createInquiry(
       number,
       firstName: payload.firstName,
       lastName: payload.lastName,
-      vehicleLabel: vehicleLabel({ family, model, vehicleText: payload.vehicleText }),
+      vehicleLabel: vehicleLabel({ family, model, vehicleText: payload.vehicleText, line }),
       year: payload.year,
       character: payload.character as Character,
       categories: payload.categories,
@@ -265,13 +283,13 @@ export async function createInquiry(
     const [inserted] = await tx<{ id: string }[]>`
       insert into inquiries (
         number, status, source, locale, family_id, model_id, vehicle_text, year, been_here, gearbox,
-        series_ps, categories, consulting, selections, follow_up_answers, character, timing,
+        series_ps, line, categories, consulting, selections, follow_up_answers, character, timing,
         first_name, last_name, city, phone, email, channel, message, estimated_total, checks,
         draft_subject, draft_reply, share_token
       ) values (
         ${number}, 'neu', ${opts.source}, ${payload.locale}, ${payload.familyId}, ${payload.modelId},
         ${payload.vehicleText}, ${payload.year}, ${payload.beenHere}, ${payload.gearbox},
-        ${payload.seriesPs}, ${payload.categories}, ${payload.consulting}, ${sql.json(selectionsJson)},
+        ${payload.seriesPs}, ${line}, ${payload.categories}, ${payload.consulting}, ${sql.json(selectionsJson)},
         ${sql.json(payload.followUpAnswers)}, ${payload.character}, ${payload.timing},
         ${payload.firstName}, ${payload.lastName}, ${payload.city}, ${payload.phone}, ${payload.email},
         ${payload.channel}, ${payload.message || null}, ${estimatedTotal}, ${sql.json(JSON.parse(JSON.stringify(checks)))},

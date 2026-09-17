@@ -104,7 +104,7 @@ export function goalText(ctx: MailInquiryContext): string {
  */
 export function buildSummaryText(ctx: MailInquiryContext): string {
   const { inquiry } = ctx;
-  const vehicle = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: inquiry.vehicle_text });
+  const vehicle = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: inquiry.vehicle_text, line: inquiry.line });
   const name = [inquiry.first_name, inquiry.last_name].filter(Boolean).join(" ");
 
   const received = `${formatDate(new Date(inquiry.created_at), LOCALE)} · ${
@@ -128,7 +128,7 @@ export function buildSummaryText(ctx: MailInquiryContext): string {
   // vehicleLabel() oben) an die Zeile angehängt, damit dÄHLer die
   // Excel-Preisliste sofort zuordnen kann.
   const gearboxText = gearboxValue(inquiry.gearbox);
-  const internalLine = ctx.family ? ` · ${vehicleInternalLine(ctx.family, ctx.model)}` : "";
+  const internalLine = ctx.family ? ` · ${vehicleInternalLine(ctx.family, ctx.model, inquiry.line)}` : "";
   const vehicleLine = `${vehicle}${inquiry.year ? ` · Baujahr ${inquiry.year}` : ""}${seriesText}${
     gearboxText ? ` · Getriebe: ${gearboxText}` : ""
   }${internalLine}`;

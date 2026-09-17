@@ -50,7 +50,7 @@ function customerItems(items: MailInquiryItem[], locale: MailInquiryContext["loc
 
 export function buildConfirmation(ctx: MailInquiryContext): { subject: string; html: string; text: string } {
   const dict = getDictionary(ctx.locale);
-  const model = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: ctx.inquiry.vehicle_text });
+  const model = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: ctx.inquiry.vehicle_text, line: ctx.inquiry.line });
   const first = ctx.inquiry.first_name ?? "";
   const subject = tf(dict.mail.confirmation.subject, { model, number: ctx.inquiry.number });
 

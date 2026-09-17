@@ -457,6 +457,12 @@ export const admin = {
       familyNone: "Keine Auswahl",
       model: "Modell",
       modelNone: "Keine Auswahl",
+      // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+      // Motorisierungen, das Modell ist X1 oder X2"): nur sichtbar, wenn
+      // die Baureihe für die gewählte Motorisierung mehrdeutig ist (siehe
+      // QuickInquiryForm.tsx lineOptions).
+      line: "Modell (Baureihe mehrdeutig)",
+      lineNone: "Keine Auswahl",
       vehicleText: "Fahrzeugtext (frei, z.B. wenn kein Modell zuordenbar)",
       year: "Baujahr",
       categoriesTitle: "Kategorien",
@@ -508,6 +514,12 @@ export const admin = {
         year: "Baujahr",
         beenHere: "Schon einmal bei uns gewesen",
         gearbox: "Getriebe",
+        // Kundenentscheid 17.09.2026: line ist in InquiryPayloadObjectSchema
+        // optional (siehe lib/inquiry/schema.ts) und wird von
+        // QuickInquiryPayloadSchema unverändert übernommen - zod meldet es
+        // nie als fehlend, der Eintrag deckt trotzdem das Schema vollständig
+        // ab (Test tests/admin/quick-missing-labels.test.ts), analog seriesPs.
+        line: "Modell (Baureihe mehrdeutig)",
         // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
         // Punkt 3): seriesPs ist in InquiryPayloadObjectSchema optional
         // (siehe lib/inquiry/schema.ts), zod meldet es deshalb nie als

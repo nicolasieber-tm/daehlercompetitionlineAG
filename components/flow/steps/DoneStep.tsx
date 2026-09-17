@@ -32,7 +32,7 @@ export function DoneStep({
 }) {
   const { t, tf, locale } = useT();
   const result = state.result!;
-  const vehicleLabel = family ? vehicleDisplayName(family, model) : "";
+  const vehicleLabel = family ? vehicleDisplayName(family, model, state.line) : "";
 
   const [shareState, setShareState] = useState<{ status: "idle" | "success" | "error"; url: string | null }>({
     status: "idle",

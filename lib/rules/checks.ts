@@ -11,7 +11,7 @@ import { en } from "@/lib/i18n/en";
 import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { gearboxFor } from "@/lib/catalog/gearbox";
-import { vehicleAmbiguousAlternatives, vehicleLineIsAmbiguous } from "@/lib/catalog/vehicle-label";
+import { vehicleAmbiguousAlternatives, vehicleLineIsAmbiguous, vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import type { Character, FlowCategory, InquiryGearbox, PriceStatus, Timing } from "@/lib/db/rows";
 
 /**
@@ -70,6 +70,12 @@ export interface CheckInquiry {
    * Produkte, oder Kurzablauf ohne Modell). Rückmeldung erster Klicktest,
    * CLAUDE.md Abschnitt "AUFGABE", Punkt 3. */
   gearbox: InquiryGearbox | null;
+  /** Kundenentscheid 17.09.2026: im Flow gewählte Alternative bei
+   * mehrdeutiger Baureihe (vehicleLineOptions()-id, z.B. "x2"), sonst null
+   * (Frage nicht gestellt, z.B. Schnellweg ohne Angabe). Bereits gegen die
+   * aktuellen Optionen geprüft (lib/inquiry/create.ts), hier nur noch
+   * gelesen. */
+  line: string | null;
 }
 
 export interface CheckContext {
@@ -255,8 +261,18 @@ export const CHECK_RULES: Array<{
     // Motorisierung selbst kein M-Modell ist - "8er" + "40i" feuert darum
     // nicht. {alternatives} (vars unten) nennt die konkreten Alternativen
     // ("X1 / X2") statt eines generischen Beispiels.
+    // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+    // Motorisierungen, das Modell ist X1 oder X2"): der Hinweis feuert nur
+    // noch, wenn KEINE gültige Wahl gespeichert ist (z.B. Schnellweg ohne
+    // Angabe) - der Flow selbst erzwingt die Wahl bereits vor "Weiter"
+    // (siehe CarStep.tsx), die Bezeichnung ist dann eindeutig und dÄHLer
+    // muss nichts mehr klären.
     id: "modell_mehrdeutig",
-    when: (ctx) => ctx.family !== null && ctx.model !== null && vehicleLineIsAmbiguous(ctx.family, ctx.model),
+    when: (ctx) =>
+      ctx.family !== null &&
+      ctx.model !== null &&
+      vehicleLineIsAmbiguous(ctx.family, ctx.model) &&
+      !(ctx.inquiry.line !== null && vehicleLineOptions(ctx.family, ctx.model).some((o) => o.id === ctx.inquiry.line)),
     vars: (ctx) => ({
       alternatives: ctx.family && ctx.model ? vehicleAmbiguousAlternatives(ctx.family, ctx.model).join(" / ") : "",
     }),

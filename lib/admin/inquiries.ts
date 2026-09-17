@@ -171,6 +171,7 @@ interface InquiryListDbRow {
   city: string | null;
   email: string | null;
   vehicle_text: string | null;
+  line: string | null;
   categories: string[];
   consulting: boolean;
   estimated_total: number | null;
@@ -204,7 +205,7 @@ export async function listInquiries(filters: InquiryListFilters): Promise<Inquir
     const offset = (currentPage - 1) * pageSize;
     const rows = await sql<InquiryListDbRow[]>`
       select
-        i.id, i.number, i.created_at, i.first_name, i.last_name, i.city, i.email, i.vehicle_text,
+        i.id, i.number, i.created_at, i.first_name, i.last_name, i.city, i.email, i.vehicle_text, i.line,
         i.categories, i.consulting, i.estimated_total, i.status, i.source,
         f.brand as family_brand, f.name as family_name, f.codes as family_codes, f.has_pricelist as family_has_pricelist,
         m.name as model_name
@@ -280,6 +281,7 @@ export async function listInquiries(filters: InquiryListFilters): Promise<Inquir
         : null,
       row.model_name !== null ? { name: row.model_name } : null,
       row.vehicle_text,
+      row.line,
     ),
     categories: row.categories as FlowCategory[],
     consulting: row.consulting,
@@ -459,7 +461,7 @@ export async function regenerateDraft(id: string): Promise<{ subject: string; bo
     number: inquiry.number,
     firstName: inquiry.first_name ?? "",
     lastName: inquiry.last_name ?? "",
-    vehicleLabel: vehicleLabel({ family, model, vehicleText: inquiry.vehicle_text }),
+    vehicleLabel: vehicleLabel({ family, model, vehicleText: inquiry.vehicle_text, line: inquiry.line }),
     year: inquiry.year,
     // character/timing sind bei einer vollständig übermittelten Anfrage nie
     // null (lib/inquiry/schema.ts verlangt beides), Fallback nur defensiv

@@ -25,6 +25,7 @@ const SYSTEM_PROMPT = `Sie sind der interne Erfassungs-Assistent von dÄHLer Com
 Regeln, unbedingt einhalten:
 - Nur Angaben verwenden, die im Text belegbar sind. Nichts erfinden, nichts ergänzen, auch keine naheliegenden Annahmen ("vermutlich Stufe 1" ist keine Angabe aus dem Text).
 - family_slug und model_slug ausschliesslich aus der mitgelieferten Katalogliste übernehmen (exakte Schreibweise), sonst null.
+- vehicle.line: nennt der Kunde bei einer Baureihe mit mehreren Karosserieformen (z. B. "X1"/"X2", "X3"/"X4", "X5"/"X6", "4er Coupé"/"Cabrio"/"Grand Coupé") das konkrete Modell, wörtlich übernehmen (z. B. "X2"), sonst null.
 - product_id ausschliesslich aus der mitgelieferten Produktliste übernehmen (exakte ID-Zeichenkette), nie selbst bilden oder raten.
 - Sind Sie sich bei einer Zuordnung nicht sicher, setzen Sie eine niedrige confidence (unter 0.7) statt zu raten. Ist eine Zuordnung gar nicht möglich, lassen Sie das Feld null und vermerken es in open_questions.
 - categories nur setzen, wenn im Text tatsächlich eine dieser Wunsch-Kategorien vorkommt: motor, auspuff, fahrwerk, raeder, exterieur, interieur.
@@ -85,7 +86,7 @@ const RECORD_INQUIRY_TOOL: Anthropic.Tool = {
       vehicle: {
         type: "object",
         additionalProperties: false,
-        required: ["family_slug", "model_slug", "free_text", "confidence"],
+        required: ["family_slug", "model_slug", "free_text", "line", "confidence"],
         properties: {
           family_slug: nullableString("Slug aus der Familienliste, exakte Schreibweise, sonst null."),
           model_slug: nullableString("Slug aus der Modellliste der gewählten Familie, exakte Schreibweise, sonst null."),
@@ -93,6 +94,15 @@ const RECORD_INQUIRY_TOOL: Anthropic.Tool = {
             type: "string",
             description: "Fahrzeugbezeichnung wörtlich/sinngemäss aus dem Text, auch wenn eine Zuordnung gefunden wurde.",
           },
+          // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
+          // Motorisierungen, das Modell ist X1 oder X2"): einige Baureihen
+          // führen mehrere Modelle unter denselben Motorisierungsnamen
+          // (X1/X2, X3/X4, X5/X6, 4er Coupé/Cabrio/Grand Coupé) - line hält
+          // den frei erkannten Modellnamen fest, damit lib/ai/to-payload.ts
+          // ihn per Label-Vergleich einer Alternative (vehicleLineOptions())
+          // zuordnen kann. Frei erkannt, KEIN Slug aus einer Liste (der
+          // Katalog kennt die Alternativen nicht als eigene Modelle).
+          line: nullableString("Vom Kunden genannter Modellname bei mehrdeutiger Baureihe, z.B. \"X2\", sonst null."),
           confidence: { type: "number", description: "0 bis 1." },
         },
       },
@@ -165,6 +175,18 @@ const vehicleSchema = z.object({
   family_slug: z.string().min(1).nullable(),
   model_slug: z.string().min(1).nullable(),
   free_text: z.string(),
+  // Kundenentscheid 17.09.2026: frei erkannter Modellname bei mehrdeutiger
+  // Baureihe (z.B. "X2"), siehe RECORD_INQUIRY_TOOL.vehicle.line oben.
+  // .optional() zusätzlich zu .nullable() (obwohl das Tool-Schema "line"
+  // als required deklariert): robust gegen ältere/handgeschriebene
+  // Tool-Antworten ohne dieses Feld (siehe tests/ai/extract.test.ts) - fehlt
+  // es, gilt dasselbe wie null (kein erkannter Modellname).
+  line: z
+    .string()
+    .min(1)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
   confidence: z.number().min(0).max(1),
 });
 

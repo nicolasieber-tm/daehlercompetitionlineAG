@@ -30,7 +30,7 @@ export function CharacterStep({
     <div>
       <StepLabel>{t.steps.character.label}</StepLabel>
       <Question>
-        {tf(t.steps.character.question, { model: family ? vehicleDisplayName(family, model) : "" })}
+        {tf(t.steps.character.question, { model: family ? vehicleDisplayName(family, model, state.line) : "" })}
       </Question>
 
       <div className="mt-5 grid grid-cols-1 gap-2.5 xs:grid-cols-2 md2:grid-cols-3">

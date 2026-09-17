@@ -300,7 +300,7 @@ export function CategoryStep({
       <div className="grid grid-cols-1 items-end gap-5 sm2:grid-cols-[1fr_200px]">
         <div>
           <div className="mb-2.5 font-display text-xs font-semibold uppercase tracking-[0.14em] text-red-bright">
-            {t.steps.wish.categories[category].title} · {vehicleDisplayName(family, model)}
+            {t.steps.wish.categories[category].title} · {vehicleDisplayName(family, model, state.line)}
           </div>
           <h2 className="text-balance font-display text-[clamp(28px,4vw,40px)] font-bold uppercase leading-[1.02] tracking-[0.01em]">
             {t.steps.category.questions[category]}
@@ -313,7 +313,7 @@ export function CategoryStep({
       </div>
 
       <p className="mt-2 max-w-[58ch] text-muted">
-        {tf(t.steps.category.priceHintData, { model: vehicleDisplayName(family, model) })}
+        {tf(t.steps.category.priceHintData, { model: vehicleDisplayName(family, model, state.line) })}
       </p>
 
       <div className="mt-5 flex flex-col gap-6">
