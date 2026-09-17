@@ -85,7 +85,17 @@ export async function cancelOpenFollowUps(inquiryId: string, reason: string): Pr
  * Setzt inquiries.answer_received_at und storniert alle offenen Follow-ups.
  */
 export async function markAnswerReceived(inquiryId: string): Promise<void> {
-  await sql`update inquiries set answer_received_at = ${new Date().toISOString()} where id = ${inquiryId}`;
+  // Der Kunde hat sich gemeldet: Follow-ups stoppen und die Anfrage sichtbar
+  // wieder in Bearbeitung nehmen (Rückmeldung Auftraggeber 17.09.2026: ohne
+  // Statuswechsel war der Klick im Admin nicht erkennbar). Abgeschlossene
+  // Anfragen behalten ihren Status.
+  const inProgress: InquiryStatus = "in_bearbeitung";
+  await sql`
+    update inquiries
+    set answer_received_at = ${new Date().toISOString()},
+        status = case when status = 'abgeschlossen' then status else ${inProgress} end
+    where id = ${inquiryId}
+  `;
   await cancelOpenFollowUps(inquiryId, "answer_received");
 }
 

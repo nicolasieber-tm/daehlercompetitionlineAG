@@ -46,6 +46,7 @@ export function StatusControl({
   function handleAnswerReceived() {
     startTransition(async () => {
       await markAnswerReceivedAction(inquiryId);
+      showToast(admin.detail.markAnswerReceivedSaved, "success");
       router.refresh();
     });
   }

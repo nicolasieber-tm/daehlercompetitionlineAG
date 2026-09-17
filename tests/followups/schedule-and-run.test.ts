@@ -239,11 +239,24 @@ describe("markAnswerReceived", () => {
 
     await markAnswerReceived(inquiry.id);
 
-    const [updated] = await sql`select answer_received_at from inquiries where id = ${inquiry.id}`;
+    const [updated] = await sql`select answer_received_at, status from inquiries where id = ${inquiry.id}`;
     expect(updated.answer_received_at).not.toBeNull();
+    expect(updated.status).toBe("in_bearbeitung");
 
     const row = await singleFollowUpFor(inquiry.id);
     expect(row.cancelled_at).not.toBeNull();
+  });
+
+  it("lässt den Status einer abgeschlossenen Anfrage unverändert", async () => {
+    const inquiry = await createTestInquiry();
+    inquiryIds.push(inquiry.id);
+    await sql`update inquiries set status = 'abgeschlossen' where id = ${inquiry.id}`;
+
+    await markAnswerReceived(inquiry.id);
+
+    const [updated] = await sql`select answer_received_at, status from inquiries where id = ${inquiry.id}`;
+    expect(updated.answer_received_at).not.toBeNull();
+    expect(updated.status).toBe("abgeschlossen");
   });
 });
 

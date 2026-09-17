@@ -125,6 +125,7 @@ export const admin = {
     statusSaved: "Status gespeichert.",
     markAnswerReceived: "Antwort erhalten",
     markAnswerReceivedDone: "Antwort erhalten am {date}",
+    markAnswerReceivedSaved: "Antwort erhalten: Status auf «In Bearbeitung» gesetzt, Follow-ups gestoppt.",
     complete: "Abschliessen",
     completeDone: "Abgeschlossen",
     repliedAt: "Beantwortet am {date}",
