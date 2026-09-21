@@ -95,6 +95,35 @@ test.describe("Admin-Übersicht: ganze Zeile klickbar", () => {
   });
 });
 
+test.describe("Anfrage-Detail: Zurück zur Übersicht", () => {
+  test("«Zur Übersicht» führt zurück in die zuletzt gefilterte Übersicht", async ({ page }) => {
+    const number = `${NUMBER_PREFIX}-BACK`;
+    const id = await insertInquiry(number, "Reto", "Zurück");
+
+    await adminLogin(page);
+    await page.goto(`/admin?q=${encodeURIComponent(number)}`);
+
+    const customerCell = page.getByText("Reto Zurück", { exact: true }).and(page.locator(":visible"));
+    await expect(customerCell).toBeVisible();
+    await customerCell.click();
+    await page.waitForURL(`**/admin/anfragen/${id}`, { timeout: 15000 });
+
+    await page.getByRole("link", { name: "Zur Übersicht" }).click();
+    await page.waitForURL((u) => u.pathname === "/admin" && u.searchParams.get("q") === number, { timeout: 15000 });
+  });
+
+  test("ohne gemerkte Übersicht (Direkteinstieg) zeigt der Link auf /admin", async ({ page }) => {
+    const number = `${NUMBER_PREFIX}-BACKDIRECT`;
+    const id = await insertInquiry(number, "Dora", "Direkt");
+
+    await adminLogin(page);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.goto(`/admin/anfragen/${id}`);
+
+    await expect(page.getByRole("link", { name: "Zur Übersicht" })).toHaveAttribute("href", "/admin");
+  });
+});
+
 test.describe("Admin-Übersicht: Live-Refresh", () => {
   test("Aktualisieren-Button ist sichtbar", async ({ page }) => {
     await adminLogin(page);

@@ -26,6 +26,7 @@ import { formatZurichTime, hasChanged, newRowIds } from "@/lib/admin/live-refres
 import type { HeartbeatSnapshot } from "@/lib/admin/live-refresh";
 import { Toolbar } from "./Toolbar";
 import { InquiriesTable } from "./InquiriesTable";
+import { rememberOverviewHref } from "./BackToOverviewLink";
 import { useToast } from "./Toast";
 
 const HIGHLIGHT_MS = 8_000;
@@ -97,6 +98,12 @@ export function LiveRefresh({
   const searchParams = useSearchParams();
   const locationKey = `${pathname}?${searchParams.toString()}`;
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Aktuelle Ansicht (Filter + Seite) für den Zurück-Link der Detailseite merken.
+  const search = searchParams.toString();
+  useEffect(() => {
+    rememberOverviewHref(search);
+  }, [search]);
 
   // Neue Daten sind eingetroffen (rows-Prop hat sich geändert: entweder
   // durch unseren eigenen router.refresh() unten, oder durch eine normale

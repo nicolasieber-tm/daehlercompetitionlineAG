@@ -14,6 +14,7 @@ import { tf } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
 import type { InquiryStatus } from "@/lib/db/rows";
 import { Toolbar } from "@/components/admin/Toolbar";
+import { BackToOverviewLink } from "@/components/admin/BackToOverviewLink";
 import { StatusControl } from "@/components/admin/StatusControl";
 import { SummaryBlock } from "@/components/admin/SummaryBlock";
 import { CustomerCard } from "@/components/admin/CustomerCard";
@@ -43,6 +44,7 @@ export default async function AdminInquiryDetailPage({ params }: { params: Promi
 
   return (
     <>
+      <BackToOverviewLink />
       <Toolbar
         title={tf(admin.detail.title, { number: inquiry.number })}
         subtitle={[
