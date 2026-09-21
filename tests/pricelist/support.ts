@@ -51,6 +51,8 @@ export function makeParsedProduct(
 ): ParsedProduct {
   sourceRowCounter += 1;
   const base: ParsedProduct = {
+    bodyStyles: [],
+    drive: null,
     sourceRow: sourceRowCounter,
     sort: sourceRowCounter,
     sourceCategory: "Fahrwerk",
@@ -90,6 +92,8 @@ export function makeDbProduct(overrides: Partial<Product> & { name: string; cate
   dbRowCounter += 1;
   const now = new Date().toISOString();
   return {
+    body_styles: [],
+    drive: null,
     id: `test-product-${dbRowCounter}`,
     family_id: "test-family",
     active: true,

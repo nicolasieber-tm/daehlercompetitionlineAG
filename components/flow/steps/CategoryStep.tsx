@@ -15,7 +15,15 @@ import type { CatalogFamily, CatalogModel, CatalogProduct, CategoryNote, Product
 import type { FlowCategory } from "@/lib/db/rows";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import type { FlowAction, FlowState } from "../state";
-import { gearboxSelectionVisible, isVmaxLocked, motorProductVisible, vmaxLiftStage } from "../state";
+import {
+  bodyStyleSelectionVisible,
+  driveSelectionVisible,
+  effectiveBodyStyle,
+  gearboxSelectionVisible,
+  isVmaxLocked,
+  motorProductVisible,
+  vmaxLiftStage,
+} from "../state";
 import { usePsCounter } from "../usePsCounter";
 import { UPSELL_TARGET } from "../upsell";
 import { vehicleDisplayName } from "../vehicleLabel";
@@ -141,11 +149,18 @@ function priceText(
   return t.priceStatus.on_request;
 }
 
-function firstPriced(groups: ProductGroup[], category: FlowCategory, seriesPs: number | null): CatalogProduct | null {
+/** Erstes bepreistes Produkt einer Kategorie, das der Kunde auch sehen würde (gleicher Filter wie die Kacheln, siehe visibleProductsOf()). */
+function firstPriced(
+  groups: ProductGroup[],
+  category: FlowCategory,
+  seriesPs: number | null,
+  visible: (p: CatalogProduct) => boolean,
+): CatalogProduct | null {
   for (const g of groups) {
     if (g.category !== category) continue;
     for (const p of g.products) {
       if (category === "motor" && !motorProductVisible(p, seriesPs)) continue;
+      if (!visible(p)) continue;
       if (p.priceStatus === "priced" && p.priceTotal != null) return p;
     }
   }
@@ -191,7 +206,18 @@ export function CategoryStep({
   const upsellTexts = t.steps.category.upsell[category];
   const upsellOffered = !state.categories.includes(upsellTarget);
   const upsellAdded = state.upsoldCategories.includes(upsellTarget) && state.categories.includes(upsellTarget);
-  const upsellFirstPriced = firstPriced(allGroups, upsellTarget, seriesPs);
+  // Entscheid 21.09.2026 (Karosserieform/Antrieb): nicht passende Varianten
+  // (z.B. «... Touring» bei Limousine, «... ohne xdrive» bei xDrive) werden
+  // ausgeblendet, sobald die Angabe aus dem Fahrzeug-Schritt bekannt ist;
+  // neutrale Produkte bleiben immer sichtbar (lib/catalog/body-style.ts,
+  // lib/catalog/drive.ts).
+  const bodyStyle = effectiveBodyStyle(family, model, state);
+  const variantVisible = (p: CatalogProduct): boolean =>
+    bodyStyleSelectionVisible(p, bodyStyle) &&
+    driveSelectionVisible(p, state.driveChoice) &&
+    gearboxSelectionVisible(p, state.gearboxChoice);
+
+  const upsellFirstPriced = firstPriced(allGroups, upsellTarget, seriesPs, variantVisible);
 
   // pricelist_notes.category ist die rohe Excel-Kategorie (z.B. "Bremse"
   // gehört zur Flow-Kategorie fahrwerk), deshalb hier über die tatsächlich
@@ -204,7 +230,7 @@ export function CategoryStep({
   }
 
   function handleAddUpsell() {
-    const product = firstPriced(allGroups, upsellTarget, seriesPs);
+    const product = firstPriced(allGroups, upsellTarget, seriesPs, variantVisible);
     dispatch({ type: "ADD_UPSELL_CATEGORY", category: upsellTarget, afterCategory: category, firstProduct: product });
   }
 
@@ -221,7 +247,7 @@ export function CategoryStep({
   function visibleProductsOf(group: ProductGroup): CatalogProduct[] {
     return group.products.filter((p) => {
       if (category === "motor" && !motorProductVisible(p, seriesPs)) return false;
-      return gearboxSelectionVisible(p, state.gearboxChoice);
+      return variantVisible(p);
     });
   }
 

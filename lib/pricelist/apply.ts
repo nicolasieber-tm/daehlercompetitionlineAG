@@ -15,7 +15,7 @@
 // schlägt eine Familie fehl, bleibt der DB-Zustand für sie unverändert,
 // andere Familien sind davon unabhängig, wie schon bisher: applyImport()
 // sammelt Fehler pro Familie statt beim ersten Fehler ganz abzubrechen).
-// abgeleitete Felder (z.B. gearbox) werden bei jedem Import für JEDES
+// abgeleitete Felder (z.B. gearbox, body_styles, drive) werden bei jedem Import für JEDES
 // gematchte Produkt neu geschrieben, auch bei einem reinen content_hash-
 // Treffer (kein Sonderfall im Code: das Update-Payload enthält immer alle
 // Felder aus der aktuellen Excel-Zeile, unabhängig von matchedBy).
@@ -202,6 +202,8 @@ interface ProductRowFields {
   nm_to: number | null;
   variant_group: string | null;
   gearbox: string | null;
+  body_styles: string[];
+  drive: string | null;
   fits_all: boolean;
   sort: number;
   source_row: number | null;
@@ -229,6 +231,8 @@ const PRODUCT_ROW_COLUMNS = [
   "nm_to",
   "variant_group",
   "gearbox",
+  "body_styles",
+  "drive",
   "fits_all",
   "sort",
   "source_row",
@@ -264,6 +268,8 @@ function buildProductRow(familyId: string, p: ParsedFamily["products"][number]):
     nm_to: p.nmTo,
     variant_group: p.variantGroup,
     gearbox: p.gearbox,
+    body_styles: p.bodyStyles,
+    drive: p.drive,
     fits_all: p.fitsAll,
     sort: p.sort,
     source_row: p.sourceRow,

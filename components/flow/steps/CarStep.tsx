@@ -11,7 +11,7 @@ import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
 import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import type { Brand, Fuel } from "@/lib/db/rows";
 import type { FlowAction, FlowState } from "../state";
-import { YEAR_OPTIONS_BASE, effectiveSeriesPs } from "../state";
+import { YEAR_OPTIONS_BASE, bodyStyleFromLine, effectiveSeriesPs } from "../state";
 import { vehicleDisplayName } from "../vehicleLabel";
 
 const FUEL_ORDER: Fuel[] = ["benzin", "diesel", "elektro"];
@@ -69,6 +69,17 @@ export function CarStep({
   // Baureihe (vehicleLineOptions() liefert dann die Alternativen, sonst
   // leer), Pflicht vor "Weiter" wie Serienleistung/Getriebe oben.
   const lineOptions = selectedFamily && selectedModel ? vehicleLineOptions(selectedFamily, selectedModel) : [];
+
+  // Entscheid 21.09.2026 (Karosserieform/Antrieb, lib/catalog/body-style.ts,
+  // lib/catalog/drive.ts): Karosserie-Frage nur, wenn das Modell Produkte
+  // mit unterschiedlichen Karosserieformen hat (bodyStyleOptions) UND die
+  // Modellwahl oben die Karosserie nicht schon festlegt (z.B. «Cabrio» bei
+  // 4er G22/G23/G26). Antriebs-Frage nur bei Produkten für beide Antriebe.
+  // Beide Pflicht vor "Weiter" (Flow.tsx canNext).
+  const bodyStyleOptions = selectedModel?.bodyStyleOptions ?? [];
+  const showBodyStyleChoice =
+    bodyStyleOptions.length > 0 && bodyStyleFromLine(selectedFamily, selectedModel, state.line) === null;
+  const driveOptions = selectedModel?.driveOptions ?? [];
 
   return (
     <div>
@@ -189,6 +200,46 @@ export function CarStep({
           {state.line === null ? (
             <p className="mt-2 text-[13px] text-muted" aria-live="polite">
               {t.steps.car.lineRequired}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showBodyStyleChoice ? (
+        <div className="mt-6">
+          <StepLabel>{t.steps.car.bodyStyleQuestion}</StepLabel>
+          <div className="flex flex-wrap gap-2" role="group" aria-label={t.steps.car.bodyStyleQuestion}>
+            {bodyStyleOptions.map((style) => (
+              <Chip
+                key={style}
+                active={state.bodyStyleChoice === style}
+                onClick={() => dispatch({ type: "SET_BODY_STYLE", bodyStyle: style })}
+              >
+                {t.steps.car.bodyStyles[style]}
+              </Chip>
+            ))}
+          </div>
+          {state.bodyStyleChoice === null ? (
+            <p className="mt-2 text-[13px] text-muted" aria-live="polite">
+              {t.steps.car.bodyStyleRequired}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {driveOptions.length > 0 ? (
+        <div className="mt-6">
+          <StepLabel>{t.steps.car.driveQuestion}</StepLabel>
+          <div className="flex flex-wrap gap-2" role="group" aria-label={t.steps.car.driveQuestion}>
+            {driveOptions.map((drive) => (
+              <Chip key={drive} active={state.driveChoice === drive} onClick={() => dispatch({ type: "SET_DRIVE", drive })}>
+                {t.steps.car.drives[drive]}
+              </Chip>
+            ))}
+          </div>
+          {state.driveChoice === null ? (
+            <p className="mt-2 text-[13px] text-muted" aria-live="polite">
+              {t.steps.car.driveRequired}
             </p>
           ) : null}
         </div>

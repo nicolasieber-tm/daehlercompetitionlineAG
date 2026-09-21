@@ -20,8 +20,10 @@ import { ContactStep, isContactValid } from "./steps/ContactStep";
 import { DoneStep } from "./steps/DoneStep";
 import {
   allSelectedProducts,
+  bodyStyleFromLine,
   buildSteps,
   categoryOfStep,
+  effectiveBodyStyle,
   effectiveSeriesPs,
   flowReducer,
   initialFlowState,
@@ -95,6 +97,20 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
         if (selectedFamily && selectedModel && vehicleLineOptions(selectedFamily, selectedModel).length > 0 && state.line === null) {
           return false;
         }
+        // Entscheid 21.09.2026 (Karosserieform/Antrieb): Pflicht vor
+        // "Weiter", wenn die jeweilige Frage gestellt wird (siehe
+        // CarStep.tsx showBodyStyleChoice / driveOptions).
+        if (
+          selectedModel &&
+          selectedModel.bodyStyleOptions.length > 0 &&
+          bodyStyleFromLine(selectedFamily, selectedModel, state.line) === null &&
+          state.bodyStyleChoice === null
+        ) {
+          return false;
+        }
+        if (selectedModel && selectedModel.driveOptions.length > 0 && state.driveChoice === null) {
+          return false;
+        }
         return true;
       }
       case "wish":
@@ -124,6 +140,11 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
       // prüft sie erneut gegen die aktuellen Optionen, bevor sie
       // gespeichert wird.
       line: state.line,
+      // Entscheid 21.09.2026: wirksame Karosserieform (aus der Modellwahl
+      // oder der Chip-Antwort) und Antrieb; lib/inquiry/create.ts prüft
+      // beide erneut gegen die Optionen des Modells.
+      bodyStyle: effectiveBodyStyle(selectedFamily, selectedModel, state),
+      drive: state.driveChoice,
       // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
       // Punkt 3): effektiv wirksame Serienleistung (siehe seriesPs oben,
       // effectiveSeriesPs()) - wird für die Vorher/Nachher-Leistungszeile

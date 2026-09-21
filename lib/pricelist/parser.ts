@@ -7,6 +7,8 @@ import * as XLSX from "xlsx";
 import { isCategoryRow, mapSourceCategory } from "@/lib/catalog/categories";
 import { variantGroupFor } from "@/lib/catalog/variant-groups";
 import { gearboxFor } from "@/lib/catalog/gearbox";
+import { assignBodyStyles } from "@/lib/catalog/body-style";
+import { driveFor } from "@/lib/catalog/drive";
 import { slug } from "@/lib/pricelist/slug";
 import type {
   Brand,
@@ -1013,6 +1015,8 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
         nmTo: perf.nmTo,
         variantGroup: variantGroupFor(currentFlowCategory, name),
         gearbox: gearboxFor(name),
+        bodyStyles: [],
+        drive: driveFor(name),
         fits: fitsAll ? [] : marksNames,
         fitsAll,
         contentHash: "",
@@ -1114,6 +1118,8 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
             nmTo: perf.nmTo,
             variantGroup: variantGroupFor(currentFlowCategory, name),
             gearbox: gearboxFor(name),
+            bodyStyles: [],
+            drive: driveFor(name),
             fits: fitsAll ? [] : mergedMarks,
             fitsAll,
             contentHash: "",
@@ -1171,6 +1177,8 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
         nmTo: perf.nmTo,
         variantGroup: variantGroupFor(currentFlowCategory, name),
         gearbox: gearboxFor(name),
+        bodyStyles: [],
+        drive: driveFor(name),
         fits: fitsAll ? [] : marksNames,
         fitsAll,
         contentHash: "",
@@ -1246,6 +1254,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
         currentProduct.nmTo = perf.nmTo;
         currentProduct.variantGroup = variantGroupFor(currentProduct.category, currentProduct.name);
         currentProduct.gearbox = gearboxFor(currentProduct.name);
+        currentProduct.drive = driveFor(currentProduct.name);
         currentProduct.contentHash = computeContentHash(currentProduct);
       } else {
         currentProduct.description = currentProduct.description
@@ -1364,6 +1373,19 @@ export function parseWorkbook(buffer: ArrayBuffer | Buffer, sourceFile: string):
 
   // Befund #2: Dubletten im content_hash innerhalb der Familie disambiguieren.
   disambiguateDuplicateHashes(products, warnings);
+
+  // Karosserieform je Produkt (Entscheid 21.09.2026, siehe lib/catalog/
+  // body-style.ts und docs/excel-import.md, Abschnitt «Karosserieform und
+  // Antrieb»): Erkennung aus dem Namen plus Geschwister-Regel für
+  // unbeschriftete Gegenstücke, erst hier, wenn alle Namen (inkl.
+  // Fortsetzungszeilen) vollständig sind. Kein Teil des content_hash
+  // (abgeleitetes Feld, wie gearbox/drive).
+  const bodyStyleResult = assignBodyStyles(
+    products,
+    codes,
+    models.map((m) => m.name),
+  );
+  for (const w of bodyStyleResult.warnings) warnings.push(`Karosserieform: ${w}`);
 
   return {
     name: familyName,

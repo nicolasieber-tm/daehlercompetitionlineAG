@@ -7,7 +7,15 @@
 // state.selections ohnehin bereits vollständig - hier zur Vollständigkeit
 // als Regressionstest mitgeprüft.
 import { describe, expect, it } from "vitest";
-import { flowReducer, gearboxSelectionVisible, initialFlowState, isVmaxLocked, vmaxLiftStage } from "@/components/flow/state";
+import {
+  bodyStyleFromLine,
+  effectiveBodyStyle,
+  flowReducer,
+  gearboxSelectionVisible,
+  initialFlowState,
+  isVmaxLocked,
+  vmaxLiftStage,
+} from "@/components/flow/state";
 import type { FlowState } from "@/components/flow/state";
 import type { CatalogProduct } from "@/lib/catalog/queries";
 
@@ -29,6 +37,8 @@ function product(overrides: Partial<CatalogProduct> & { id: string; category: Ca
     nmTo: null,
     variantGroup: null,
     gearbox: null,
+    bodyStyles: [],
+    drive: null,
     sort: 0,
     ...overrides,
   };
@@ -149,6 +159,63 @@ describe("flowReducer SET_GEARBOX", () => {
     const next = flowReducer(state, { type: "SET_GEARBOX", gearbox: "manual" });
 
     expect(next.selections.fahrwerk).toEqual([neutral]);
+  });
+});
+
+// Entscheid 21.09.2026 (Karosserieform/Antrieb, lib/catalog/body-style.ts,
+// lib/catalog/drive.ts): dieselbe Bereinigung wie SET_GEARBOX.
+describe("flowReducer SET_BODY_STYLE / SET_DRIVE", () => {
+  it("entfernt ein gewähltes Touring-Fahrwerk, wenn Limousine gewählt wird, behält neutrale Produkte", () => {
+    const touring = product({ id: "touring", category: "fahrwerk", bodyStyles: ["touring"] });
+    const neutral = product({ id: "neutral", category: "fahrwerk", bodyStyles: [] });
+    const state = withSelections({ fahrwerk: [touring, neutral] });
+
+    const next = flowReducer(state, { type: "SET_BODY_STYLE", bodyStyle: "limousine" });
+
+    expect(next.bodyStyleChoice).toBe("limousine");
+    expect(next.selections.fahrwerk).toEqual([neutral]);
+  });
+
+  it("behält ein Produkt, das die gewählte Karosserieform nennt (auch als eine von mehreren)", () => {
+    const both = product({ id: "both", category: "fahrwerk", bodyStyles: ["touring", "gran_turismo"] });
+    const state = withSelections({ fahrwerk: [both] });
+    const next = flowReducer(state, { type: "SET_BODY_STYLE", bodyStyle: "gran_turismo" });
+    expect(next.selections.fahrwerk).toEqual([both]);
+  });
+
+  it("entfernt ein Heckantrieb-Fahrwerk, wenn xDrive gewählt wird", () => {
+    const rwd = product({ id: "rwd", category: "fahrwerk", drive: "rwd" });
+    const xdrive = product({ id: "xdrive", category: "fahrwerk", drive: "xdrive" });
+    const state = withSelections({ fahrwerk: [rwd, xdrive] });
+    const next = flowReducer(state, { type: "SET_DRIVE", drive: "xdrive" });
+    expect(next.driveChoice).toBe("xdrive");
+    expect(next.selections.fahrwerk).toEqual([xdrive]);
+  });
+
+  it("SET_LINE setzt eine vorherige Karosserie-Antwort zurück, SELECT_MODEL beide Antworten", () => {
+    const state: FlowState = { ...initialFlowState(), bodyStyleChoice: "touring", driveChoice: "xdrive" };
+    expect(flowReducer(state, { type: "SET_LINE", line: "cabrio" }).bodyStyleChoice).toBeNull();
+    const next = flowReducer(state, { type: "SELECT_MODEL", modelId: "m" });
+    expect(next.bodyStyleChoice).toBeNull();
+    expect(next.driveChoice).toBeNull();
+  });
+});
+
+describe("bodyStyleFromLine / effectiveBodyStyle", () => {
+  const family = { brand: "BMW", name: "4er Coupé G22, Cabrio G23, Grand Coupé G26", codes: ["G22", "G23", "G26"] };
+  const model = { name: "20i" };
+
+  it("Modellwahl «Cabrio» legt die Karosserie fest, «X2» nicht", () => {
+    expect(bodyStyleFromLine(family, model, "cabrio")).toBe("cabrio");
+    expect(bodyStyleFromLine(family, model, "grand-coupe")).toBe("gran_coupe");
+    expect(bodyStyleFromLine({ brand: "BMW", name: "X1 U11 / X2 U10", codes: ["U11", "U10"] }, model, "x2")).toBeNull();
+    expect(bodyStyleFromLine(family, model, null)).toBeNull();
+  });
+
+  it("effectiveBodyStyle: Modellwahl vor Chip-Antwort", () => {
+    expect(effectiveBodyStyle(family, model, { line: "cabrio", bodyStyleChoice: "coupe" })).toBe("cabrio");
+    expect(effectiveBodyStyle(family, model, { line: null, bodyStyleChoice: "coupe" })).toBe("coupe");
+    expect(effectiveBodyStyle(null, null, { line: null, bodyStyleChoice: null })).toBeNull();
   });
 });
 

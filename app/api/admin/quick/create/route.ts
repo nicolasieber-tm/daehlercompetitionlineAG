@@ -42,6 +42,13 @@ const overridesSchema = z.object({
   // unbekannte Keys still, das Dropdown in QuickInquiryForm.tsx blieb
   // dadurch wirkungslos.
   line: z.string().trim().min(1).nullable().optional(),
+  // Entscheid 21.09.2026: Karosserieform/Antrieb aus den Dropdowns in
+  // QuickInquiryForm.tsx (siehe lib/ai/to-payload.ts QuickOverrides).
+  bodyStyle: z
+    .enum(["limousine", "touring", "gran_turismo", "coupe", "cabrio", "gran_coupe", "dreituerer", "fuenftuerer"])
+    .nullable()
+    .optional(),
+  drive: z.enum(["xdrive", "rwd"]).nullable().optional(),
   vehicleText: z.string().nullable().optional(),
   year: z.string().nullable().optional(),
   beenHere: z.boolean().optional(),

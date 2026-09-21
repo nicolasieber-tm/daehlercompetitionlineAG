@@ -5,7 +5,18 @@
 // Zugriff über den einzigen, serverseitigen Postgres-Pool (lib/db/client.ts,
 // sql).
 import { sql } from "@/lib/db/client";
-import { FLOW_CATEGORIES, type Brand, type FlowCategory, type Fuel, type Gearbox, type PriceStatus } from "@/lib/db/rows";
+import { bodyStyleFromText, isBodyStyle, sortBodyStyles } from "@/lib/catalog/body-style";
+import { DRIVE_ORDER, isDrive } from "@/lib/catalog/drive";
+import {
+  FLOW_CATEGORIES,
+  type BodyStyle,
+  type Brand,
+  type Drive,
+  type FlowCategory,
+  type Fuel,
+  type Gearbox,
+  type PriceStatus,
+} from "@/lib/db/rows";
 
 // ---------------------------------------------------------------------------
 // Typen (Flow-Sicht, camelCase statt DB-Spaltennamen)
@@ -27,6 +38,16 @@ export interface CatalogModel {
    * seriesPsSuggested für die Serienleistungs-Chips. Rückmeldung erster
    * Klicktest, CLAUDE.md Abschnitt "AUFGABE", Punkt 3. */
   hasGearboxSpecificProducts: boolean;
+  /** Karosserieformen, zwischen denen der Kunde im Fahrzeug-Schritt wählen
+   * muss (Entscheid 21.09.2026, lib/catalog/body-style.ts): die Vereinigung
+   * der body_styles aller Produkte, die dieses Modell fitten, sofern
+   * mindestens ZWEI verschiedene Karosserie-Zuordnungen darunter sind
+   * (sonst gäbe es nichts auszublenden). Leer = Frage nicht stellen. */
+  bodyStyleOptions: BodyStyle[];
+  /** Antriebe, zwischen denen der Kunde wählen muss (lib/catalog/drive.ts):
+   * nur wenn Produkte für BEIDE Antriebe dieses Modell fitten. Leer =
+   * Frage nicht stellen. */
+  driveOptions: Drive[];
 }
 
 export interface CatalogFamily {
@@ -62,6 +83,10 @@ export interface CatalogProduct {
   variantGroup: string | null;
   /** Aus dem Namen abgeleitet (lib/catalog/gearbox.ts), null = getriebeneutral. */
   gearbox: Gearbox | null;
+  /** Karosserieformen, für die das Produkt gilt (lib/catalog/body-style.ts), leer = alle. */
+  bodyStyles: BodyStyle[];
+  /** Antrieb, für den das Produkt gilt (lib/catalog/drive.ts), null = antriebsneutral. */
+  drive: Drive | null;
   sort: number;
 }
 
@@ -165,17 +190,66 @@ interface FamilyModelRow {
   model_sort: number | null;
 }
 
-/** Ergebnis von loadGearboxSpecificModelIds() (siehe dort). */
-interface GearboxCoverage {
-  /** family_id, für die mindestens ein fits_all-Produkt getriebespezifisch ist (gilt dann für ALLE Modelle der Familie). */
-  familyIdsWithFitsAll: Set<string>;
-  /** model_id, das über product_fitment direkt ein getriebespezifisches Produkt fittet (fits_all false). */
-  modelIds: Set<string>;
+/**
+ * Ergebnis von loadVariantCoverage() (siehe dort): je Modell die Menge der
+ * Produkte, die modellspezifische Fragen im Fahrzeug-Schritt auslösen
+ * (Getriebe, Karosserieform, Antrieb).
+ */
+interface VariantCoverage {
+  /** family_id -> Produkte mit fits_all (gelten für ALLE Modelle der Familie). */
+  fitsAllByFamily: Map<string, VariantProduct[]>;
+  /** model_id -> Produkte, die das Modell über product_fitment direkt fitten. */
+  byModel: Map<string, VariantProduct[]>;
+}
+
+interface VariantProduct {
+  gearbox: string | null;
+  bodyStyles: BodyStyle[];
+  drive: Drive | null;
+}
+
+/** Produkte, die ein Modell fitten und mindestens eine Variantenangabe tragen. */
+function variantProductsFor(coverage: VariantCoverage, familyId: string, modelId: string): VariantProduct[] {
+  return [...(coverage.fitsAllByFamily.get(familyId) ?? []), ...(coverage.byModel.get(modelId) ?? [])];
+}
+
+/**
+ * Karosserie-Optionen eines Modells (siehe CatalogModel.bodyStyleOptions):
+ * Vereinigung der body_styles der fittenden Produkte, aber nur, wenn
+ * mindestens zwei VERSCHIEDENE Zuordnungen vorkommen (z.B. {touring} und
+ * {limousine}, oder {cabrio} und {dreituerer, fuenftuerer}) - bei nur einer
+ * Zuordnung (z.B. M5 G90: alle karosseriespezifischen Produkte gelten für
+ * die Limousine, das Modell «M5 Touring» ist ein eigenes Modell) gibt es
+ * nichts auszublenden und keine Frage. Nennt der Modellname selbst eine
+ * Karosserieform («M3 Touring», «M4 Cabrio», «M5 Touring»), ist sie damit
+ * bekannt, keine Frage - und bewusst auch kein Filter: die Excel markiert
+ * dort Produkte wie «Performance Fahrwerk ... für M4 Cabrio xDrive»
+ * ausdrücklich als passend für «M3 Touring», das Fitment hat Vorrang.
+ */
+function bodyStyleOptionsFor(products: VariantProduct[], modelName: string): BodyStyle[] {
+  if (bodyStyleFromText(modelName) !== null) return [];
+  const keys = new Set<string>();
+  const union = new Set<BodyStyle>();
+  for (const p of products) {
+    if (p.bodyStyles.length === 0) continue;
+    keys.add([...p.bodyStyles].sort().join("|"));
+    for (const s of p.bodyStyles) union.add(s);
+  }
+  if (keys.size < 2 || union.size < 2) return [];
+  return sortBodyStyles(union);
+}
+
+/** Antriebs-Optionen eines Modells (siehe CatalogModel.driveOptions): nur wenn Produkte für BEIDE Antriebe fitten. */
+function driveOptionsFor(products: VariantProduct[]): Drive[] {
+  const found = new Set<Drive>();
+  for (const p of products) if (p.drive) found.add(p.drive);
+  if (found.size < 2) return [];
+  return DRIVE_ORDER.filter((d) => found.has(d));
 }
 
 /** Gruppiert die flachen JOIN-Zeilen zu einer CatalogFamily je family_id,
  * in der Reihenfolge des ersten Auftretens. */
-function groupFamilyRows(rows: FamilyModelRow[], gearboxCoverage: GearboxCoverage): CatalogFamily[] {
+function groupFamilyRows(rows: FamilyModelRow[], coverage: VariantCoverage): CatalogFamily[] {
   const byId = new Map<string, CatalogFamily>();
   for (const row of rows) {
     let family = byId.get(row.family_id);
@@ -195,6 +269,7 @@ function groupFamilyRows(rows: FamilyModelRow[], gearboxCoverage: GearboxCoverag
       byId.set(row.family_id, family);
     }
     if (row.model_id) {
+      const variantProducts = variantProductsFor(coverage, row.family_id, row.model_id);
       family.models.push({
         id: row.model_id,
         name: row.model_name!,
@@ -204,8 +279,9 @@ function groupFamilyRows(rows: FamilyModelRow[], gearboxCoverage: GearboxCoverag
         seriesNm: row.model_series_nm,
         seriesPsSuggested: row.model_series_ps_suggested ?? [],
         sort: row.model_sort ?? 0,
-        hasGearboxSpecificProducts:
-          gearboxCoverage.familyIdsWithFitsAll.has(row.family_id) || gearboxCoverage.modelIds.has(row.model_id),
+        hasGearboxSpecificProducts: variantProducts.some((p) => p.gearbox !== null),
+        bodyStyleOptions: bodyStyleOptionsFor(variantProducts, row.model_name!),
+        driveOptions: driveOptionsFor(variantProducts),
       });
     }
   }
@@ -226,41 +302,61 @@ function sortFamilies(families: CatalogFamily[]): CatalogFamily[] {
 }
 
 /**
- * Ermittelt, für welche Familien (fits_all) bzw. Modelle (product_fitment)
- * mindestens ein aktives, getriebespezifisches Produkt (gearbox != null)
- * existiert - Grundlage für CatalogModel.hasGearboxSpecificProducts (siehe
- * dort). Zwei Abfragen statt einer grossen: die products-Abfrage ist klein
- * (nur gearbox-gesetzte Zeilen, siehe DB-Auswertung: 43 Stück im Bestand),
- * product_fitment wird nur für deren fits_all=false-Teilmenge geladen.
+ * Lädt für die gegebenen Familien alle aktiven Produkte, die mindestens
+ * eine Variantenangabe tragen (gearbox != null, body_styles nicht leer oder
+ * drive != null) und ordnet sie den Modellen zu (fits_all -> ganze Familie,
+ * sonst über product_fitment) - Grundlage für CatalogModel.
+ * hasGearboxSpecificProducts / bodyStyleOptions / driveOptions (siehe dort).
+ * Zwei kleine Abfragen statt einer grossen: die Variantenprodukte sind eine
+ * kleine Teilmenge (Kraftübertragung, Pedale, Fahrwerk), product_fitment
+ * wird nur für deren fits_all=false-Teil geladen.
  */
-async function loadGearboxSpecificModelIds(familyIds: string[]): Promise<GearboxCoverage> {
-  const empty: GearboxCoverage = { familyIdsWithFitsAll: new Set(), modelIds: new Set() };
+async function loadVariantCoverage(familyIds: string[]): Promise<VariantCoverage> {
+  const empty: VariantCoverage = { fitsAllByFamily: new Map(), byModel: new Map() };
   if (familyIds.length === 0) return empty;
 
-  const products = await sql<{ id: string; family_id: string; fits_all: boolean }[]>`
-    select id, family_id, fits_all
+  const products = await sql<
+    { id: string; family_id: string; fits_all: boolean; gearbox: string | null; body_styles: string[] | null; drive: string | null }[]
+  >`
+    select id, family_id, fits_all, gearbox, body_styles, drive
     from products
     where family_id = any(${familyIds}::uuid[])
       and active = true
-      and gearbox is not null
+      and (gearbox is not null or drive is not null or cardinality(body_styles) > 0)
   `;
 
-  const familyIdsWithFitsAll = new Set<string>();
+  const byProductId = new Map<string, VariantProduct>();
   const specificProductIds: string[] = [];
   for (const p of products) {
-    if (p.fits_all) familyIdsWithFitsAll.add(p.family_id);
-    else specificProductIds.push(p.id);
+    const vp: VariantProduct = {
+      gearbox: p.gearbox,
+      bodyStyles: (p.body_styles ?? []).filter(isBodyStyle),
+      drive: isDrive(p.drive) ? p.drive : null,
+    };
+    if (p.fits_all) {
+      const arr = empty.fitsAllByFamily.get(p.family_id);
+      if (arr) arr.push(vp);
+      else empty.fitsAllByFamily.set(p.family_id, [vp]);
+    } else {
+      byProductId.set(p.id, vp);
+      specificProductIds.push(p.id);
+    }
   }
 
-  const modelIds = new Set<string>();
   if (specificProductIds.length > 0) {
-    const fitment = await sql<{ model_id: string }[]>`
-      select model_id from product_fitment where product_id = any(${specificProductIds}::uuid[])
+    const fitment = await sql<{ product_id: string; model_id: string }[]>`
+      select product_id, model_id from product_fitment where product_id = any(${specificProductIds}::uuid[])
     `;
-    for (const f of fitment) modelIds.add(f.model_id);
+    for (const f of fitment) {
+      const vp = byProductId.get(f.product_id);
+      if (!vp) continue;
+      const arr = empty.byModel.get(f.model_id);
+      if (arr) arr.push(vp);
+      else empty.byModel.set(f.model_id, [vp]);
+    }
   }
 
-  return { familyIdsWithFitsAll, modelIds };
+  return empty;
 }
 
 /** Aktive Familien mit aktiven Modellen, sortiert BMW/MINI/Toyota/Wiesmann, dann sort, dann name. */
@@ -277,8 +373,8 @@ export async function getFamilies(): Promise<CatalogFamily[]> {
     where mf.active = true
   `;
   const familyIds = [...new Set(rows.map((r) => r.family_id))];
-  const gearboxCoverage = await loadGearboxSpecificModelIds(familyIds);
-  return sortFamilies(groupFamilyRows(rows, gearboxCoverage));
+  const coverage = await loadVariantCoverage(familyIds);
+  return sortFamilies(groupFamilyRows(rows, coverage));
 }
 
 export async function getFamilyBySlug(slug: string): Promise<CatalogFamily | null> {
@@ -294,8 +390,8 @@ export async function getFamilyBySlug(slug: string): Promise<CatalogFamily | nul
     where mf.active = true and mf.slug = ${slug}
   `;
   if (rows.length === 0) return null;
-  const gearboxCoverage = await loadGearboxSpecificModelIds([rows[0].family_id]);
-  return groupFamilyRows(rows, gearboxCoverage)[0] ?? null;
+  const coverage = await loadVariantCoverage([rows[0].family_id]);
+  return groupFamilyRows(rows, coverage)[0] ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -321,6 +417,8 @@ interface ProductRow {
   nm_to: number | null;
   variant_group: string | null;
   gearbox: string | null;
+  body_styles: string[] | null;
+  drive: string | null;
   sort: number;
 }
 
@@ -344,6 +442,8 @@ function mapProduct(p: ProductRow): CatalogProduct {
     nmTo: p.nm_to,
     variantGroup: p.variant_group,
     gearbox: p.gearbox as Gearbox | null,
+    bodyStyles: (p.body_styles ?? []).filter(isBodyStyle),
+    drive: isDrive(p.drive) ? p.drive : null,
     sort: p.sort,
   };
 }
@@ -367,6 +467,8 @@ const PRODUCT_COLUMNS = [
   "nm_to",
   "variant_group",
   "gearbox",
+  "body_styles",
+  "drive",
   "sort",
 ] as const;
 

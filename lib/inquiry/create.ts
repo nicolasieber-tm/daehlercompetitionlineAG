@@ -4,10 +4,12 @@
 // und künftig vom Schnellweg-Admin (source "quick", Posten 3, nicht Teil
 // dieser Aufgabe).
 import { sql } from "@/lib/db/client";
-import { getProductsByIds, getProductsForModel } from "@/lib/catalog/queries";
+import { getFamilyBySlug, getProductsByIds, getProductsForModel } from "@/lib/catalog/queries";
+import { bodyStyleFromText, isBodyStyle } from "@/lib/catalog/body-style";
+import { isDrive } from "@/lib/catalog/drive";
 import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import { getSettings, sendInquiryMail, vehicleLabel } from "@/lib/mail";
-import type { Character, FlowCategory, Model, ModelFamily, PriceStatus, Timing } from "@/lib/db/rows";
+import type { BodyStyle, Character, Drive, FlowCategory, Model, ModelFamily, PriceStatus, Timing } from "@/lib/db/rows";
 import { runChecks } from "@/lib/rules/checks";
 import type { CheckContext, CheckResult } from "@/lib/rules/checks";
 import { buildDraft } from "@/lib/draft/template";
@@ -51,6 +53,8 @@ interface SelectedProduct {
   psTo: number | null;
   nmTo: number | null;
   variantGroup: string | null;
+  bodyStyles: BodyStyle[];
+  drive: Drive | null;
 }
 
 /**
@@ -127,6 +131,8 @@ export async function createInquiry(
           psTo: p.psTo,
           nmTo: p.nmTo,
           variantGroup: p.variantGroup,
+          bodyStyles: p.bodyStyles,
+          drive: p.drive,
         });
       }
     }
@@ -154,6 +160,34 @@ export async function createInquiry(
           : null)
       : null;
 
+  // 3c. Entscheid 21.09.2026 (Karosserieform/Antrieb): die gewählte
+  // Karosserieform gilt nur, wenn das Modell sie als Option führt
+  // (CatalogModel.bodyStyleOptions, die Vereinigung der Karosserieformen
+  // seiner karosseriespezifischen Produkte) ODER sie aus der gültigen
+  // Modellwahl folgt («Cabrio» bei 4er G22/G23/G26) - alles andere wird zu
+  // null (Frage nicht gestellt / nicht beantwortbar). Antrieb analog.
+  let bodyStyle: BodyStyle | null = null;
+  let drive: Drive | null = null;
+  if (model) {
+    const catalogFamily = await getFamilyBySlug(family.slug);
+    const catalogModel = catalogFamily?.models.find((m) => m.id === model!.id) ?? null;
+    const lineLabel = line
+      ? vehicleLineOptions(
+          { brand: family.brand, name: family.name, codes: family.codes },
+          { name: model.name },
+        ).find((option) => option.id === line)?.label ?? null
+      : null;
+    const fromLine = bodyStyleFromText(lineLabel);
+    if (fromLine) {
+      bodyStyle = fromLine;
+    } else if (isBodyStyle(payload.bodyStyle) && catalogModel?.bodyStyleOptions.includes(payload.bodyStyle)) {
+      bodyStyle = payload.bodyStyle;
+    }
+    if (isDrive(payload.drive) && catalogModel?.driveOptions.includes(payload.drive)) {
+      drive = payload.drive;
+    }
+  }
+
   // 4. Prüfhinweise.
   const checkCtx: CheckContext = {
     inquiry: {
@@ -164,6 +198,8 @@ export async function createInquiry(
       year: payload.year,
       gearbox: payload.gearbox,
       line,
+      bodyStyle,
+      drive,
     },
     family: { hasPricelist: family.has_pricelist, brand: family.brand, name: family.name, codes: family.codes },
     model: model ? { id: model.id, name: model.name } : null,
@@ -177,6 +213,8 @@ export async function createInquiry(
       variantGroup: p.variantGroup,
       priceStatus: p.priceStatus,
       psTo: p.psTo,
+      bodyStyles: p.bodyStyles,
+      drive: p.drive,
     })),
   };
   const checks = runChecks(checkCtx, payload.locale);
@@ -283,13 +321,13 @@ export async function createInquiry(
     const [inserted] = await tx<{ id: string }[]>`
       insert into inquiries (
         number, status, source, locale, family_id, model_id, vehicle_text, year, been_here, gearbox,
-        series_ps, line, categories, consulting, selections, follow_up_answers, character, timing,
+        series_ps, line, body_style, drive, categories, consulting, selections, follow_up_answers, character, timing,
         first_name, last_name, city, phone, email, channel, message, estimated_total, checks,
         draft_subject, draft_reply, share_token
       ) values (
         ${number}, 'neu', ${opts.source}, ${payload.locale}, ${payload.familyId}, ${payload.modelId},
         ${payload.vehicleText}, ${payload.year}, ${payload.beenHere}, ${payload.gearbox},
-        ${payload.seriesPs}, ${line}, ${payload.categories}, ${payload.consulting}, ${sql.json(selectionsJson)},
+        ${payload.seriesPs}, ${line}, ${bodyStyle}, ${drive}, ${payload.categories}, ${payload.consulting}, ${sql.json(selectionsJson)},
         ${sql.json(payload.followUpAnswers)}, ${payload.character}, ${payload.timing},
         ${payload.firstName}, ${payload.lastName}, ${payload.city}, ${payload.phone}, ${payload.email},
         ${payload.channel}, ${payload.message || null}, ${estimatedTotal}, ${sql.json(JSON.parse(JSON.stringify(checks)))},

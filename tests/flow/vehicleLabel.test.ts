@@ -45,6 +45,8 @@ function model(overrides: Partial<CatalogModel> & { name: string }): CatalogMode
     seriesPsSuggested: [],
     sort: 0,
     hasGearboxSpecificProducts: false,
+    bodyStyleOptions: [],
+    driveOptions: [],
     ...overrides,
   };
 }

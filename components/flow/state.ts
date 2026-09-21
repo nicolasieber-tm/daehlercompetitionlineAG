@@ -12,9 +12,13 @@
 // ADD_UPSELL_CATEGORY/REMOVE_UPSELL_CATEGORY unten: "Doch nicht" steht immer
 // auf einem ANDEREN Kategorie-Schritt als dem vorgeschlagenen).
 import type { CatalogProduct, CategoryNote, ProductGroup } from "@/lib/catalog/queries";
+import { bodyStyleFromText, bodyStyleProductVisible } from "@/lib/catalog/body-style";
+import { driveProductVisible } from "@/lib/catalog/drive";
 import { gearboxProductVisible } from "@/lib/catalog/gearbox";
 import { hasVmaxLift, isStageProduct } from "@/lib/catalog/product-display";
-import type { Brand, Channel, Character, FlowCategory, InquiryGearbox, Timing } from "@/lib/db/rows";
+import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
+import type { VehicleLabelFamily, VehicleLabelModel } from "@/lib/catalog/vehicle-label";
+import type { BodyStyle, Brand, Channel, Character, Drive, FlowCategory, InquiryGearbox, Timing } from "@/lib/db/rows";
 
 export type StepId = "car" | "wish" | `cat:${FlowCategory}` | "character" | "contact" | "done";
 
@@ -56,6 +60,15 @@ export interface FlowState {
    * unbeantwortet bzw. wenn die Baureihe für die gewählte Motorisierung
    * nicht mehrdeutig ist (siehe CarStep.tsx). */
   line: string | null;
+  /** Entscheid 21.09.2026 (Karosserieform, lib/catalog/body-style.ts):
+   * Antwort auf die Karosserie-Frage (nur gefragt, wenn das Modell
+   * Produkte mit unterschiedlichen Karosserieformen hat, siehe
+   * CatalogModel.bodyStyleOptions, und die Modellwahl `line` die
+   * Karosserie nicht schon festlegt, siehe effectiveBodyStyle()). */
+  bodyStyleChoice: BodyStyle | null;
+  /** Antwort auf die Antriebs-Frage (lib/catalog/drive.ts), nur gefragt bei
+   * CatalogModel.driveOptions mit zwei Einträgen. */
+  driveChoice: Drive | null;
   year: string;
   beenHere: boolean;
 
@@ -104,6 +117,8 @@ export function initialFlowState(): FlowState {
     seriesPsChoice: null,
     gearboxChoice: null,
     line: null,
+    bodyStyleChoice: null,
+    driveChoice: null,
     year: YEAR_OPTIONS_BASE[0],
     beenHere: false,
 
@@ -201,6 +216,42 @@ export function gearboxSelectionVisible(product: CatalogProduct, gearboxChoice: 
   return gearboxProductVisible(product.gearbox, gearboxChoice);
 }
 
+/**
+ * Karosserieform aus der Modellwahl (inquiries.line): bei Baureihen wie «4er
+ * Coupé G22, Cabrio G23, Grand Coupé G26» legt die gewählte Alternative die
+ * Karosserie bereits fest - dann wird die Karosserie-Frage nicht noch einmal
+ * gestellt. null, wenn keine Modellwahl vorliegt oder ihr Label keine
+ * Karosserieform nennt (z.B. «X2»).
+ */
+export function bodyStyleFromLine(
+  family: VehicleLabelFamily | null,
+  model: VehicleLabelModel | null,
+  line: string | null,
+): BodyStyle | null {
+  if (!family || !model || !line) return null;
+  const option = vehicleLineOptions(family, model).find((o) => o.id === line);
+  return option ? bodyStyleFromText(option.label) : null;
+}
+
+/** Wirksame Karosserieform: aus der Modellwahl, sonst die Chip-Antwort. */
+export function effectiveBodyStyle(
+  family: VehicleLabelFamily | null,
+  model: VehicleLabelModel | null,
+  state: Pick<FlowState, "line" | "bodyStyleChoice">,
+): BodyStyle | null {
+  return bodyStyleFromLine(family, model, state.line) ?? state.bodyStyleChoice;
+}
+
+/** Karosserie-Filter (Kategorie-Schritt): neutrale Produkte immer, sonst nur passende (siehe lib/catalog/body-style.ts). */
+export function bodyStyleSelectionVisible(product: CatalogProduct, bodyStyle: BodyStyle | null): boolean {
+  return bodyStyleProductVisible(product.bodyStyles, bodyStyle);
+}
+
+/** Antriebs-Filter (Kategorie-Schritt), siehe lib/catalog/drive.ts. */
+export function driveSelectionVisible(product: CatalogProduct, drive: Drive | null): boolean {
+  return driveProductVisible(product.drive, drive);
+}
+
 // ---------------------------------------------------------------------------
 // V/max-Doppelung (Rückmeldung zweiter Klicktest, CLAUDE.md Abschnitt
 // "AUFGABE", Punkt 1). Wählt der Kunde eine Motor-Leistungsstufe, deren
@@ -247,6 +298,8 @@ export type FlowAction =
   | { type: "SET_SERIES_PS"; ps: number }
   | { type: "SET_GEARBOX"; gearbox: InquiryGearbox }
   | { type: "SET_LINE"; line: string }
+  | { type: "SET_BODY_STYLE"; bodyStyle: BodyStyle }
+  | { type: "SET_DRIVE"; drive: Drive }
   | { type: "SET_YEAR"; year: string }
   | { type: "SET_BEEN_HERE"; beenHere: boolean }
   | { type: "PRODUCTS_LOADING" }
@@ -288,6 +341,8 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
         seriesPsChoice: null,
         gearboxChoice: null,
         line: null,
+        bodyStyleChoice: null,
+        driveChoice: null,
         productsStatus: "idle",
         productsError: null,
         productGroups: [],
@@ -304,6 +359,8 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
         seriesPsChoice: null,
         gearboxChoice: null,
         line: null,
+        bodyStyleChoice: null,
+        driveChoice: null,
         productsStatus: "idle",
         productsError: null,
         productGroups: [],
@@ -350,7 +407,34 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
     }
 
     case "SET_LINE":
-      return { ...state, line: action.line };
+      // Die Modellwahl kann die Karosserie festlegen (bodyStyleFromLine());
+      // eine vorher gegebene Chip-Antwort wäre dann widersprüchlich. Bereits
+      // gewählte Produkte gibt es zu diesem Zeitpunkt noch nicht (die
+      // Frage steht im Fahrzeug-Schritt), deshalb kein Filter wie unten.
+      return { ...state, line: action.line, bodyStyleChoice: null };
+
+    case "SET_BODY_STYLE": {
+      // Analog SET_GEARBOX: bereits gewählte karosseriespezifische Produkte,
+      // die zur neuen Karosserieform nicht passen, aus state.selections
+      // entfernen (Kategorie-Schritt blendet sie nach der Wahl aus).
+      const selections = Object.fromEntries(
+        Object.entries(state.selections).map(([category, products]) => [
+          category,
+          (products ?? []).filter((p) => bodyStyleSelectionVisible(p, action.bodyStyle)),
+        ]),
+      ) as FlowState["selections"];
+      return { ...state, bodyStyleChoice: action.bodyStyle, selections };
+    }
+
+    case "SET_DRIVE": {
+      const selections = Object.fromEntries(
+        Object.entries(state.selections).map(([category, products]) => [
+          category,
+          (products ?? []).filter((p) => driveSelectionVisible(p, action.drive)),
+        ]),
+      ) as FlowState["selections"];
+      return { ...state, driveChoice: action.drive, selections };
+    }
 
     case "SET_YEAR":
       return { ...state, year: action.year };

@@ -11,8 +11,9 @@ import { en } from "@/lib/i18n/en";
 import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { gearboxFor } from "@/lib/catalog/gearbox";
+import { admin } from "@/lib/i18n/admin";
 import { vehicleAmbiguousAlternatives, vehicleLineIsAmbiguous, vehicleLineOptions } from "@/lib/catalog/vehicle-label";
-import type { Character, FlowCategory, InquiryGearbox, PriceStatus, Timing } from "@/lib/db/rows";
+import type { BodyStyle, Character, Drive, FlowCategory, InquiryGearbox, PriceStatus, Timing } from "@/lib/db/rows";
 
 /**
  * Ein vom Kunden gewähltes Produkt, wie es die Prüfregeln brauchen. Bewusst
@@ -32,6 +33,12 @@ export interface CheckProduct {
   variantGroup: string | null;
   priceStatus: PriceStatus;
   psTo: number | null;
+  /** Entscheid 21.09.2026: Karosserieformen, für die das Produkt gilt
+   * (products.body_styles, leer = alle) und Antrieb (products.drive, null =
+   * neutral), siehe lib/catalog/body-style.ts / drive.ts. Optional, damit
+   * ältere Aufrufer/Tests ohne diese Felder weiter funktionieren. */
+  bodyStyles?: BodyStyle[];
+  drive?: Drive | null;
 }
 
 export interface CheckFamily {
@@ -76,6 +83,11 @@ export interface CheckInquiry {
    * aktuellen Optionen geprüft (lib/inquiry/create.ts), hier nur noch
    * gelesen. */
   line: string | null;
+  /** Entscheid 21.09.2026: Karosserieform aus dem Fahrzeug-Schritt bzw. aus
+   * der Modellwahl (lib/inquiry/create.ts), null wenn nicht gefragt. */
+  bodyStyle?: BodyStyle | null;
+  /** Antrieb aus dem Fahrzeug-Schritt, null wenn nicht gefragt. */
+  drive?: Drive | null;
 }
 
 export interface CheckContext {
@@ -162,6 +174,31 @@ function chosenSeparateVmaxProduct(ctx: CheckContext): boolean {
 /** true, wenn mindestens ein gewähltes Produkt getriebespezifisch ist (siehe lib/catalog/gearbox.ts). */
 function hasGearboxSpecificSelection(ctx: CheckContext): boolean {
   return ctx.products.some((p) => gearboxFor(p.name) !== null);
+}
+
+// Entscheid 21.09.2026 (Karosserieform/Antrieb, lib/catalog/body-style.ts,
+// lib/catalog/drive.ts): der Kundenflow blendet nicht passende Varianten
+// aus, die Regeln hier sind das Sicherheitsnetz für den Schnellweg (keine
+// Frage gestellt) und für manipulierte/veraltete Auswahlen.
+
+function bodySpecificProducts(ctx: CheckContext): CheckProduct[] {
+  return ctx.products.filter((p) => (p.bodyStyles ?? []).length > 0);
+}
+
+function bodyMismatchedProducts(ctx: CheckContext): CheckProduct[] {
+  const chosen = ctx.inquiry.bodyStyle ?? null;
+  if (!chosen) return [];
+  return bodySpecificProducts(ctx).filter((p) => !(p.bodyStyles ?? []).includes(chosen));
+}
+
+function driveSpecificProducts(ctx: CheckContext): CheckProduct[] {
+  return ctx.products.filter((p) => (p.drive ?? null) !== null);
+}
+
+function driveMismatchedProducts(ctx: CheckContext): CheckProduct[] {
+  const chosen = ctx.inquiry.drive ?? null;
+  if (!chosen) return [];
+  return driveSpecificProducts(ctx).filter((p) => p.drive !== chosen);
 }
 
 /**
@@ -275,6 +312,39 @@ export const CHECK_RULES: Array<{
       !(ctx.inquiry.line !== null && vehicleLineOptions(ctx.family, ctx.model).some((o) => o.id === ctx.inquiry.line)),
     vars: (ctx) => ({
       alternatives: ctx.family && ctx.model ? vehicleAmbiguousAlternatives(ctx.family, ctx.model).join(" / ") : "",
+    }),
+  },
+  {
+    // Karosseriespezifische Position gewählt, Karosserieform aber nicht
+    // bekannt (Schnellweg ohne Angabe, oder Frage nicht gestellt).
+    id: "karosserie_unbekannt",
+    when: (ctx) => (ctx.inquiry.bodyStyle ?? null) === null && bodySpecificProducts(ctx).length > 0,
+  },
+  {
+    // Karosserieform bekannt, aber eine gewählte Position gilt laut
+    // Preisliste nicht dafür (im Kundenflow durch das Ausblenden
+    // ausgeschlossen, im Schnellweg möglich).
+    id: "karosserie_passt_nicht",
+    when: (ctx) => bodyMismatchedProducts(ctx).length > 0,
+    vars: (ctx) => ({
+      item: bodyMismatchedProducts(ctx)
+        .map((p) => p.name)
+        .join("», «"),
+      body: (admin.bodyStyle as Record<string, string>)[ctx.inquiry.bodyStyle ?? ""] ?? ctx.inquiry.bodyStyle ?? "",
+    }),
+  },
+  {
+    id: "antrieb_unbekannt",
+    when: (ctx) => (ctx.inquiry.drive ?? null) === null && driveSpecificProducts(ctx).length > 0,
+  },
+  {
+    id: "antrieb_passt_nicht",
+    when: (ctx) => driveMismatchedProducts(ctx).length > 0,
+    vars: (ctx) => ({
+      item: driveMismatchedProducts(ctx)
+        .map((p) => p.name)
+        .join("», «"),
+      drive: (admin.drive as Record<string, string>)[ctx.inquiry.drive ?? ""] ?? ctx.inquiry.drive ?? "",
     }),
   },
 ];

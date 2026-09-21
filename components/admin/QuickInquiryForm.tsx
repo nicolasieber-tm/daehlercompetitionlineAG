@@ -11,6 +11,9 @@ import { admin, formatMissingFields, missingFieldLabel } from "@/lib/i18n/admin"
 import { tf } from "@/lib/i18n/dictionaries";
 import type { CatalogFamily } from "@/lib/catalog/queries";
 import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
+import { bodyStyleFromText } from "@/lib/catalog/body-style";
+import { driveFromText } from "@/lib/catalog/drive";
+import type { BodyStyle, Drive } from "@/lib/db/rows";
 import { FLOW_CATEGORIES, type Channel, type Character, type FlowCategory, type Timing } from "@/lib/db/rows";
 import { Button } from "@/components/ui";
 import { FormField } from "./FormField";
@@ -29,7 +32,15 @@ const tf2 = admin.quick.form;
 // ---------------------------------------------------------------------------
 
 interface ExtractionResponse {
-  vehicle: { family_slug: string | null; model_slug: string | null; free_text: string; line: string | null; confidence: number };
+  vehicle: {
+    family_slug: string | null;
+    model_slug: string | null;
+    free_text: string;
+    line: string | null;
+    body_style: string | null;
+    drive: string | null;
+    confidence: number;
+  };
   year: string | null;
   categories: FlowCategory[];
   selections: { product_id: string | null; name_as_written: string; confidence: number }[];
@@ -87,6 +98,11 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
   const [familySlug, setFamilySlug] = useState<string | null>(null);
   const [modelSlug, setModelSlug] = useState<string | null>(null);
   const [lineId, setLineId] = useState<string | null>(null);
+  // Entscheid 21.09.2026 (Karosserieform/Antrieb): Dropdowns nur bei
+  // Modellen mit Optionen (CatalogModel.bodyStyleOptions/driveOptions);
+  // Vorbelegung aus der Extraktion (bodyStyleFromText()/driveFromText()).
+  const [bodyStyle, setBodyStyle] = useState<BodyStyle | null>(null);
+  const [drive, setDrive] = useState<Drive | null>(null);
   const [vehicleText, setVehicleText] = useState("");
   const [year, setYear] = useState("");
   const [categories, setCategories] = useState<FlowCategory[]>([]);
@@ -121,6 +137,18 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
     if (!lineOptions.some((o) => o.id === lineId)) setLineId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineOptions]);
+
+  // Legt die Modellwahl die Karosserie bereits fest («Cabrio» bei 4er
+  // G22/G23/G26), entfällt das Karosserie-Dropdown (wie im Kundenflow,
+  // components/flow/steps/CarStep.tsx showBodyStyleChoice).
+  const bodyFromLine = bodyStyleFromText(lineOptions.find((o) => o.id === lineId)?.label);
+  const bodyStyleOptions = bodyFromLine ? [] : (model?.bodyStyleOptions ?? []);
+  const driveOptions = model?.driveOptions ?? [];
+  useEffect(() => {
+    if (bodyStyle && !bodyStyleOptions.includes(bodyStyle)) setBodyStyle(null);
+    if (drive && !driveOptions.includes(drive)) setDrive(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model]);
 
   // Produkte des gewählten Modells nachladen (GET /api/catalog/products?model=<uuid>),
   // gleiche Route wie der Kundenflow-Kategorie-Schritt (lib/catalog/queries.ts getProductsForModel()).
@@ -163,6 +191,8 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
     } else {
       setLineId(null);
     }
+    setBodyStyle(bodyStyleFromText(data.vehicle.body_style));
+    setDrive(driveFromText(data.vehicle.drive));
     setVehicleText(data.vehicle.free_text ?? "");
     setYear(data.year ?? "");
     setCategories(data.categories);
@@ -224,6 +254,8 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
               familySlug: familySlug || null,
               modelSlug: modelSlug || null,
               line: lineId,
+              bodyStyle,
+              drive,
               vehicleText: vehicleText.trim() || null,
               year: year.trim() || null,
               categories,
@@ -356,6 +388,40 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
                       {lineOptions.map((o) => (
                         <option key={o.id} value={o.id}>
                           {o.label}
+                        </option>
+                      ))}
+                    </FormField>
+                  )}
+                  {bodyStyleOptions.length > 0 && (
+                    <FormField
+                      label={tf2.bodyStyle}
+                      as="select"
+                      inputProps={{
+                        value: bodyStyle ?? "",
+                        onChange: (e) => setBodyStyle((e.target.value || null) as BodyStyle | null),
+                      }}
+                    >
+                      <option value="">{tf2.bodyStyleNone}</option>
+                      {bodyStyleOptions.map((o) => (
+                        <option key={o} value={o}>
+                          {admin.bodyStyle[o]}
+                        </option>
+                      ))}
+                    </FormField>
+                  )}
+                  {driveOptions.length > 0 && (
+                    <FormField
+                      label={tf2.drive}
+                      as="select"
+                      inputProps={{
+                        value: drive ?? "",
+                        onChange: (e) => setDrive((e.target.value || null) as Drive | null),
+                      }}
+                    >
+                      <option value="">{tf2.driveNone}</option>
+                      {driveOptions.map((o) => (
+                        <option key={o} value={o}>
+                          {admin.drive[o]}
                         </option>
                       ))}
                     </FormField>

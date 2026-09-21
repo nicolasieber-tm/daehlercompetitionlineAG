@@ -53,6 +53,23 @@ export const admin = {
     automatic: "Automat",
     unknown: "unbekannt",
   } as const,
+  // Entscheid 21.09.2026 (Karosserieform/Antrieb): Labels für Fahrzeug-Karte,
+  // Ticket, Inbox-Mail, Prüfhinweise und Schnellweg-Dropdowns. Dieselben
+  // Schlüssel wie lib/db/rows.ts BodyStyle/Drive.
+  bodyStyle: {
+    limousine: "Limousine",
+    touring: "Touring",
+    gran_turismo: "Gran Turismo",
+    coupe: "Coupé",
+    cabrio: "Cabrio",
+    gran_coupe: "Gran Coupé",
+    dreituerer: "3-Türer",
+    fuenftuerer: "5-Türer",
+  } as const,
+  drive: {
+    rwd: "Heckantrieb",
+    xdrive: "xDrive",
+  } as const,
   emailType: {
     confirmation: "Bestätigung",
     inbox: "Anfrage-Mail",
@@ -153,6 +170,10 @@ export const admin = {
       // 3): eigene Zeile in components/admin/VehicleCard.tsx, nur wenn die
       // Getriebefrage gestellt wurde (inquiry.gearbox nicht null).
       gearbox: "Getriebe",
+      // Entscheid 21.09.2026: eigene Zeilen, nur wenn die jeweilige Frage
+      // gestellt bzw. die Angabe aus der Modellwahl abgeleitet wurde.
+      bodyStyle: "Karosserieform",
+      drive: "Antrieb",
       noPricelist: "Ohne Preisliste (Kurzablauf)",
     },
     package: {
@@ -473,6 +494,13 @@ export const admin = {
       // QuickInquiryForm.tsx lineOptions).
       line: "Modell (Baureihe mehrdeutig)",
       lineNone: "Keine Auswahl",
+      // Entscheid 21.09.2026: nur sichtbar, wenn das Modell Produkte mit
+      // unterschiedlichen Karosserieformen bzw. Antrieben hat (siehe
+      // QuickInquiryForm.tsx bodyStyleOptions/driveOptions).
+      bodyStyle: "Karosserieform",
+      bodyStyleNone: "Keine Auswahl",
+      drive: "Antrieb",
+      driveNone: "Keine Auswahl",
       vehicleText: "Fahrzeugtext (frei, z.B. wenn kein Modell zuordenbar)",
       year: "Baujahr",
       categoriesTitle: "Kategorien",
@@ -530,6 +558,11 @@ export const admin = {
         // nie als fehlend, der Eintrag deckt trotzdem das Schema vollständig
         // ab (Test tests/admin/quick-missing-labels.test.ts), analog seriesPs.
         line: "Modell (Baureihe mehrdeutig)",
+        // Entscheid 21.09.2026: beide optional im Schema, zod meldet sie nie
+        // als fehlend - Eintrag der Vollständigkeit halber (Test
+        // tests/admin/quick-missing-labels.test.ts).
+        bodyStyle: "Karosserieform",
+        drive: "Antrieb",
         // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
         // Punkt 3): seriesPs ist in InquiryPayloadObjectSchema optional
         // (siehe lib/inquiry/schema.ts), zod meldet es deshalb nie als

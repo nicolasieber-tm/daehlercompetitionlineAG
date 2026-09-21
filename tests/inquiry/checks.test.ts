@@ -460,6 +460,54 @@ describe("modell_mehrdeutig", () => {
   });
 });
 
+// Entscheid 21.09.2026 (Karosserieform/Antrieb): Sicherheitsnetz für den
+// Schnellweg (keine Frage gestellt) und für Positionen, die nicht zur Angabe
+// passen; der Kundenflow blendet solche Varianten bereits aus.
+describe("karosserie_unbekannt / karosserie_passt_nicht", () => {
+  const unknown = CHECK_RULES.find((r) => r.id === "karosserie_unbekannt")!;
+  const mismatch = CHECK_RULES.find((r) => r.id === "karosserie_passt_nicht")!;
+  const touringSuspension = product({ category: "fahrwerk", name: "Sportfahrwerk höhenverstellbar Touring", bodyStyles: ["touring"] });
+  const neutral = product({ category: "fahrwerk", name: "Sützlager verstellbar VA", bodyStyles: [] });
+
+  it("unbekannt feuert bei karosseriespezifischer Position ohne Karosserie-Angabe", () => {
+    expect(unknown.when(ctx({ products: [touringSuspension] }))).toBe(true);
+    expect(unknown.when(ctx({ products: [neutral] }))).toBe(false);
+    expect(unknown.when(ctx({ products: [touringSuspension], inquiry: { bodyStyle: "touring" } as CheckContext["inquiry"] }))).toBe(false);
+  });
+
+  it("passt_nicht feuert, wenn die Position die angegebene Karosserie nicht nennt, mit Positionsname und Label im Text", () => {
+    const c = ctx({ products: [touringSuspension, neutral], inquiry: { bodyStyle: "limousine" } as CheckContext["inquiry"] });
+    expect(mismatch.when(c)).toBe(true);
+    const text = runChecks(c, "de").find((r) => r.id === "karosserie_passt_nicht")?.text ?? "";
+    expect(text).toContain("Sportfahrwerk höhenverstellbar Touring");
+    expect(text).toContain("Limousine");
+    expect(mismatch.when(ctx({ products: [touringSuspension], inquiry: { bodyStyle: "touring" } as CheckContext["inquiry"] }))).toBe(false);
+  });
+
+  it("Produkte ohne bodyStyles-Feld (ältere Aufrufer) gelten als neutral", () => {
+    expect(unknown.when(ctx({ products: [product({ category: "fahrwerk" })] }))).toBe(false);
+  });
+});
+
+describe("antrieb_unbekannt / antrieb_passt_nicht", () => {
+  const unknown = CHECK_RULES.find((r) => r.id === "antrieb_unbekannt")!;
+  const mismatch = CHECK_RULES.find((r) => r.id === "antrieb_passt_nicht")!;
+  const rwd = product({ category: "fahrwerk", name: "Sportfahrwerk Performance (3-fach), ohne xdrive", drive: "rwd" });
+
+  it("unbekannt feuert bei antriebsspezifischer Position ohne Antriebs-Angabe", () => {
+    expect(unknown.when(ctx({ products: [rwd] }))).toBe(true);
+    expect(unknown.when(ctx({ products: [rwd], inquiry: { drive: "rwd" } as CheckContext["inquiry"] }))).toBe(false);
+    expect(unknown.when(ctx({ products: [product({ category: "fahrwerk", drive: null })] }))).toBe(false);
+  });
+
+  it("passt_nicht feuert bei Heckantrieb-Position und Angabe xDrive", () => {
+    const c = ctx({ products: [rwd], inquiry: { drive: "xdrive" } as CheckContext["inquiry"] });
+    expect(mismatch.when(c)).toBe(true);
+    expect(runChecks(c, "de").find((r) => r.id === "antrieb_passt_nicht")?.text).toContain("xDrive");
+    expect(mismatch.when(ctx({ products: [rwd], inquiry: { drive: "rwd" } as CheckContext["inquiry"] }))).toBe(false);
+  });
+});
+
 describe("runChecks", () => {
   it("liefert lokalisierte Texte (de)", () => {
     const c = ctx({ inquiry: { categories: ["motor", "auspuff"] } as CheckContext["inquiry"] });

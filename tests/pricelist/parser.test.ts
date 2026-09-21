@@ -260,6 +260,109 @@ describe("3er G20, G21 (exakte Werte)", () => {
     expect(product?.fitsAll).toBe(false);
     expect(product?.priceTotalChf).toBe(1490);
   });
+
+  // Entscheid 21.09.2026 (Karosserieform, lib/catalog/body-style.ts): die
+  // Touring-Zeilen tragen das Wort im Namen, die Limousinen-Zeilen sind
+  // unbeschriftet und bekommen ihre Karosserie über die Geschwister-Regel.
+  it("Karosserieform: «... Touring» -> touring, unbeschriftetes Gegenstück -> limousine, Rest neutral", async () => {
+    const family = await loadG20();
+    const byName = (name: string) => family.products.filter((p) => p.name === name);
+    expect(byName("Sportfahrwerk höhenverstellbar Touring").map((p) => p.bodyStyles)).toEqual([["touring"], ["touring"]]);
+    expect(byName("Sportfahrwerk höhenverstellbar").map((p) => p.bodyStyles)).toEqual([["limousine"], ["limousine"]]);
+    expect(byName("Sportfedersatz -25mm 318i-320d")[0]?.bodyStyles).toEqual(["limousine"]);
+    expect(byName("Sportfedersatz -25mm 318i-320d Touring")[0]?.bodyStyles).toEqual(["touring"]);
+    expect(byName("EB Satz i.V. mit Adaptivem M-Fahrwerk G20")[0]?.bodyStyles).toEqual(["limousine"]);
+    expect(byName("Sützlager verstellbar VA")[0]?.bodyStyles).toEqual([]);
+    // Auch ausserhalb des Fahrwerks zählt ein Code im Namen (Heckspoiler
+    // nur für die Limousine G20), Produkte ohne Code bleiben neutral.
+    expect(byName("dÄHLer Heckspoiler Carbon (G20)")[0]?.bodyStyles).toEqual(["limousine"]);
+    expect(family.products.filter((p) => p.category === "motor").every((p) => p.bodyStyles.length === 0)).toBe(true);
+    expect(family.warnings.some((w) => w.startsWith("Karosserieform:"))).toBe(true);
+  });
+});
+
+describe("Karosserieform und Antrieb in weiteren Baureihen (Entscheid 21.09.2026)", () => {
+  async function load(file: string): Promise<ParsedFamily> {
+    const buf = await readFile(join(PRICELIST_DIR, file));
+    return parseWorkbook(buf, file);
+  }
+
+  it("3er F30/F31/F34/F35: Codes im Namen, «F31,34» -> touring + gran_turismo, «F31,34, F35 30e» neutral", async () => {
+    const family = await load("Produkteliste 3er F30, F31, F34, F35.xls");
+    const find = (name: string) => family.products.find((p) => p.name === name);
+    expect(find("Sportfedernsatz F31,34")?.bodyStyles).toEqual(["touring", "gran_turismo"]);
+    expect(find("Sportfedernsatz F30,")?.bodyStyles).toEqual(["limousine"]);
+    expect(find("Sportfahrwerk höhenverstellbar F30")?.bodyStyles).toEqual(["limousine"]);
+    expect(find("Sportfahrwerk höhenverstellbar F31, 34")?.bodyStyles).toEqual(["touring", "gran_turismo"]);
+    // Doppeltes Leerzeichen im Excel-Namen, deshalb per Regex.
+    expect(family.products.find((p) => /^Sportfedernsatz\s+F31,34, F35 30e$/.test(p.name))?.bodyStyles).toEqual([]);
+    expect(find("Rennsportfahrwerk für 35i F30")?.bodyStyles).toEqual(["limousine"]);
+  });
+
+  it("MINI F56/F55/F57: «Sportfedersatz» -> 3-Türer + 5-Türer, «Sportfedersatz Cabrio» -> cabrio", async () => {
+    const family = await load("Produkteliste MINI F56,55,57.xls");
+    const plain = family.products.filter((p) => p.name === "Sportfedersatz");
+    const cabrio = family.products.filter((p) => p.name === "Sportfedersatz Cabrio");
+    expect(plain.length).toBe(3);
+    expect(cabrio.length).toBe(3);
+    expect(plain.every((p) => JSON.stringify(p.bodyStyles) === JSON.stringify(["dreituerer", "fuenftuerer"]))).toBe(true);
+    expect(cabrio.every((p) => JSON.stringify(p.bodyStyles) === JSON.stringify(["cabrio"]))).toBe(true);
+  });
+
+  it("5er F10/F11: «für F11 ...» -> touring, «..., mit xdrive» -> xdrive, «..., ohne xdrive» -> rwd", async () => {
+    const family = await load("Produkteliste 5er F10, F11.xls");
+    const find = (name: string) => family.products.find((p) => p.name === name);
+    expect(find("Sportfedernsatz für F11 4-Zylinder")?.bodyStyles).toEqual(["touring"]);
+    expect(find("Sportfedernsatz für F10 4-Zylinder")?.bodyStyles).toEqual(["limousine"]);
+    const mit = family.products.filter((p) => p.name.endsWith(", mit xdrive"));
+    const ohne = family.products.filter((p) => p.name.endsWith(", ohne xdrive"));
+    expect(mit.length).toBe(2);
+    expect(ohne.length).toBe(2);
+    expect(mit.every((p) => p.drive === "xdrive")).toBe(true);
+    expect(ohne.every((p) => p.drive === "rwd")).toBe(true);
+  });
+
+  it("8er G14/G15/G16: Coupé, Cabrio und Gran Coupé je Zeile, dÄHLer Performance Fahrwerk neutral", async () => {
+    const family = await load("Produkteliste 8er G14,15,16, M8 F91, 92, 93.xls");
+    const find = (name: string) => family.products.find((p) => p.name === name);
+    expect(find("Sportfedersatz -25mm G15 Coupé")?.bodyStyles).toEqual(["coupe"]);
+    expect(find("Sportfedersatz -25mm G14 Cabrio")?.bodyStyles).toEqual(["cabrio"]);
+    expect(find("Sportfedersatz G16 Gran Coupé")?.bodyStyles).toEqual(["gran_coupe"]);
+    expect(find("Sportfedersatz -25mm M8 Cabrio, F91")?.bodyStyles).toEqual(["cabrio"]);
+    expect(find("dÄHLer Performance Fahrwerk höhen- und härteverstellbar")?.bodyStyles).toEqual([]);
+  });
+
+  it("Familien mit einer Karosserieform (M2 G87, X5/X6, 7er G11/G12) oder mit Karosserie im Modellnamen (M3/M4 G80, M5 G90/G99): nie eine Zuordnung", async () => {
+    for (const file of [
+      "Produkteliste M2 G87.xls",
+      "Produkteliste X5 G05, X6 G06.xls",
+      "Produkteliste 7er G11, G12.xls",
+      "Produkteliste M3 M4 G80, G81, G82, G83.xls",
+      "Produkteliste M5 G90, G99.xls",
+    ]) {
+      const family = await load(file);
+      expect(family.products.every((p) => p.bodyStyles.length === 0), file).toBe(true);
+    }
+  });
+
+  it("5er G30/G31: «Performance Nieren Satz G30/G31Satz ...» (Wort am Code angeklebt) gilt für beide, bleibt neutral", async () => {
+    const family = await load("Produkteliste 5er G30, G31, G38.xls");
+    const nieren = family.products.filter((p) => p.name.startsWith("Performance Nieren Satz G30/G31"));
+    expect(nieren.length).toBeGreaterThan(0);
+    expect(nieren.every((p) => p.bodyStyles.length === 0)).toBe(true);
+    expect(family.products.find((p) => p.name === "Sportfedersatz -25mm G31")?.bodyStyles).toEqual(["touring"]);
+  });
+
+  it("Gesamtbestand: karosseriespezifische Produkte nur in der Kategorie Fahrwerk oder mit Karosserie im Namen", async () => {
+    const parsed = await parseAll();
+    for (const { file, family } of parsed) {
+      for (const p of family.products) {
+        if (p.bodyStyles.length === 0) continue;
+        const explicit = /Touring|Cabrio|Coup|Gran Turismo|Limousine|T[üu]rer|\b[EFGUR]\d{2,3}\b/i.test(p.name);
+        expect(p.category === "fahrwerk" || explicit, `${file}: ${p.name}`).toBe(true);
+      }
+    }
+  });
 });
 
 describe("Nur-Preise-Zeile (Regel 4)", () => {

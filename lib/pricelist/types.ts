@@ -1,5 +1,6 @@
 // Typen für den Excel-Import. Struktur gemäss docs/excel-import.md,
 // Abschnitt "Ausgabe des Parsers".
+import type { BodyStyle, Drive } from "@/lib/db/rows";
 
 /** Kategorien im Kundenflow, in der festen Reihenfolge des Flows. */
 export type FlowCategory =
@@ -48,6 +49,12 @@ export interface ParsedProduct {
   /** Aus dem Namen abgeleitet (lib/catalog/gearbox.ts gearboxFor()), siehe
    * CLAUDE.md Abschnitt "AUFGABE", Punkt 3. null = getriebeneutral. */
   gearbox: "manual" | "automatic" | null;
+  /** Karosserieformen aus dem Namen bzw. über die Geschwister-Regel
+   * (lib/catalog/body-style.ts assignBodyStyles(), Import-Nachlauf je
+   * Familie). Leer = gilt für alle Karosserieformen. */
+  bodyStyles: BodyStyle[];
+  /** Antrieb aus dem Namen (lib/catalog/drive.ts driveFor()), null = antriebsneutral. */
+  drive: Drive | null;
   fits: string[];
   fitsAll: boolean;
   contentHash: string;

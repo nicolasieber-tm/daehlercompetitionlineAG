@@ -96,6 +96,8 @@ function basePayload(overrides: Partial<InquiryPayload> = {}): InquiryPayload {
     beenHere: false,
     gearbox: "manual",
     line: null,
+    bodyStyle: null,
+    drive: null,
     seriesPs: 480,
     categories: ["motor", "auspuff", "fahrwerk"],
     consulting: false,

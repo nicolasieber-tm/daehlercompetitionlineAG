@@ -139,6 +139,33 @@ describe("InquiryPayloadSchema: Telefon nur bei Kanal phone/whatsapp Pflicht", (
 // Kundenentscheid 17.09.2026 ("bei X1 und X2 gibt es dieselben
 // Motorisierungen, das Modell ist X1 oder X2"): line ist optional, max 40
 // Zeichen, leer/fehlend -> null (analog vehicleText/city).
+// Entscheid 21.09.2026: bodyStyle/drive optional, fehlend -> null, nur
+// bekannte Werte.
+describe("InquiryPayloadSchema: bodyStyle und drive", () => {
+  it("fehlende Felder werden zu null", () => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload());
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.bodyStyle).toBeNull();
+      expect(parsed.data.drive).toBeNull();
+    }
+  });
+
+  it("gültige Werte bleiben erhalten", () => {
+    const parsed = InquiryPayloadSchema.safeParse(basePayload({ bodyStyle: "touring", drive: "xdrive" }));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.bodyStyle).toBe("touring");
+      expect(parsed.data.drive).toBe("xdrive");
+    }
+  });
+
+  it("unbekannte Werte werden abgelehnt", () => {
+    expect(InquiryPayloadSchema.safeParse(basePayload({ bodyStyle: "kombi" })).success).toBe(false);
+    expect(InquiryPayloadSchema.safeParse(basePayload({ drive: "allrad" })).success).toBe(false);
+  });
+});
+
 describe("InquiryPayloadSchema: line", () => {
   it("fehlendes line ist gültig und wird zu null", () => {
     const parsed = InquiryPayloadSchema.safeParse(basePayload({ line: undefined }));

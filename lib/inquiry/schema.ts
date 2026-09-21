@@ -14,6 +14,10 @@ const LOCALE_VALUES = ["de", "en"] as const;
 // Antwort auf die Getriebefrage im Fahrzeug-Schritt. Muss wörtlich mit
 // InquiryGearbox in lib/db/rows.ts übereinstimmen.
 const GEARBOX_VALUES = ["manual", "automatic", "unknown"] as const;
+// Entscheid 21.09.2026 (Karosserieform/Antrieb): müssen wörtlich mit
+// BodyStyle/Drive in lib/db/rows.ts übereinstimmen (siehe GEARBOX_VALUES).
+const BODY_STYLE_VALUES = ["limousine", "touring", "gran_turismo", "coupe", "cabrio", "gran_coupe", "dreituerer", "fuenftuerer"] as const;
+const DRIVE_VALUES = ["xdrive", "rwd"] as const;
 // Muss wörtlich mit FLOW_CATEGORIES in lib/db/rows.ts übereinstimmen.
 // Nicht von dort importiert (readonly FlowCategory[], keine literale Tupel-
 // Form): z.enum() braucht ein literales Tupel, um die einzelnen Werte als
@@ -83,6 +87,14 @@ export const InquiryPayloadObjectSchema = z.object({
   // speichert bei einem ungültigen Wert null statt eines manipulierten
   // Strings.
   line: z.string().trim().max(40).nullable().optional().transform((v) => (v && v.length > 0 ? v : null)),
+  // Entscheid 21.09.2026 (Karosserieform/Antrieb): Antworten aus dem
+  // Fahrzeug-Schritt (bodyStyle auch aus der Modellwahl abgeleitet, siehe
+  // components/flow/state.ts effectiveBodyStyle()), null wenn die Frage
+  // nicht gestellt wurde. lib/inquiry/create.ts prüft beide gegen die
+  // aktuellen Optionen des Modells (CatalogModel.bodyStyleOptions/
+  // driveOptions) und speichert sonst null.
+  bodyStyle: z.enum(BODY_STYLE_VALUES).nullable().optional().transform((v) => v ?? null),
+  drive: z.enum(DRIVE_VALUES).nullable().optional().transform((v) => v ?? null),
   // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
   // die im Fahrzeug-Schritt effektiv wirksame Serienleistung (models.
   // series_ps, sonst die Chip-Auswahl bei mehreren series_ps_suggested-

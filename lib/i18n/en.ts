@@ -67,6 +67,24 @@ export const en: Dictionary = {
       gearboxRequired: "Please select your gearbox so we can show the right options.",
       lineQuestion: "Which model do you drive?",
       lineRequired: "Please select your model so we can name it correctly.",
+      bodyStyleQuestion: "Which body style does your vehicle have?",
+      bodyStyleRequired: "Please select the body style so we can show the right suspension options.",
+      bodyStyles: {
+        limousine: "Saloon",
+        touring: "Touring",
+        gran_turismo: "Gran Turismo",
+        coupe: "Coupé",
+        cabrio: "Convertible",
+        gran_coupe: "Gran Coupé",
+        dreituerer: "3-door",
+        fuenftuerer: "5-door",
+      },
+      driveQuestion: "Which drive does your vehicle have?",
+      driveRequired: "Please select the drive so we can show the right suspension options.",
+      drives: {
+        rwd: "Rear-wheel drive",
+        xdrive: "xDrive",
+      },
       photoHint: "Prices on file",
       photoFallback: "Photo coming soon",
       carShotCaption: "{model} by dÄHLer",
@@ -373,6 +391,14 @@ export const en: Dictionary = {
     // filled in by runChecks() via tf() (lib/rules/checks.ts,
     // vehicleAmbiguousAlternatives()) instead of generic examples.
     modell_mehrdeutig: "Model series covers {alternatives}, clarify the model with the customer.",
+    karosserie_unbekannt:
+      "A body-style-specific item was selected (e.g. Touring/Saloon) but the body style is not known: clarify before confirming.",
+    karosserie_passt_nicht:
+      "Item \"{item}\" is not listed for the stated body style ({body}): check and replace if necessary.",
+    antrieb_unbekannt:
+      "A drive-specific item was selected (xDrive/rear-wheel drive) but the drive is not known: clarify before confirming.",
+    antrieb_passt_nicht:
+      "Item \"{item}\" is not listed for the stated drive ({drive}): check and replace if necessary.",
   },
 
   draft: {

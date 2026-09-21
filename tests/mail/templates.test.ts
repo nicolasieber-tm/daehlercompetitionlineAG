@@ -37,6 +37,8 @@ function baseInquiry(overrides: Partial<Inquiry> = {}): Inquiry {
     follow_up_answers: { motor: "beides", auspuff: "kraeftig" },
     gearbox: null,
     line: null,
+    body_style: null,
+    drive: null,
     id: "11111111-1111-1111-1111-111111111111",
     last_name: "Muster",
     locale: "de",

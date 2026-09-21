@@ -61,6 +61,8 @@ const ctx: MailInquiryContext = {
     follow_up_answers: { motor: "beides", auspuff: "kraeftig" },
     gearbox: null,
     line: null,
+    body_style: null,
+    drive: null,
     id: "00000000-0000-0000-0000-000000000002",
     last_name: "Muster",
     locale: "de",

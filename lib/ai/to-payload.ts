@@ -28,6 +28,8 @@
 // Auswahlentscheidungen des Admins, keine vom Kunden diktierten Kontakt-
 // daten, siehe QuickInquiryPayloadSchema unten).
 import { z } from "zod";
+import { bodyStyleFromText } from "@/lib/catalog/body-style";
+import { driveFromText } from "@/lib/catalog/drive";
 import { getFamilyBySlug } from "@/lib/catalog/queries";
 import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import {
@@ -35,7 +37,7 @@ import {
   withInquiryPayloadRefinements,
   type InquiryPayload,
 } from "@/lib/inquiry/schema";
-import type { Character, Channel, FlowCategory, Locale, Timing } from "@/lib/db/rows";
+import type { BodyStyle, Character, Channel, Drive, FlowCategory, Locale, Timing } from "@/lib/db/rows";
 import type { Extraction } from "./extract";
 
 /**
@@ -122,6 +124,12 @@ export interface QuickOverrides {
    * toInquiryPayload() zuerst einen automatischen Abgleich über
    * extraction.vehicle.line (Label-Vergleich, siehe dort). */
   line?: string | null;
+  /** Entscheid 21.09.2026: vom Admin gewählte Karosserieform/Antrieb (Dropdowns
+   * in QuickInquiryForm.tsx, nur bei Modellen mit Optionen). Ohne Override
+   * versucht toInquiryPayload() den Abgleich über extraction.vehicle.
+   * body_style/drive (bodyStyleFromText()/driveFromText()). */
+  bodyStyle?: BodyStyle | null;
+  drive?: Drive | null;
   categories?: FlowCategory[];
   consulting?: boolean;
   selections?: { productId: string }[];
@@ -146,6 +154,8 @@ interface DraftFields {
   beenHere: boolean;
   /** Aufgelöste lineId (vehicleLineOptions()-id), siehe QuickOverrides.line. */
   line: string | null;
+  bodyStyle: BodyStyle | null;
+  drive: Drive | null;
   categories: FlowCategory[];
   consulting: boolean;
   selections: { productId: string }[];
@@ -172,6 +182,8 @@ function buildDraft(extraction: Extraction, overrides?: QuickOverrides): DraftFi
     // extraction.vehicle.line, siehe dort); die Extraction selbst kennt
     // keine lineId (nur den freien Modellnamen aus dem Text).
     line: null,
+    bodyStyle: bodyStyleFromText(extraction.vehicle.body_style),
+    drive: driveFromText(extraction.vehicle.drive),
     categories: extraction.categories,
     consulting: extraction.consulting,
     selections: extraction.selections
@@ -282,6 +294,12 @@ export async function toInquiryPayload(
     year: draft.year ?? "",
     beenHere: draft.beenHere,
     line: lineId,
+    // Entscheid 21.09.2026: Karosserieform/Antrieb aus Override oder
+    // Extraktion; lib/inquiry/create.ts prüft beide gegen die Optionen des
+    // Modells (ungültig -> null, dann feuert karosserie_unbekannt/
+    // antrieb_unbekannt, falls eine spezifische Position gewählt ist).
+    bodyStyle: draft.bodyStyle,
+    drive: draft.drive,
     // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
     // der Schnellweg hat keinen Fahrzeug-Schritt mit Getriebe-Chips, die
     // Extraction liefert dafür keinen Wert - null (Frage nicht gestellt),

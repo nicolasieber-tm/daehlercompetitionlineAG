@@ -424,6 +424,53 @@ test.describe("V/max-Doppelung und Vorher/Nachher-Leistung (Rückmeldung zweiter
 // deshalb "Welches Modell fahren Sie?", die Wahl "X2" wird gespeichert und
 // löst die Bezeichnung auf "BMW X2 20i (U10)" auf, statt der bisherigen
 // "BMW X1 / X2 20i (U11, U10)"-Sammelform.
+// Entscheid 21.09.2026 (Karosserieform, lib/catalog/body-style.ts): 3er
+// G20/G21 bündelt Limousine und Touring, die Fahrwerksprodukte tragen
+// «... Touring» im Namen, die Limousinen-Gegenstücke sind unbeschriftet
+// (Geschwister-Regel im Parser). Die Karosserie-Frage ist Pflicht vor
+// «Weiter», der Fahrwerk-Schritt zeigt nur die passenden Varianten.
+test.describe("Karosserie-Frage filtert Fahrwerksoptionen (3er G20/G21)", () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  async function toSuspensionStep(page: Page, bodyStyle: "Limousine" | "Touring") {
+    await openFlow(page);
+    await page.getByRole("button", { name: "BMW", exact: true }).click();
+    await page.getByRole("button", { name: /^3er G20, G21/ }).click();
+    await page.getByRole("button", { name: "30i", exact: true }).click();
+
+    // Getriebefrage nur, wenn das Modell getriebespezifische Produkte hat -
+    // hier nicht Gegenstand, deshalb nur beantworten, falls sichtbar.
+    const gearboxUnknown = page.getByRole("button", { name: "Weiss ich nicht", exact: true });
+    if (await gearboxUnknown.isVisible()) await gearboxUnknown.click();
+
+    await expect(page.getByText("Welche Karosserieform hat Ihr Fahrzeug?")).toBeVisible();
+    const weiter = page.getByRole("button", { name: "Weiter →" });
+    await expect(weiter).toBeDisabled();
+    await page.getByRole("button", { name: bodyStyle, exact: true }).click();
+    await expect(weiter).toBeEnabled();
+    await weiter.click();
+
+    await page.getByRole("button", { name: /^Fahrwerk/ }).click();
+    await page.getByRole("button", { name: "Weiter →" }).click();
+    await expect(page.getByRole("heading", { name: "Wie tief, wie hart?" })).toBeVisible();
+  }
+
+  test("Touring: Touring-Fahrwerke sichtbar, unbeschriftete Limousinen-Fahrwerke ausgeblendet", async ({ page }) => {
+    await toSuspensionStep(page, "Touring");
+    await expect(page.getByRole("button", { name: /^Sportfahrwerk höhenverstellbar Touring/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Sportfahrwerk höhenverstellbar(?! Touring)/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Sportfedersatz -25mm 318i-320d(?! Touring)/ })).toHaveCount(0);
+    // Neutrale Produkte bleiben.
+    await expect(page.getByRole("button", { name: /^Sützlager verstellbar VA/ })).toBeVisible();
+  });
+
+  test("Limousine: Limousinen-Fahrwerke sichtbar, Touring-Varianten ausgeblendet", async ({ page }) => {
+    await toSuspensionStep(page, "Limousine");
+    await expect(page.getByRole("button", { name: /^Sportfahrwerk höhenverstellbar(?! Touring)/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Touring/ })).toHaveCount(0);
+  });
+});
+
 test.describe("Kundenflow: mehrdeutige Baureihe X1/X2, Modellwahl X2", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 

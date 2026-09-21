@@ -74,6 +74,28 @@ export const de = {
       // "Weiter" wie Serienleistung/Getriebe oben.
       lineQuestion: "Welches Modell fahren Sie?",
       lineRequired: "Bitte wählen Sie Ihr Modell, damit wir es richtig bezeichnen können.",
+      // Entscheid 21.09.2026 (Karosserieform/Antrieb, lib/catalog/
+      // body-style.ts, lib/catalog/drive.ts): nur sichtbar, wenn das Modell
+      // Produkte mit unterschiedlichen Karosserieformen bzw. Antrieben hat
+      // (CatalogModel.bodyStyleOptions/driveOptions), Pflicht vor "Weiter".
+      bodyStyleQuestion: "Welche Karosserieform hat Ihr Fahrzeug?",
+      bodyStyleRequired: "Bitte wählen Sie die Karosserieform, damit wir passende Fahrwerksoptionen zeigen können.",
+      bodyStyles: {
+        limousine: "Limousine",
+        touring: "Touring",
+        gran_turismo: "Gran Turismo",
+        coupe: "Coupé",
+        cabrio: "Cabrio",
+        gran_coupe: "Gran Coupé",
+        dreituerer: "3-Türer",
+        fuenftuerer: "5-Türer",
+      },
+      driveQuestion: "Welchen Antrieb hat Ihr Fahrzeug?",
+      driveRequired: "Bitte wählen Sie den Antrieb, damit wir passende Fahrwerksoptionen zeigen können.",
+      drives: {
+        rwd: "Heckantrieb",
+        xdrive: "xDrive",
+      },
       photoHint: "Preise hinterlegt",
       photoFallback: "Foto folgt",
       carShotCaption: "{model} by dÄHLer",
@@ -418,6 +440,18 @@ export const de = {
     // von runChecks() via tf() eingesetzt (lib/rules/checks.ts,
     // vehicleAmbiguousAlternatives()) - statt generischer Beispiele.
     modell_mehrdeutig: "Baureihe umfasst {alternatives}, Modell beim Kunden klären.",
+    // Entscheid 21.09.2026 (Karosserieform/Antrieb): der Kundenflow blendet
+    // nicht passende Varianten aus, die Hinweise bleiben als Sicherheitsnetz
+    // für den Schnellweg (keine Frage gestellt) und für Positionen, die
+    // trotzdem nicht zur Angabe passen.
+    karosserie_unbekannt:
+      "Karosserieabhängige Position gewählt (z.B. Touring/Limousine), Karosserieform aber nicht bekannt: vor der Bestätigung klären.",
+    karosserie_passt_nicht:
+      "Position «{item}» gilt laut Preisliste nicht für die angegebene Karosserieform ({body}): prüfen und gegebenenfalls ersetzen.",
+    antrieb_unbekannt:
+      "Antriebsabhängige Position gewählt (xDrive/Heckantrieb), Antrieb aber nicht bekannt: vor der Bestätigung klären.",
+    antrieb_passt_nicht:
+      "Position «{item}» gilt laut Preisliste nicht für den angegebenen Antrieb ({drive}): prüfen und gegebenenfalls ersetzen.",
   },
 
   draft: {

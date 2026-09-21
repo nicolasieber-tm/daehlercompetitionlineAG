@@ -66,6 +66,17 @@ function gearboxValue(gearbox: string | null): string | null {
   return (admin.gearbox as Record<string, string>)[gearbox] ?? null;
 }
 
+/** Entscheid 21.09.2026: «Karosserie: Touring» / «Antrieb: xDrive», nur wenn bekannt. */
+function bodyStyleValue(bodyStyle: string | null): string | null {
+  if (!bodyStyle) return null;
+  return (admin.bodyStyle as Record<string, string>)[bodyStyle] ?? bodyStyle;
+}
+
+function driveValue(drive: string | null): string | null {
+  if (!drive) return null;
+  return (admin.drive as Record<string, string>)[drive] ?? drive;
+}
+
 /**
  * "ZIEL"-Zeile wie goal() in docs/vorschau.html: die Beschreibung des
  * gewählten Motor-Produkts plus die beantworteten Folgefragen je gewählter
@@ -128,10 +139,12 @@ export function buildSummaryText(ctx: MailInquiryContext): string {
   // vehicleLabel() oben) an die Zeile angehängt, damit dÄHLer die
   // Excel-Preisliste sofort zuordnen kann.
   const gearboxText = gearboxValue(inquiry.gearbox);
+  const bodyStyleText = bodyStyleValue(inquiry.body_style);
+  const driveText = driveValue(inquiry.drive);
   const internalLine = ctx.family ? ` · ${vehicleInternalLine(ctx.family, ctx.model, inquiry.line)}` : "";
   const vehicleLine = `${vehicle}${inquiry.year ? ` · Baujahr ${inquiry.year}` : ""}${seriesText}${
-    gearboxText ? ` · Getriebe: ${gearboxText}` : ""
-  }${internalLine}`;
+    bodyStyleText ? ` · Karosserie: ${bodyStyleText}` : ""
+  }${driveText ? ` · Antrieb: ${driveText}` : ""}${gearboxText ? ` · Getriebe: ${gearboxText}` : ""}${internalLine}`;
   const wish =
     inquiry.categories
       .map((c) => categoryLabel(c, LOCALE))

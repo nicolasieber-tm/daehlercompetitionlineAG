@@ -26,6 +26,8 @@ Regeln, unbedingt einhalten:
 - Nur Angaben verwenden, die im Text belegbar sind. Nichts erfinden, nichts ergänzen, auch keine naheliegenden Annahmen ("vermutlich Stufe 1" ist keine Angabe aus dem Text).
 - family_slug und model_slug ausschliesslich aus der mitgelieferten Katalogliste übernehmen (exakte Schreibweise), sonst null.
 - vehicle.line: nennt der Kunde bei einer Baureihe mit mehreren Karosserieformen (z. B. "X1"/"X2", "X3"/"X4", "X5"/"X6", "4er Coupé"/"Cabrio"/"Grand Coupé") das konkrete Modell, wörtlich übernehmen (z. B. "X2"), sonst null.
+- vehicle.body_style: nennt der Kunde die Karosserieform (Limousine, Touring/Kombi, Gran Turismo, Coupé, Cabrio, Gran Coupé, 3-Türer, 5-Türer), wörtlich übernehmen (z. B. "Touring"), sonst null.
+- vehicle.drive: nennt der Kunde den Antrieb (xDrive/Allrad oder Heckantrieb/sDrive), wörtlich übernehmen, sonst null.
 - product_id ausschliesslich aus der mitgelieferten Produktliste übernehmen (exakte ID-Zeichenkette), nie selbst bilden oder raten.
 - Sind Sie sich bei einer Zuordnung nicht sicher, setzen Sie eine niedrige confidence (unter 0.7) statt zu raten. Ist eine Zuordnung gar nicht möglich, lassen Sie das Feld null und vermerken es in open_questions.
 - categories nur setzen, wenn im Text tatsächlich eine dieser Wunsch-Kategorien vorkommt: motor, auspuff, fahrwerk, raeder, exterieur, interieur.
@@ -86,7 +88,7 @@ const RECORD_INQUIRY_TOOL: Anthropic.Tool = {
       vehicle: {
         type: "object",
         additionalProperties: false,
-        required: ["family_slug", "model_slug", "free_text", "line", "confidence"],
+        required: ["family_slug", "model_slug", "free_text", "line", "body_style", "drive", "confidence"],
         properties: {
           family_slug: nullableString("Slug aus der Familienliste, exakte Schreibweise, sonst null."),
           model_slug: nullableString("Slug aus der Modellliste der gewählten Familie, exakte Schreibweise, sonst null."),
@@ -103,6 +105,11 @@ const RECORD_INQUIRY_TOOL: Anthropic.Tool = {
           // zuordnen kann. Frei erkannt, KEIN Slug aus einer Liste (der
           // Katalog kennt die Alternativen nicht als eigene Modelle).
           line: nullableString("Vom Kunden genannter Modellname bei mehrdeutiger Baureihe, z.B. \"X2\", sonst null."),
+          // Entscheid 21.09.2026 (Karosserieform/Antrieb): frei erkannt, kein
+          // Schlüssel aus einer Liste - lib/ai/to-payload.ts ordnet den Text
+          // per bodyStyleFromText()/driveFromText() zu.
+          body_style: nullableString("Vom Kunden genannte Karosserieform, z.B. \"Touring\", \"Cabrio\", sonst null."),
+          drive: nullableString("Vom Kunden genannter Antrieb, z.B. \"xDrive\", \"Heckantrieb\", sonst null."),
           confidence: { type: "number", description: "0 bis 1." },
         },
       },
@@ -182,6 +189,20 @@ const vehicleSchema = z.object({
   // Tool-Antworten ohne dieses Feld (siehe tests/ai/extract.test.ts) - fehlt
   // es, gilt dasselbe wie null (kein erkannter Modellname).
   line: z
+    .string()
+    .min(1)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
+  // Entscheid 21.09.2026: wie line optional, robust gegen Tool-Antworten
+  // ohne diese Felder.
+  body_style: z
+    .string()
+    .min(1)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
+  drive: z
     .string()
     .min(1)
     .nullable()

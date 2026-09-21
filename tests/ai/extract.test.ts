@@ -156,7 +156,7 @@ describe("extractInquiry", () => {
     // lief statt nur über die erkannte Familie.
     const input = {
       ...VALID_AND_INVALID_INPUT,
-      vehicle: { family_slug: "m2-g87", model_slug: "m2", free_text: "M2 G87", line: null, confidence: 0.9 },
+      vehicle: { family_slug: "m2-g87", model_slug: "m2", free_text: "M2 G87", line: null, body_style: null, drive: null, confidence: 0.9 },
       selections: [
         { product_id: "prod-stufe-1", name_as_written: "Stufe 1", confidence: 0.9 },
         { product_id: "prod-sportfeder", name_as_written: "Sportfedersatz", confidence: 0.8 },
@@ -285,7 +285,7 @@ describe("extractInquiry", () => {
 describe("toInquiryPayload", () => {
   function baseExtraction(overrides?: Partial<Extraction>): Extraction {
     return {
-      vehicle: { family_slug: null, model_slug: null, free_text: "", line: null, confidence: 0 },
+      vehicle: { family_slug: null, model_slug: null, free_text: "", line: null, body_style: null, drive: null, confidence: 0 },
       year: null,
       categories: [],
       selections: [],
@@ -309,7 +309,7 @@ describe("toInquiryPayload", () => {
   // Tool-Anfrage".
   function completeExtraction(overrides?: Partial<Extraction>): Extraction {
     return baseExtraction({
-      vehicle: { family_slug: "m2-g87", model_slug: "m2", free_text: "M2 G87", line: null, confidence: 0.9 },
+      vehicle: { family_slug: "m2-g87", model_slug: "m2", free_text: "M2 G87", line: null, body_style: null, drive: null, confidence: 0.9 },
       year: "2024",
       categories: ["motor"],
       character: "sportlich",
@@ -417,7 +417,7 @@ describe("toInquiryPayload", () => {
     // (family_id/model_id/vehicle_text alle null), weil nur geprüft wurde,
     // ob der Slug-String überhaupt gesetzt war.
     const extraction = completeExtraction({
-      vehicle: { family_slug: "gibt-es-nicht", model_slug: null, free_text: "unbekanntes Fahrzeug", line: null, confidence: 0.5 },
+      vehicle: { family_slug: "gibt-es-nicht", model_slug: null, free_text: "unbekanntes Fahrzeug", line: null, body_style: null, drive: null, confidence: 0.5 },
     });
 
     const result = await toInquiryPayload(extraction);

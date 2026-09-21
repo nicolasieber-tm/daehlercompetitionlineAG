@@ -28,6 +28,8 @@ function baseInquiry(overrides: Partial<Inquiry> = {}): Inquiry {
     first_name: "Nadia",
     follow_up_answers: {},
     gearbox: "manual",
+    body_style: null,
+    drive: null,
     line: null,
     id: "11111111-1111-1111-1111-111111111111",
     last_name: "Muster",

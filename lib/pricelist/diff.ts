@@ -233,6 +233,8 @@ function buildFieldChanges(
     { field: "nm_to", oldVal: dbProduct.nm_to, newVal: parsed.nmTo },
     { field: "variant_group", oldVal: dbProduct.variant_group, newVal: parsed.variantGroup },
     { field: "gearbox", oldVal: dbProduct.gearbox, newVal: parsed.gearbox },
+    { field: "body_styles", oldVal: dbProduct.body_styles ?? [], newVal: parsed.bodyStyles },
+    { field: "drive", oldVal: dbProduct.drive ?? null, newVal: parsed.drive },
     {
       field: "fits",
       oldVal: fitsValue(dbProduct.fits_all, oldFits),

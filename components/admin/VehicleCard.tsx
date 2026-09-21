@@ -37,6 +37,21 @@ export function VehicleCard({ ctx }: { ctx: MailInquiryContext }) {
           </>
         )}
 
+        {/* Entscheid 21.09.2026 (Karosserieform/Antrieb): nur wenn bekannt. */}
+        {inquiry.body_style && (
+          <>
+            <dt className="text-muted">{admin.detail.vehicle.bodyStyle}</dt>
+            <dd className="text-text">{(admin.bodyStyle as Record<string, string>)[inquiry.body_style] ?? inquiry.body_style}</dd>
+          </>
+        )}
+
+        {inquiry.drive && (
+          <>
+            <dt className="text-muted">{admin.detail.vehicle.drive}</dt>
+            <dd className="text-text">{(admin.drive as Record<string, string>)[inquiry.drive] ?? inquiry.drive}</dd>
+          </>
+        )}
+
         {family && !family.has_pricelist && (
           <>
             <dt className="text-muted" />

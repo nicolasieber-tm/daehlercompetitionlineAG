@@ -90,6 +90,10 @@ export interface Product {
   content_hash: string | null;
   active: boolean;
   gearbox: string | null;
+  /** Karosserieformen, für die das Produkt gilt (lib/catalog/body-style.ts), leer = alle. Migration 0005. */
+  body_styles: string[];
+  /** Antrieb, für den das Produkt gilt (lib/catalog/drive.ts), null = antriebsneutral. Migration 0005. */
+  drive: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -180,6 +184,11 @@ export interface Inquiry {
    * Baureihe (vehicleLineOptions()-id, z.B. "x2"), sonst null. Siehe
    * db/migrations/0004_inquiries_line.sql. */
   line: string | null;
+  /** Karosserieform aus dem Fahrzeug-Schritt (oder aus der Modellwahl
+   * abgeleitet), null wenn nicht gefragt. Migration 0005. */
+  body_style: string | null;
+  /** Antrieb aus dem Fahrzeug-Schritt (xdrive | rwd), null wenn nicht gefragt. Migration 0005. */
+  drive: string | null;
   replied_at: string | null;
   answer_received_at: string | null;
   created_at: string;
@@ -327,6 +336,20 @@ export type Gearbox = "manual" | "automatic";
 
 /** inquiries.gearbox: Antwort auf die Getriebefrage, "unknown" ist ein eigener Wert (siehe Migration). */
 export type InquiryGearbox = "manual" | "automatic" | "unknown";
+
+/** products.body_styles[] und inquiries.body_style: Karosserieform (lib/catalog/body-style.ts). */
+export type BodyStyle =
+  | "limousine"
+  | "touring"
+  | "gran_turismo"
+  | "coupe"
+  | "cabrio"
+  | "gran_coupe"
+  | "dreituerer"
+  | "fuenftuerer";
+
+/** products.drive und inquiries.drive: Antrieb (lib/catalog/drive.ts). */
+export type Drive = "xdrive" | "rwd";
 
 /** model_families.brand */
 export type Brand = "BMW" | "MINI" | "Toyota" | "Wiesmann";
