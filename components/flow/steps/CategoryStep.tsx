@@ -11,6 +11,8 @@ import { useT } from "@/lib/i18n/provider";
 import { chfFrom } from "@/lib/i18n/format";
 import { de } from "@/lib/i18n/de";
 import { isStageProduct, productDisplay, stageShortTitle } from "@/lib/catalog/product-display";
+import { translateText } from "@/lib/translations/resolve";
+import type { TranslationMap } from "@/lib/translations/resolve";
 import type { CatalogFamily, CatalogModel, CatalogProduct, CategoryNote, ProductGroup } from "@/lib/catalog/queries";
 import type { FlowCategory } from "@/lib/db/rows";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
@@ -188,6 +190,13 @@ export function CategoryStep({
 }) {
   const { t, tf, locale } = useT();
 
+  // Entscheid 21.09.2026 (Posten 4): englische Produkttexte aus
+  // product_translations (über /api/catalog/products mitgeliefert, siehe
+  // lib/catalog/queries.ts). Bei Deutsch keine Map, dann bleiben alle
+  // Excel-Texte unverändert; fehlt eine Übersetzung, bleibt der deutsche
+  // Text stehen (lib/translations/resolve.ts translateText()).
+  const translations: TranslationMap | null = locale === "de" ? null : (state.productTranslations[locale] ?? null);
+
   const picked = state.selections[category] ?? [];
   const groupsHere = allGroups.filter((g) => g.category === category);
   const flowTitleDe = de.steps.wish.categories[category].title.trim().toLowerCase();
@@ -263,8 +272,11 @@ export function CategoryStep({
             nm_to: product.nmTo,
           },
           locale,
+          translations,
         )
       : null;
+    const plainName = translateText(product.name, translations);
+    const plainDescription = translateText(product.description, translations);
 
     // V/max-Doppelung (Rückmeldung zweiter Klicktest, CLAUDE.md Abschnitt
     // "AUFGABE", Punkt 1): eine bereits gewählte Leistungsstufe mit V/max-
@@ -277,15 +289,15 @@ export function CategoryStep({
     return (
       <Tile
         key={product.id}
-        title={display ? display.title : product.name}
+        title={display ? display.title : plainName}
         subtitle={display?.subtitle ? display.subtitle : undefined}
         description={
           display
             ? display.detail
               ? <span className="whitespace-pre-line">{display.detail}</span>
               : undefined
-            : product.description
-              ? <span className="whitespace-pre-line">{product.description}</span>
+            : plainDescription
+              ? <span className="whitespace-pre-line">{plainDescription}</span>
               : undefined
         }
         price={priceText(product, t, tf, locale)}
@@ -308,7 +320,7 @@ export function CategoryStep({
   function displayTitle(
     product: Pick<CatalogProduct, "name" | "description" | "variantGroup" | "psTo" | "nmTo">,
   ): string {
-    if (!isStageProduct(product)) return product.name;
+    if (!isStageProduct(product)) return translateText(product.name, translations);
     return productDisplay(
       {
         name: product.name,
@@ -318,6 +330,7 @@ export function CategoryStep({
         nm_to: product.nmTo,
       },
       locale,
+      translations,
     ).title;
   }
 
@@ -361,7 +374,7 @@ export function CategoryStep({
                           Leistungsstufen unter ihr sind ohnehin über den
                           Titel (Stufe N/Leistungssteigerung) unterscheidbar. */}
                       {section.groups.length > 1 && g.groupLabel ? (
-                        <div className="mb-2 text-[13px] text-dim">{g.groupLabel}</div>
+                        <div className="mb-2 text-[13px] text-dim">{translateText(g.groupLabel, translations)}</div>
                       ) : null}
                       <div className="grid grid-cols-1 gap-2.5 xs:grid-cols-2 md2:grid-cols-3">
                         {g.products.map((product) => renderProductTile(product))}
@@ -379,11 +392,11 @@ export function CategoryStep({
                 <div key={`${group.sourceCategory}-${group.groupLabel ?? ""}-${gi}`}>
                   {showHeading ? (
                     <div className="mb-2 font-display text-sm font-semibold uppercase tracking-[0.08em] text-muted">
-                      {group.sourceCategory}
+                      {translateText(group.sourceCategory, translations)}
                     </div>
                   ) : null}
                   {group.groupLabel ? (
-                    <div className="mb-2 text-[13px] text-dim">{group.groupLabel}</div>
+                    <div className="mb-2 text-[13px] text-dim">{translateText(group.groupLabel, translations)}</div>
                   ) : null}
                   <div className="grid grid-cols-1 gap-2.5 xs:grid-cols-2 md2:grid-cols-3">
                     {products.map((product) => renderProductTile(product))}
@@ -484,7 +497,7 @@ export function CategoryStep({
       ) : null}
 
       {relevantNotes.length > 0 ? (
-        <p className="mt-3.5 text-[13px] text-dim">{relevantNotes.map((n) => n.text).join(" ")}</p>
+        <p className="mt-3.5 text-[13px] text-dim">{relevantNotes.map((n) => translateText(n.text, translations)).join(" ")}</p>
       ) : null}
     </div>
   );

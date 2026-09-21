@@ -39,6 +39,7 @@ function baseInquiry(overrides: Partial<Inquiry> = {}): Inquiry {
     line: null,
     body_style: null,
     drive: null,
+    translations: null,
     id: "11111111-1111-1111-1111-111111111111",
     last_name: "Muster",
     locale: "de",

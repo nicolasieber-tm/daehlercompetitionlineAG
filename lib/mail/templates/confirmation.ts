@@ -38,11 +38,16 @@ import {
  * (die schon variant_group nutzten, siehe lib/draft/template.ts). Siehe
  * auch lib/inquiry/summary.ts displayItem() (gleiche Herleitung).
  */
-function customerItems(items: MailInquiryItem[], locale: MailInquiryContext["locale"]): MailInquiryItem[] {
+function customerItems(
+  items: MailInquiryItem[],
+  locale: MailInquiryContext["locale"],
+  translations: MailInquiryContext["translations"],
+): MailInquiryItem[] {
   return items.map((item) => {
     const display = displayItemFields(
       { name: item.name, description: item.description, isStage: isStageItem(item), psTo: item.ps_to ?? null, nmTo: item.nm_to ?? null },
       locale,
+      translations,
     );
     return { ...item, name: display.name, description: display.description };
   });
@@ -77,6 +82,7 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
     seriesPs: ctx.inquiry.series_ps,
     seriesNm: ctx.model?.series_nm ?? null,
     locale: ctx.locale,
+    translations: ctx.translations,
   });
 
   const blocks = [
@@ -91,7 +97,7 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
     ...(showBeforeAfter
       ? [sectionHeading(dict.mail.shared.beforeAfterTitle), beforeAfterTable(beforeAfterRows, ctx.locale)]
       : []),
-    itemList(customerItems(ctx.items, ctx.locale), ctx.locale),
+    itemList(customerItems(ctx.items, ctx.locale, ctx.translations), ctx.locale),
     estimateBox({ estimatedTotal: ctx.estimatedTotal, hasOnRequest, locale: ctx.locale }),
     buttonLink(dict.mail.shared.viewPackageButton, ctx.shareUrl),
     stepsList([

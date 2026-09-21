@@ -61,6 +61,7 @@ export function AdminShell({
     { href: "/admin", label: admin.nav.inquiries, matchPrefix: "/admin/anfragen", badge: newCount },
     { href: "/admin/preislisten", label: admin.nav.pricelists },
     { href: "/admin/modelle", label: admin.nav.models },
+    { href: "/admin/uebersetzungen", label: admin.nav.translations },
     { href: "/admin/follow-ups", label: admin.nav.followups },
     { href: "/admin/schnellweg", label: admin.nav.quick },
     { href: "/admin/einstellungen", label: admin.nav.settings },

@@ -189,6 +189,8 @@ export interface Inquiry {
   body_style: string | null;
   /** Antrieb aus dem Fahrzeug-Schritt (xdrive | rwd), null wenn nicht gefragt. Migration 0005. */
   drive: string | null;
+  /** Eingefrorene Übersetzungen der Positionstexte je Sprache ({"en": {Quelltext: Übersetzung}}), null wenn keine. Migration 0006. */
+  translations: Json;
   replied_at: string | null;
   answer_received_at: string | null;
   created_at: string;

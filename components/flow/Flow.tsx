@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useReducer } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Progress } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
-import type { CatalogFamily, CategoryNote, ProductGroup } from "@/lib/catalog/queries";
+import type { CatalogFamily, CategoryNote, ProductGroup, ProductTranslations } from "@/lib/catalog/queries";
 import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import { Hero } from "./Hero";
 import { FlowNav } from "./FlowNav";
@@ -53,9 +53,9 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
     dispatch({ type: "PRODUCTS_LOADING" });
     fetch(`/api/catalog/products?model=${state.modelId}`)
       .then((r) => r.json())
-      .then((data: { ok: boolean; groups?: ProductGroup[]; notes?: CategoryNote[]; error?: string }) => {
+      .then((data: { ok: boolean; groups?: ProductGroup[]; notes?: CategoryNote[]; translations?: ProductTranslations; error?: string }) => {
         if (data.ok && data.groups) {
-          dispatch({ type: "PRODUCTS_LOADED", groups: data.groups, notes: data.notes ?? [] });
+          dispatch({ type: "PRODUCTS_LOADED", groups: data.groups, notes: data.notes ?? [], translations: data.translations ?? {} });
         } else {
           dispatch({ type: "PRODUCTS_ERROR", error: data.error ?? t.errors.loadFailed });
         }

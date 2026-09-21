@@ -23,7 +23,7 @@ Dieses Dokument ist verbindlich. Es hält die Entscheidungen aus den Kundengespr
 
 **Ansprache:** Sie-Form gegenüber Endkunden. Überall: Flow, Mails, Antwortentwurf. Die Vorschau ist per Du, das wird umgestellt.
 
-**Sprache:** Deutsch. Englisch ist Posten 4 (Sprachumschaltung im Tool). Kein Französisch.
+**Sprache:** Deutsch. Englisch ist Posten 4 (Sprachumschaltung im Tool). Kein Französisch. Produkttexte aus der Excel sind deutsch und bleiben es; für Englisch führt das Tool eine Übersetzungstabelle je Quelltext, die nach jedem Import automatisch per Sprachmodell ergänzt und im Admin unter «Übersetzungen» korrigiert wird (Entscheid 21.09.2026). Nie eine englische Spalte in der Excel verlangen.
 
 **Datenquelle:** Die Excel-Preisliste ist die einzige Quelle für Modelle, Produkte, Preise und technische Daten. Es gibt keine manuelle Pflege von Produkten oder Preisen im Admin. Neue Einträge in der Excel erscheinen nach dem Upload automatisch im Flow, entfernte verschwinden. Der Admin pflegt ausschliesslich: Modellfotos, optionaler Kurzbeschrieb pro Modell, Serien-PS/Nm falls nicht in der Excel.
 

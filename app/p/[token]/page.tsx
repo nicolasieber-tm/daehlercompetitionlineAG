@@ -61,6 +61,7 @@ export default async function SharedInquiryPage({
           nmTo: p.nmTo,
         },
         locale,
+        inquiry.translations,
       );
       return {
         key: `${c}-${i}`,
@@ -99,6 +100,8 @@ export default async function SharedInquiryPage({
     seriesPs: inquiry.seriesPs,
     seriesNm: inquiry.seriesNm,
     locale,
+    // Posten 4: eingefrorene Übersetzungen der Anfrage (lib/inquiry/share.ts).
+    translations: inquiry.translations,
   });
   // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
   // dieselbe grosse Zahlen-Darstellung wie der Abschluss-Screen (siehe

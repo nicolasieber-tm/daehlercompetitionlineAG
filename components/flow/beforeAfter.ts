@@ -20,6 +20,7 @@ import { buildBeforeAfterRows as buildSharedBeforeAfterRows } from "@/lib/catalo
 import type { BeforeAfterItemInput as SharedBeforeAfterItemInput } from "@/lib/catalog/before-after";
 import type { PowerBeforeAfter } from "@/lib/catalog/power-before-after";
 import type { FlowCategory } from "@/lib/db/rows";
+import type { TranslationMap } from "@/lib/translations/resolve";
 
 export interface BeforeAfterItemInput {
   category: FlowCategory;
@@ -37,6 +38,8 @@ export interface BeforeAfterInput {
   character: string | null;
   seriesPs?: number | null;
   seriesNm?: number | null;
+  /** Übersetzungen der Positionstexte für `locale` (Posten 4), siehe lib/catalog/before-after.ts. */
+  translations?: TranslationMap | null;
 }
 
 export interface BeforeAfterRowData {
@@ -93,6 +96,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary, loc
     seriesPs: input.seriesPs,
     seriesNm: input.seriesNm,
     locale,
+    translations: input.translations,
   });
   return rows.map((r) => ({ key: r.id, category: r.label, before: r.before, after: r.after, power: r.power, extras: r.extras }));
 }

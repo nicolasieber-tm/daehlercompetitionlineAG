@@ -100,7 +100,7 @@ const M2_BODY_EN = [
     "• Exhaust: Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, from CHF 5'260",
     "• Suspension: Sportfedernsatz für M2 / VA -20mm/ HA -14mm, from CHF 1'630",
   ].join("\n"),
-  "With Stufe 1 your BMW M2 (G87) reaches 620 PS / 740 Nm, WLTP tested and with a Swiss approval certificate. The one year warranty extension to the factory warranty is included.",
+  "With Stage 1 your BMW M2 (G87) reaches 620 PS / 740 Nm, WLTP tested and with a Swiss approval certificate. The one year warranty extension to the factory warranty is included.",
   "Indicative price for the package: from CHF 11'070, including fitting, excluding roadworthiness test. We will confirm the final price once we know whether your car has the adaptive M suspension.",
   "For the period in one to two months we have workshop slots available, we would be happy to reserve one for you once you give us the go ahead.",
   "Call us or simply reply to this email, and we will discuss the details.",

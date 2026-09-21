@@ -9,6 +9,7 @@ import { BeforeAfter, Button, PowerAfterValue, PowerBeforeValue, Question, StepL
 import { useT } from "@/lib/i18n/provider";
 import { chfFrom } from "@/lib/i18n/format";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
+import type { TranslationMap } from "@/lib/translations/resolve";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
 import type { FlowAction, FlowState } from "../state";
 import { allSelectedProducts, hasUnpricedSelection, selectionTotal } from "../state";
@@ -60,6 +61,9 @@ export function DoneStep({
     }
   }
 
+  // Posten 4: Übersetzungen der Produkttexte (siehe CategoryStep.tsx), bei Deutsch keine.
+  const translations: TranslationMap | null = locale === "de" ? null : (state.productTranslations[locale] ?? null);
+
   const total = selectionTotal(state);
   const unpriced = hasUnpricedSelection(state);
   const totalLabel = unpriced ? t.steps.done.package.totalWithOnRequest : t.steps.done.package.total;
@@ -91,6 +95,7 @@ export function DoneStep({
           nmTo: p.nmTo,
         },
         locale,
+        translations,
       );
       return {
         key: p.id,
@@ -129,6 +134,7 @@ export function DoneStep({
       character: state.character,
       seriesPs,
       seriesNm,
+      translations,
     },
     t,
     locale,

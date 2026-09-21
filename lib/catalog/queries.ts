@@ -7,6 +7,10 @@
 import { sql } from "@/lib/db/client";
 import { bodyStyleFromText, isBodyStyle, sortBodyStyles } from "@/lib/catalog/body-style";
 import { DRIVE_ORDER, isDrive } from "@/lib/catalog/drive";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import type { TranslationMap } from "@/lib/translations/resolve";
+import { collectSourceTexts } from "@/lib/translations/texts";
+import { getTranslationMap } from "@/lib/translations/store";
 import {
   FLOW_CATEGORIES,
   type BodyStyle,
@@ -102,11 +106,21 @@ export interface CategoryNote {
   text: string;
 }
 
+/** Übersetzungen je Sprache (Posten 4), Schlüssel = normalisierter deutscher Quelltext, siehe lib/translations/resolve.ts. */
+export type ProductTranslations = Partial<Record<Exclude<Locale, "de">, TranslationMap>>;
+
 export interface ProductsForModelResult {
   model: { id: string; name: string; slug: string; familyId: string };
   family: { id: string; slug: string; name: string; brand: Brand };
   groups: ProductGroup[];
   notes: CategoryNote[];
+  /**
+   * Entscheid 21.09.2026 (Posten 4): Übersetzungen aller Texte dieser
+   * Produkte/Gruppen/Hinweise, immer mitgeliefert (unabhängig von der
+   * aktuellen Sprache des Kunden), damit der Flow beim Umschalten der
+   * Sprache nicht neu laden muss. Fehlende Einträge = deutscher Text.
+   */
+  translations: ProductTranslations;
 }
 
 export interface CompactModel {
@@ -553,11 +567,15 @@ export async function getProductsForModel(modelId: string): Promise<ProductsForM
     text: n.text,
   }));
 
+  const sourceTexts = collectSourceTexts({ products, notes: notes.map((n) => n.text) }).map((t) => t.text);
+  const translations: ProductTranslations = { en: await getTranslationMap("en", sourceTexts) };
+
   return {
     model: { id: model.id, name: model.name, slug: model.slug, familyId: model.family_id },
     family: { id: model.family_id, slug: model.family_slug, name: model.family_name, brand: model.family_brand as Brand },
     groups,
     notes,
+    translations,
   };
 }
 

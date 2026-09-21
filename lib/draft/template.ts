@@ -10,7 +10,8 @@ import { de } from "@/lib/i18n/de";
 import { en } from "@/lib/i18n/en";
 import { chfFrom } from "@/lib/i18n/format";
 import { categoryLabel, companyLine, itemLineText } from "@/lib/mail/render";
-import { displayItemFields, isStandaloneVmaxProduct } from "@/lib/catalog/product-display";
+import { displayItemFields, isStandaloneVmaxProduct, stageShortTitle } from "@/lib/catalog/product-display";
+import type { TranslationMap } from "@/lib/translations/resolve";
 import type { Character, FlowCategory, PriceStatus, Timing } from "@/lib/db/rows";
 
 export interface DraftItem {
@@ -80,6 +81,12 @@ export interface DraftContext {
   /** Summe der price_total der priced-Produkte, oder null (siehe lib/inquiry/create.ts). */
   estimatedTotal: number | null;
   settings: DraftSettings;
+  /**
+   * Entscheid 21.09.2026 (Posten 4): Übersetzungen der Positionstexte für
+   * die Sprache des Entwurfs (lib/translations/resolve.ts), null bei Deutsch
+   * oder ohne Einträge - die Positionszeilen zeigen dann die Excel-Texte.
+   */
+  translations?: TranslationMap | null;
 }
 
 // "älter" (de) / "older" (en), siehe lib/rules/checks.ts (gleiche
@@ -92,15 +99,14 @@ function isOlderYear(year: string | null): boolean {
   return !!year && YEAR_OLDER_VALUES.has(year.trim().toLowerCase());
 }
 
-const STAGE_PATTERN = /Stufe\s*\d+/i;
-
-/** Extrahiert "Stufe 1"/"Stufe 2" aus dem (deutschen, siehe CLAUDE.md
- * "Produktnamen ... bleiben Deutsch") Excel-Produktnamen für performanceLine
- * {stage}. Ohne Treffer (sollte bei variant_group 'leistung' nicht
- * vorkommen) bleibt der volle Name als Fallback, nie ein leerer Platzhalter. */
-function stageLabel(name: string): string {
-  const match = STAGE_PATTERN.exec(name);
-  return match ? match[0].replace(/\s+/g, " ") : name;
+/** "Stufe 1"/"Stage 1" (lokalisiert, lib/catalog/product-display.ts
+ * stageShortTitle()) aus dem deutschen Excel-Produktnamen für
+ * performanceLine {stage}; ohne erkennbare Stufennummer der lokalisierte
+ * Rückfall "Leistungssteigerung"/"Power increase" - wie die Kachel und die
+ * Positionszeile, nie ein leerer Platzhalter. Vorher stand hier auch im
+ * englischen Entwurf "Stufe 1" (Posten 4). */
+function stageLabel(name: string, locale: Locale): string {
+  return stageShortTitle(name, locale);
 }
 
 type ClarificationKey = "clarificationFahrwerk" | "clarificationMotorAuspuff" | "clarificationGeneric";
@@ -123,7 +129,7 @@ function clarificationKey(categories: readonly FlowCategory[]): ClarificationKey
  * unverändert - sie bekommt hier bereits fertig aufbereitete name/
  * description-Werte, dieselbe Vorlage draft.itemLine wie zuvor.
  */
-function buildItemLine(item: DraftItem, locale: Locale): string {
+function buildItemLine(item: DraftItem, locale: Locale, translations?: TranslationMap | null): string {
   // Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 1): ein
   // eigenständiges V/max-Produkt "... ohne Leistungssteigerung" trägt zwar
   // variant_group "leistung" (Exklusivität, siehe variant-groups.ts), ist
@@ -141,6 +147,7 @@ function buildItemLine(item: DraftItem, locale: Locale): string {
       nmTo: item.nmTo,
     },
     locale,
+    translations,
   );
   return itemLineText(
     {
@@ -186,7 +193,7 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
     // lib/mail/render.ts itemList() für den Fall leerer Positionen.
     itemsParagraph = d.itemsFallback;
   } else {
-    const lines = ctx.items.map((item) => buildItemLine(item, locale));
+    const lines = ctx.items.map((item) => buildItemLine(item, locale, ctx.translations));
     itemsParagraph = `${d.itemsIntro}\n${lines.join("\n")}`;
   }
 
@@ -198,7 +205,7 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
   );
   const performanceParagraph = stageItem
     ? tf(d.performanceLine, {
-        stage: stageLabel(stageItem.name),
+        stage: stageLabel(stageItem.name, locale),
         model: ctx.vehicleLabel,
         detail:
           stageItem.nmTo != null ? `${stageItem.psTo} PS / ${stageItem.nmTo} Nm` : `${stageItem.psTo} PS`,

@@ -33,7 +33,14 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { ok: true, groups: result.groups, notes: result.notes, model: result.model, family: result.family },
+      {
+        ok: true,
+        groups: result.groups,
+        notes: result.notes,
+        translations: result.translations,
+        model: result.model,
+        family: result.family,
+      },
       { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60" } },
     );
   } catch (err) {

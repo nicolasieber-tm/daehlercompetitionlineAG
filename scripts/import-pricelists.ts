@@ -4,8 +4,11 @@
 // zusätzlich anwenden. Siehe docs/excel-import.md, docs/architektur.md
 // Abschnitt "Excel-Import im Admin".
 //
-// Aufruf: npm run import [-- <Pfad|Datei...>] [--apply]
+// Aufruf: npm run import [-- <Pfad|Datei...>] [--apply] [--no-translate]
 //   ohne Pfad-Argument: alle .xls/.xlsx-Dateien in docs/preislisten.
+//   Mit --apply werden danach fehlende englische Produkttexte übersetzt
+//   (lib/translations/sync.ts, braucht ANTHROPIC_API_KEY; --no-translate
+//   überspringt das).
 export {}; // macht die Datei zu einem Modul (isolierter Scope)
 
 // .env laden, BEVOR irgendein Modul geladen wird, das transitiv lib/db/
@@ -37,16 +40,19 @@ const DEFAULT_INPUT_DIR = resolve(process.cwd(), "docs/preislisten");
 interface Args {
   paths: string[]; // leer = alle Dateien in docs/preislisten
   apply: boolean;
+  translate: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
   const paths: string[] = [];
   let apply = false;
+  let translate = true;
   for (const a of argv) {
     if (a === "--apply") apply = true;
+    else if (a === "--no-translate") translate = false;
     else if (!a.startsWith("--")) paths.push(resolve(process.cwd(), a));
   }
-  return { paths, apply };
+  return { paths, apply, translate };
 }
 
 async function listXlsFiles(dir: string): Promise<string[]> {
@@ -123,7 +129,7 @@ async function main() {
   const { applyImport } = await import("@/lib/pricelist/apply");
   ({ closeDb } = await import("@/lib/db/client"));
 
-  const { paths, apply } = parseArgs(process.argv.slice(2));
+  const { paths, apply, translate } = parseArgs(process.argv.slice(2));
 
   const files = paths.length > 0 ? paths : await listXlsFiles(DEFAULT_INPUT_DIR);
   if (files.length === 0) {
@@ -212,6 +218,23 @@ async function main() {
 
   if (parseErrors > 0 || result.errors.length > 0) {
     process.exitCode = 1;
+  }
+
+  // Posten 4: neue Texte englisch übersetzen (nur mit --apply, siehe Kopf).
+  if (translate) {
+    const { translateMissing } = await import("@/lib/translations/sync");
+    console.log("\nÜbersetze fehlende englische Produkttexte...");
+    const t = await translateMissing("en", {
+      onProgress: (done, total) => console.log(`  ${done}/${total}`),
+    });
+    if (t.skipped) {
+      console.log("Übersprungen: ANTHROPIC_API_KEY nicht gesetzt.");
+    } else {
+      console.log(
+        `Übersetzt ${t.translated} von ${t.missing} fehlenden Texten, verworfen ${t.rejected}, fehlgeschlagene Batches ${t.failedBatches} (${Math.round(t.durationMs / 1000)}s).`,
+      );
+      for (const e of t.errors.slice(0, 20)) console.log(`  ${e}`);
+    }
   }
 }
 

@@ -5,9 +5,11 @@
 // imports.ts (applyPendingImport/discardImport), die hier ausschliesslich
 // wiederverwendet werden.
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { requireAdmin } from "@/lib/admin/auth";
 import { applyPendingImport, discardImport } from "@/lib/pricelist/imports";
 import type { ApplyResult } from "@/lib/pricelist/apply";
+import { translateMissing } from "@/lib/translations/sync";
 
 export type ActionResult<T extends object = Record<string, unknown>> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -34,6 +36,26 @@ export async function applyPendingImportAction(importId: string): Promise<Action
     // das je ändert.
     revalidatePath("/admin/preislisten");
     revalidatePath("/admin/modelle");
+    // Entscheid 21.09.2026 (Posten 4): neue Excel-Texte nach der Übernahme
+    // im Hintergrund englisch übersetzen (lib/translations/sync.ts), nach
+    // dem Senden der Antwort (after(): der Admin wartet nicht auf die
+    // Modellaufrufe). Ohne ANTHROPIC_API_KEY passiert nichts; Fehler werden
+    // nur protokolliert - die Übernahme selbst ist zu diesem Zeitpunkt
+    // abgeschlossen, fehlende Übersetzungen holt der Button «Fehlende
+    // übersetzen» unter /admin/uebersetzungen nach.
+    after(async () => {
+      try {
+        const t = await translateMissing("en");
+        if (!t.skipped) {
+          console.info(
+            `applyPendingImportAction: Übersetzungen nachgeführt (${t.translated}/${t.missing}, verworfen ${t.rejected}, fehlgeschlagen ${t.failedBatches}).`,
+          );
+        }
+      } catch (err) {
+        console.error("applyPendingImportAction: Übersetzungslauf fehlgeschlagen.", err);
+      }
+      revalidatePath("/admin/uebersetzungen");
+    });
     return { ok: true, result };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Übernehmen fehlgeschlagen." };

@@ -9,6 +9,7 @@ import { sql } from "@/lib/db/client";
 import type { Inquiry, Model, ModelFamily } from "@/lib/db/rows";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import type { MailCheck, MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
+import { parseStoredTranslations } from "@/lib/translations/resolve";
 import { shareUrl } from "./share";
 
 function appUrl(): string {
@@ -99,6 +100,7 @@ export async function buildMailContext(inquiryId: string): Promise<MailInquiryCo
     ? await sql<Model[]>`select * from models where id = ${inquiry.model_id}`
     : [];
 
+  const locale = (inquiry.locale as Locale) ?? "de";
   return {
     inquiry,
     family: family ?? null,
@@ -107,7 +109,8 @@ export async function buildMailContext(inquiryId: string): Promise<MailInquiryCo
     estimatedTotal: inquiry.estimated_total,
     checks: parseChecks(inquiry.checks),
     draft: { subject: inquiry.draft_subject ?? "", body: inquiry.draft_reply ?? "" },
-    locale: (inquiry.locale as Locale) ?? "de",
+    locale,
+    translations: parseStoredTranslations(inquiry.translations, locale),
     appUrl: appUrl(),
     shareUrl: shareUrl(inquiry.share_token),
     adminUrl: `${appUrl()}/admin/anfragen/${inquiry.id}`,

@@ -30,6 +30,7 @@ function baseInquiry(overrides: Partial<Inquiry> = {}): Inquiry {
     gearbox: "manual",
     body_style: null,
     drive: null,
+    translations: null,
     line: null,
     id: "11111111-1111-1111-1111-111111111111",
     last_name: "Muster",

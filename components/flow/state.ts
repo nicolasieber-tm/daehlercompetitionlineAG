@@ -11,7 +11,7 @@
 // den Schritt, auf dem er gerade steht - das passiert im Flow nie (siehe
 // ADD_UPSELL_CATEGORY/REMOVE_UPSELL_CATEGORY unten: "Doch nicht" steht immer
 // auf einem ANDEREN Kategorie-Schritt als dem vorgeschlagenen).
-import type { CatalogProduct, CategoryNote, ProductGroup } from "@/lib/catalog/queries";
+import type { CatalogProduct, CategoryNote, ProductGroup, ProductTranslations } from "@/lib/catalog/queries";
 import { bodyStyleFromText, bodyStyleProductVisible } from "@/lib/catalog/body-style";
 import { driveProductVisible } from "@/lib/catalog/drive";
 import { gearboxProductVisible } from "@/lib/catalog/gearbox";
@@ -77,6 +77,8 @@ export interface FlowState {
   productsError: string | null;
   productGroups: ProductGroup[];
   productNotes: CategoryNote[];
+  /** Übersetzungen der Produkttexte je Sprache (Posten 4), aus /api/catalog/products, siehe lib/catalog/queries.ts. */
+  productTranslations: ProductTranslations;
 
   // Schritt 2: Wunsch
   categories: FlowCategory[];
@@ -126,6 +128,7 @@ export function initialFlowState(): FlowState {
     productsError: null,
     productGroups: [],
     productNotes: [],
+    productTranslations: {},
 
     categories: [],
     consulting: false,
@@ -303,7 +306,7 @@ export type FlowAction =
   | { type: "SET_YEAR"; year: string }
   | { type: "SET_BEEN_HERE"; beenHere: boolean }
   | { type: "PRODUCTS_LOADING" }
-  | { type: "PRODUCTS_LOADED"; groups: ProductGroup[]; notes: CategoryNote[] }
+  | { type: "PRODUCTS_LOADED"; groups: ProductGroup[]; notes: CategoryNote[]; translations?: ProductTranslations }
   | { type: "PRODUCTS_ERROR"; error: string }
   | { type: "TOGGLE_CATEGORY"; category: FlowCategory }
   | { type: "SET_CONSULTING"; value: boolean }
@@ -347,6 +350,7 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
         productsError: null,
         productGroups: [],
         productNotes: [],
+        productTranslations: {},
         selections: {},
       };
     }
@@ -365,6 +369,7 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
         productsError: null,
         productGroups: [],
         productNotes: [],
+        productTranslations: {},
         selections: {},
       };
     }
@@ -452,6 +457,7 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
         productsError: null,
         productGroups: action.groups,
         productNotes: action.notes,
+        productTranslations: action.translations ?? {},
       };
 
     case "PRODUCTS_ERROR":

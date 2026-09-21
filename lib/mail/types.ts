@@ -2,6 +2,7 @@
 // docs/architektur.md, Abschnitt "Mail".
 import type { Inquiry, Model, ModelFamily, PriceStatus } from "@/lib/db/rows";
 import type { Locale } from "@/lib/i18n/dictionaries";
+import type { TranslationMap } from "@/lib/translations/resolve";
 
 /** Eine Position (gewähltes Produkt) im Paket, wie sie die Mail anzeigt. */
 export interface MailInquiryItem {
@@ -59,6 +60,13 @@ export interface MailInquiryContext {
   /** Antwortentwurf (lib/draft/template.ts): Betreff und vollständiger, bereits bearbeiteter Text. */
   draft: { subject: string; body: string };
   locale: Locale;
+  /**
+   * Entscheid 21.09.2026 (Posten 4): Übersetzungen der Positionstexte für
+   * `locale` (aus inquiries.translations, eingefroren beim Anlegen), null
+   * bei Deutsch oder ohne Einträge. Nur die Kundenvorlagen (confirmation)
+   * verwenden sie; inbox bleibt deutsch (interne Texte).
+   */
+  translations?: TranslationMap | null;
   appUrl: string;
   shareUrl: string;
   adminUrl: string;

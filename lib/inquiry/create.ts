@@ -17,6 +17,10 @@ import type { DraftContext, DraftItem } from "@/lib/draft/template";
 import { polishDraft } from "@/lib/draft/polish";
 import { generateShareToken } from "./share";
 import { buildMailContext } from "./context";
+import { collectSourceTexts } from "@/lib/translations/texts";
+import { getTranslationMap } from "@/lib/translations/store";
+import { pickTranslations } from "@/lib/translations/resolve";
+import type { TranslationMap } from "@/lib/translations/resolve";
 import type { InquiryPayload } from "./schema";
 
 /**
@@ -254,6 +258,26 @@ export async function createInquiry(
     variantGroup: p.variantGroup,
   }));
 
+  // 6b. Entscheid 21.09.2026 (Posten 4): Übersetzungen der gewählten
+  // Positionstexte einfrieren (inquiries.translations, wie name/price_total
+  // in selections): Bestätigungsmail, Teilen-Seite und Antwortentwurf einer
+  // englischen Anfrage bleiben so stabil, auch wenn ein Eintrag später im
+  // Admin korrigiert wird. Unabhängig von payload.locale gesammelt (klein,
+  // und die Teilen-Seite folgt inquiry.locale), null ohne Einträge.
+  const itemSourceTexts = collectSourceTexts({
+    products: selected.map((p) => ({
+      name: p.name,
+      description: p.description,
+      variant_group: p.variantGroup,
+      ps_to: p.psTo,
+      nm_to: p.nmTo,
+    })),
+  }).map((t) => t.text);
+  const enTranslations: TranslationMap =
+    itemSourceTexts.length > 0 ? pickTranslations(await getTranslationMap("en", itemSourceTexts), itemSourceTexts) : {};
+  const translationsJson = Object.keys(enTranslations).length > 0 ? { en: enTranslations } : null;
+  const draftTranslations = payload.locale === "en" && translationsJson ? enTranslations : null;
+
   // 7. Teilen-Token.
   const shareToken = generateShareToken();
 
@@ -305,6 +329,7 @@ export async function createInquiry(
       items: draftItems,
       estimatedTotal,
       settings: draftSettings,
+      translations: draftTranslations,
     };
     const deterministicDraft = buildDraft(draftCtx, payload.locale);
     // Optionales Glätten (lib/draft/polish.ts): no-op ohne
@@ -323,7 +348,7 @@ export async function createInquiry(
         number, status, source, locale, family_id, model_id, vehicle_text, year, been_here, gearbox,
         series_ps, line, body_style, drive, categories, consulting, selections, follow_up_answers, character, timing,
         first_name, last_name, city, phone, email, channel, message, estimated_total, checks,
-        draft_subject, draft_reply, share_token
+        draft_subject, draft_reply, share_token, translations
       ) values (
         ${number}, 'neu', ${opts.source}, ${payload.locale}, ${payload.familyId}, ${payload.modelId},
         ${payload.vehicleText}, ${payload.year}, ${payload.beenHere}, ${payload.gearbox},
@@ -331,7 +356,8 @@ export async function createInquiry(
         ${sql.json(payload.followUpAnswers)}, ${payload.character}, ${payload.timing},
         ${payload.firstName}, ${payload.lastName}, ${payload.city}, ${payload.phone}, ${payload.email},
         ${payload.channel}, ${payload.message || null}, ${estimatedTotal}, ${sql.json(JSON.parse(JSON.stringify(checks)))},
-        ${draft.subject}, ${draft.body}, ${shareToken}
+        ${draft.subject}, ${draft.body}, ${shareToken},
+        ${translationsJson ? sql.json(translationsJson) : null}
       )
       returning id
     `;

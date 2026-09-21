@@ -5,6 +5,8 @@
 import { nanoid } from "nanoid";
 import { sql } from "@/lib/db/client";
 import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
+import { parseStoredTranslations } from "@/lib/translations/resolve";
+import type { TranslationMap } from "@/lib/translations/resolve";
 
 const SHARE_TOKEN_LENGTH = 22;
 
@@ -71,6 +73,8 @@ export interface SharedInquiryView {
   }>;
   estimatedTotal: number | null;
   locale: string;
+  /** Posten 4: eingefrorene Übersetzungen der Positionstexte für `locale` (inquiries.translations), null bei Deutsch/ohne Einträge. */
+  translations: TranslationMap | null;
   createdAt: string;
 }
 
@@ -101,10 +105,11 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
       model_id: string | null;
       series_ps: number | null;
       line: string | null;
+      translations: unknown;
     }[]
   >`
     select number, first_name, vehicle_text, year, character, categories, consulting, selections,
-           estimated_total, locale, created_at, family_id, model_id, series_ps, line
+           estimated_total, locale, created_at, family_id, model_id, series_ps, line, translations
     from inquiries
     where share_token = ${token}
   `;
@@ -171,6 +176,7 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
     items,
     estimatedTotal: inquiry.estimated_total,
     locale: inquiry.locale,
+    translations: parseStoredTranslations(inquiry.translations, inquiry.locale),
     createdAt: inquiry.created_at,
   };
 }

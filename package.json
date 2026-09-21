@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "parse": "tsx scripts/parse-pricelists.ts",
     "import": "tsx scripts/import-pricelists.ts",
+    "translate": "tsx scripts/translate-missing.ts",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
     "db:migrate": "tsx scripts/migrate.ts",

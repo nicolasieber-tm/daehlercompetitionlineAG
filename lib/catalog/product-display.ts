@@ -12,6 +12,17 @@
 // aus components/flow/** (Client) als auch aus lib/mail/templates/*.ts,
 // lib/draft/template.ts, lib/inquiry/summary.ts (Server) verwendet werden.
 import type { Locale } from "@/lib/i18n/dictionaries";
+import { translateText } from "@/lib/translations/resolve";
+import type { TranslationMap } from "@/lib/translations/resolve";
+
+// Entscheid 21.09.2026 (Posten 4, englische Produkttexte): alle Anzeige-
+// Funktionen hier nehmen optional eine TranslationMap (lib/translations/
+// resolve.ts, normalisierter deutscher Quelltext -> Übersetzung). Ohne Map
+// (Deutsch, interne Admin-/Inbox-Texte) bleibt alles wie bisher. Bei einer
+// Leistungsstufe wird NICHT der ganze Excel-Name übersetzt (Titel "Stage N"
+// kommt aus STRINGS, die PS/Nm-Nebenzeile ist sprachneutral), sondern nur
+// die abgeleitete Restinformation (`detail`, z.B. "M6 & A8-Getriebe") -
+// lib/translations/texts.ts sammelt genau diese Texte als Quelltexte.
 
 export interface ProductDisplayInput {
   name: string;
@@ -196,6 +207,7 @@ function stageDisplay(
   ps_to: number | null | undefined,
   nm_to: number | null | undefined,
   locale: Locale,
+  translations?: TranslationMap | null,
 ): ProductDisplay {
   const strings = STRINGS[locale] ?? STRINGS.de;
   const stageMatch = STAGE_NUMBER_PATTERN.exec(name);
@@ -260,6 +272,8 @@ function stageDisplay(
     detail = detail.replace(/^[\s,;:.\-]+/, "").replace(/[\s,;:.\-]+$/, "");
   }
 
+  if (detail && translations) detail = translateText(detail, translations);
+
   return { title, subtitle, detail };
 }
 
@@ -278,9 +292,16 @@ export function stageShortTitle(name: string, locale: Locale): string {
   return stageMatch ? strings.stage(stageMatch[1]) : strings.increase;
 }
 
-function plainDisplay(name: string, description: string | null | undefined): ProductDisplay {
-  const title = normalizeNbsp(name);
-  const lines = (description ?? "")
+function plainDisplay(
+  name: string,
+  description: string | null | undefined,
+  translations?: TranslationMap | null,
+): ProductDisplay {
+  const title = normalizeNbsp(translations ? translateText(name, translations) : name);
+  // Die Beschreibung als GANZES nachschlagen (mehrzeilig, z.B. Reifen-
+  // dimensionen je Achse): so bleibt der Zeilenaufbau in der Übersetzung
+  // erhalten, siehe lib/translations/texts.ts.
+  const lines = (translations ? translateText(description, translations) ?? "" : description ?? "")
     .split(/\n+/)
     .map((line) => normalizeNbsp(line).trim())
     .filter(Boolean);
@@ -295,15 +316,19 @@ function plainDisplay(name: string, description: string | null | undefined): Pro
  * "Stufe N:"). Alle anderen Produkte: Titel der (NBSP-normalisierte) Name,
  * Nebenzeile die erste Beschreibungszeile, Detail die weiteren Zeilen.
  */
-export function productDisplay(product: ProductDisplayInput, locale: Locale): ProductDisplay {
+export function productDisplay(
+  product: ProductDisplayInput,
+  locale: Locale,
+  translations?: TranslationMap | null,
+): ProductDisplay {
   // Befund 1: ein eigenständiges V/max-Produkt "... ohne Leistungssteigerung"
   // bleibt trotz variant_group "leistung" (Exklusivität, siehe
   // variant-groups.ts) ausserhalb der Stufen-Darstellung - Titel ist der
   // (NBSP-normalisierte) Name, wie jedes andere Nicht-Stufen-Produkt.
   if (product.variant_group === "leistung" && !isStandaloneVmaxProduct(product.name)) {
-    return stageDisplay(product.name, product.description, product.ps_to, product.nm_to, locale);
+    return stageDisplay(product.name, product.description, product.ps_to, product.nm_to, locale, translations);
   }
-  return plainDisplay(product.name, product.description);
+  return plainDisplay(product.name, product.description, translations);
 }
 
 // ---------------------------------------------------------------------------
@@ -375,8 +400,12 @@ export interface ItemDisplayResult {
   originalName: string | null;
 }
 
-/** Positionszeile für Kundentexte (Antwortentwurf, Bestätigungs-/Zusammenfassungsmail). */
-export function displayItemFields(input: ItemDisplayInput, locale: Locale): ItemDisplayResult {
+/** Positionszeile für Kundentexte (Antwortentwurf, Bestätigungs-/Zusammenfassungsmail). `translations` siehe Dateikommentar oben. */
+export function displayItemFields(
+  input: ItemDisplayInput,
+  locale: Locale,
+  translations?: TranslationMap | null,
+): ItemDisplayResult {
   const d = productDisplay(
     {
       name: input.name,
@@ -386,9 +415,11 @@ export function displayItemFields(input: ItemDisplayInput, locale: Locale): Item
       nm_to: input.nmTo,
     },
     locale,
+    translations,
   );
   if (!input.isStage) {
-    return { name: d.title, description: input.description, originalName: null };
+    const description = translations ? (translateText(input.description, translations) ?? null) : input.description;
+    return { name: d.title, description, originalName: null };
   }
   const paren = [d.subtitle, d.detail].filter(Boolean).join(", ");
   const name = paren ? `${d.title} (${paren})` : d.title;

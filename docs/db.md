@@ -98,6 +98,12 @@ Admin-Login (better-auth) ist angebunden (siehe Abschnitt "Admin-Konten" unten):
   `(product_id, model_id)`.
 - **pricelist_notes** — Hinweistexte aus der Excel (Garantie, Gutachten), je `family_id` und
   Excel-`category` (Originaltext, kein Flow-Enum).
+- **product_translations** — Englische Fassung der deutschen Excel-Produkttexte (Posten 4, Migration
+  0006). Eine Zeile je `(locale, source_text)`, `source_text` ist der normalisierte deutsche Quelltext
+  (`lib/translations/resolve.ts`), `origin` `auto` (per Sprachmodell nach dem Import) oder `manual`
+  (im Admin korrigiert, wird nie automatisch überschrieben), `model` das verwendete Modell. Fehlt ein
+  Eintrag, zeigt der Flow den deutschen Text. `inquiries.translations` (jsonb) friert die Einträge der
+  gewählten Positionen beim Anlegen einer Anfrage ein.
 - **pricelist_imports** — ein Excel-Upload im Admin. `status`: `pending` (Diff angezeigt),
   `applied` (übernommen), `discarded` (verworfen), `failed` (Übernehmen ist bei mindestens
   einer Familie fehlgeschlagen, Fehler zusätzlich als `errors` im `summary`-jsonb).

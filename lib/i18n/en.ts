@@ -1,6 +1,7 @@
 // English dictionary. Same structure as de.ts (enforced by the Dictionary
-// type). Product names stay German, the brand "dÄHLer" is never
-// translated. British English, friendly and precise. "PS" stays "PS" (not
+// type). Product names come from the German Excel price list and are shown
+// in English via product_translations (lib/translations, decision
+// 21.09.2026), the brand "dÄHLer" is never translated. British English, friendly and precise. "PS" stays "PS" (not
 // "hp"): Swiss market convention, and it is part of the product names in
 // the product list (e.g. "Stufe 1: (Basis 460 PS) 590PS / 720Nm").
 import type { Dictionary } from "./de";

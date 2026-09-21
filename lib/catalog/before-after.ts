@@ -19,8 +19,10 @@
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { isStageItem, normalizeNbsp, productDisplay } from "@/lib/catalog/product-display";
+import { translateText } from "@/lib/translations/resolve";
 import { buildPowerBeforeAfter } from "@/lib/catalog/power-before-after";
 import type { PowerBeforeAfter } from "@/lib/catalog/power-before-after";
+import type { TranslationMap } from "@/lib/translations/resolve";
 
 export interface BeforeAfterItemInput {
   category: string;
@@ -55,6 +57,8 @@ export interface BeforeAfterInput {
   seriesPs?: number | null;
   seriesNm?: number | null;
   locale: Locale;
+  /** Entscheid 21.09.2026 (Posten 4): Übersetzungen der Positionstexte für `locale`, siehe lib/translations/resolve.ts; ohne Map bleiben die Excel-Texte deutsch. */
+  translations?: TranslationMap | null;
 }
 
 export interface BeforeAfterRow {
@@ -88,18 +92,24 @@ function itemsOf(items: BeforeAfterItemInput[], category: string): BeforeAfterIt
 
 // Derselbe kurze, unterscheidbare Titel wie in der Kachel und in den Mails
 // (siehe components/flow/beforeAfter.ts displayName(), dieselbe Herleitung).
-function displayName(item: BeforeAfterItemInput, locale: Locale): string {
+function displayName(item: BeforeAfterItemInput, locale: Locale, translations?: TranslationMap | null): string {
   if (!isStageItem({ name: item.name, variant_group: item.variant_group, ps_to: item.ps_to })) {
-    return normalizeNbsp(item.name);
+    return normalizeNbsp(translateText(item.name, translations));
   }
   return productDisplay(
     { name: item.name, description: item.description, variant_group: item.variant_group, ps_to: item.ps_to, nm_to: item.nm_to },
     locale,
+    translations,
   ).title;
 }
 
-function joinNames(items: BeforeAfterItemInput[], adviceValue: string, locale: Locale): string {
-  return items.length > 0 ? items.map((i) => displayName(i, locale)).join(", ") : adviceValue;
+function joinNames(
+  items: BeforeAfterItemInput[],
+  adviceValue: string,
+  locale: Locale,
+  translations?: TranslationMap | null,
+): string {
+  return items.length > 0 ? items.map((i) => displayName(i, locale, translations)).join(", ") : adviceValue;
 }
 
 /**
@@ -111,6 +121,7 @@ function joinNames(items: BeforeAfterItemInput[], adviceValue: string, locale: L
  */
 export function buildBeforeAfterRows(input: BeforeAfterInput): BeforeAfterRow[] {
   const locale = input.locale;
+  const translations = input.translations ?? null;
   const t = getDictionary(locale);
   const rows: BeforeAfterRow[] = [];
   const b = t.steps.done.beforeAfter;
@@ -125,11 +136,11 @@ export function buildBeforeAfterRows(input: BeforeAfterInput): BeforeAfterRow[] 
         ? `${input.seriesPs} PS · ${input.seriesNm} Nm`
         : b.seriesValue;
     let after: string;
-    const extraNames = extras.map((i) => displayName(i, locale)).join(", ");
+    const extraNames = extras.map((i) => displayName(i, locale, translations)).join(", ");
     if (stage) {
       after = `${stage.ps_to} PS · ${stage.nm_to ?? "?"} Nm${extraNames ? " · " + extraNames : ""}`;
     } else if (motorItems.length > 0) {
-      after = motorItems.map((i) => displayName(i, locale)).join(", ");
+      after = motorItems.map((i) => displayName(i, locale, translations)).join(", ");
     } else {
       after = advice;
     }
@@ -142,7 +153,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput): BeforeAfterRow[] 
       id: "sound",
       label: b.rows.sound,
       before: b.seriesExhaustValue,
-      after: joinNames(itemsOf(input.items, "auspuff"), advice, locale),
+      after: joinNames(itemsOf(input.items, "auspuff"), advice, locale, translations),
     });
   }
 
@@ -151,7 +162,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput): BeforeAfterRow[] 
       id: "fahrwerk",
       label: b.rows.fahrwerk,
       before: b.seriesHeightValue,
-      after: joinNames(itemsOf(input.items, "fahrwerk"), advice, locale),
+      after: joinNames(itemsOf(input.items, "fahrwerk"), advice, locale, translations),
     });
   }
 
@@ -160,7 +171,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput): BeforeAfterRow[] 
       id: "raeder",
       label: b.rows.raeder,
       before: b.seriesWheelsValue,
-      after: joinNames(itemsOf(input.items, "raeder"), advice, locale),
+      after: joinNames(itemsOf(input.items, "raeder"), advice, locale, translations),
     });
   }
 
@@ -169,7 +180,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput): BeforeAfterRow[] 
       id: "exterieur",
       label: b.rows.exterieur,
       before: b.seriesValue,
-      after: joinNames(itemsOf(input.items, "exterieur"), advice, locale),
+      after: joinNames(itemsOf(input.items, "exterieur"), advice, locale, translations),
     });
   }
 
@@ -178,7 +189,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput): BeforeAfterRow[] 
       id: "interieur",
       label: b.rows.interieur,
       before: b.seriesValue,
-      after: joinNames(itemsOf(input.items, "interieur"), advice, locale),
+      after: joinNames(itemsOf(input.items, "interieur"), advice, locale, translations),
     });
   }
 
