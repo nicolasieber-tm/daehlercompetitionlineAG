@@ -7,6 +7,13 @@
 
 -- ---------------------------------------------------------------------------
 -- Einstellungen (Absender, Signatur, Firmenadresse)
+--
+-- Nur fehlende Schlüssel anlegen (do nothing): scripts/start.sh spielt den
+-- Seed bei jedem Railway-Start ein. Mit "do update" wurden Werte, die der
+-- Kunde im Admin unter Einstellungen geändert hatte (Postfach, Kopie,
+-- Telefon in der Signatur), bei jedem Deploy zurückgesetzt (Befund
+-- 21.09.2026). Gleiches gilt unten für die Follow-up-Regel und die
+-- Startfotos.
 -- ---------------------------------------------------------------------------
 
 insert into settings (key, value) values
@@ -18,7 +25,7 @@ insert into settings (key, value) values
   ('signature_name', 'Christoph Dähler'),
   ('signature_phone', '+41 31 819 88 77'),
   ('company_address', 'dÄHLer Competition Line AG, Belp')
-on conflict (key) do update set value = excluded.value;
+on conflict (key) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- Beispiel-Follow-up-Regel (inaktiv, der Kunde aktiviert und passt im
@@ -41,13 +48,7 @@ values (
   false,
   0
 )
-on conflict (id) do update set
-  name = excluded.name,
-  days_after_reply = excluded.days_after_reply,
-  subject = excluded.subject,
-  body = excluded.body,
-  max_count = excluded.max_count,
-  sort = excluded.sort;
+on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- Familien-Platzhalter ohne Preisliste (Kurzablauf "auf Anfrage", siehe
@@ -75,13 +76,16 @@ on conflict (slug) do update set
 -- lib/catalog/seed-photos.ts, Quelle der Wahrheit für diese Zuordnung).
 -- Reine UPDATE-Statements: solange die jeweilige Familie noch nicht per
 -- Excel-Import angelegt wurde, treffen sie keine Zeile und tun nichts.
+-- Nur wenn noch kein Foto hinterlegt ist (photo_url is null), wie
+-- lib/pricelist/apply.ts applySeedPhotos(): ein im Admin hochgeladenes
+-- Foto darf der Seed beim nächsten Start nicht durch das Startfoto ersetzen.
 -- ---------------------------------------------------------------------------
 
 update model_families set photo_url = '/img/models/m2g87.jpg'
-  where slug = 'm2-g87';
+  where slug = 'm2-g87' and photo_url is null;
 update model_families set photo_url = '/img/models/m3g81.jpg'
-  where slug = 'm3-m4-g80-g81-g82-g83';
+  where slug = 'm3-m4-g80-g81-g82-g83' and photo_url is null;
 update model_families set photo_url = '/img/models/m5g99.jpg'
-  where slug = 'm5-g90-m5-g99-touring';
+  where slug = 'm5-g90-m5-g99-touring' and photo_url is null;
 update model_families set photo_url = '/img/models/x3g45.jpg'
-  where slug = 'x3-g45';
+  where slug = 'x3-g45' and photo_url is null;
