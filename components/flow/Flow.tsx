@@ -4,7 +4,7 @@
 // Navigation. Zustand über useReducer (siehe state.ts). Referenz für Ablauf
 // und Verhalten: docs/vorschau.html; Seitenaufbau/API-Anbindung:
 // docs/architektur.md, Abschnitt "Kundenflow".
-import { useCallback, useEffect, useMemo, useReducer } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Progress } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
@@ -70,6 +70,35 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentCategory, state.modelId, state.productsStatus]);
+
+  // Bei jedem Schrittwechsel (Weiter, Zurück, Absenden -> "done") an den
+  // Anfang des Flow-Rahmens scrollen, wie docs/vorschau.html go():
+  // $('#flow').scrollIntoView({block:'start'}). Ohne das bleibt der
+  // Viewport dort, wo der Kunde zuletzt auf "Weiter" geklickt hat, also
+  // am unteren Rand des neuen Schritts (Rückmeldung Klicktest
+  // 21.09.2026). Beim ersten Render nicht scrollen, sonst würde der Hero
+  // beim Laden übersprungen.
+  //
+  // Zweiter Auslöser: Produkte fertig geladen (loading -> loaded) in einem
+  // Kategorie-Schritt. Beim ersten Kategorie-Schritt ist der Inhalt im
+  // Moment des Schrittwechsels nur der kurze "Lädt"-Text, das Dokument
+  // wird kürzer, und wenn die Produkte eintreffen, wächst es unter dem
+  // laufenden Smooth-Scroll wieder. Chrome hält dann die alte Position
+  // (gemessen: scrollY unverändert, Rahmen-Oberkante 875px über dem
+  // Viewport auf iPhone-Breite). Darum nach dem Laden nochmals scrollen.
+  const stageRef = useRef<HTMLDivElement>(null);
+  const previousStepRef = useRef(state.currentStep);
+  const previousProductsStatusRef = useRef(state.productsStatus);
+  useEffect(() => {
+    const stepChanged = previousStepRef.current !== state.currentStep;
+    const productsArrived =
+      currentCategory !== null && previousProductsStatusRef.current === "loading" && state.productsStatus === "loaded";
+    previousStepRef.current = state.currentStep;
+    previousProductsStatusRef.current = state.productsStatus;
+    if (!stepChanged && !productsArrived) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    stageRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  }, [state.currentStep, state.productsStatus, currentCategory]);
 
   const canNext = useMemo(() => {
     switch (state.currentStep) {
@@ -272,7 +301,7 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
     <div className="min-h-screen bg-bg">
       <Hero />
       <main className="mx-auto max-w-[1040px] px-4 py-9 sm:px-6">
-        <div className="border border-line bg-bg-alt">
+        <div ref={stageRef} className="scroll-mt-4 border border-line bg-bg-alt">
           <div className="mx-auto max-w-[760px] px-4 py-8 xs:px-6 xs:py-9">
             <form onSubmit={handleFormSubmit}>
               {state.currentStep !== "done" ? <Progress total={totalSteps} current={currentIndex} /> : null}
