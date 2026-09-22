@@ -34,8 +34,12 @@ export default defineRailway(() => {
       // Start Migrationen und Seed ausführt.
       healthcheckPath: "/api/health",
       healthcheckTimeout: 600,
-      restartPolicyType: "ON_FAILURE",
-      restartPolicyMaxRetries: 10,
+      // Neustart-Regel bewusst nicht gesetzt: die alte railway.json hatte
+      // ON_FAILURE mit 10 Versuchen, das ist exakt der Railway-Standard
+      // («The default is On Failure with a maximum of 10 restarts»). Über
+      // IaC gesetzt liest Railway den Wert nach dem Apply als null zurück
+      // (Stand CLI 5.57.2 / SDK 3.11.0), der Plan meldete dann dauerhaft
+      // eine offene Änderung.
     },
     replicas: { "europe-west4-drams3a": 1 },
     networking: { privateNetworkEndpoint: "daehlercompetitionlineag" },
