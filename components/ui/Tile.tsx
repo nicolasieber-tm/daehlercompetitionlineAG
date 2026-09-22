@@ -13,6 +13,12 @@ export type TileProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   priceMuted?: boolean;
   badge?: ReactNode;
   selected?: boolean;
+  /** Immer sichtbarer Auswahl-Indikator oben rechts (nur Produktkachel):
+   * "single" = Kreis, eine Variante aus der Gruppe; "multi" = Quadrat,
+   * kombinierbar. Ohne Angabe erscheint wie bisher nur bei Auswahl ein
+   * roter Punkt. Rückmeldung Klicktest 22.09.2026 (Varianten und Zusätze
+   * visuell unterscheiden), siehe components/flow/steps/CategoryStep.tsx. */
+  indicator?: "single" | "multi";
   /** Bild-URL für die Foto-Kachel-Variante (Fahrzeug, Kategorie, Charakter). */
   imageUrl?: string;
   /** Grössere, hohe Kachel (Charakter-Optionen). */
@@ -32,6 +38,7 @@ export function Tile({
   priceMuted = false,
   badge,
   selected = false,
+  indicator,
   imageUrl,
   tall = false,
   className = "",
@@ -94,13 +101,22 @@ export function Tile({
         className,
       ].join(" ")}
     >
-      {selected ? (
+      {indicator ? (
+        <span
+          aria-hidden
+          className={[
+            "absolute right-2.5 top-2.5 h-3.5 w-3.5 border transition-colors duration-150",
+            indicator === "single" ? "rounded-full" : "rounded-[2px]",
+            selected ? "border-red-bright bg-red-bright shadow-[0_0_0_3px_var(--color-red-soft)]" : "border-line-alt bg-bg",
+          ].join(" ")}
+        />
+      ) : selected ? (
         <span
           aria-hidden
           className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-red-bright shadow-[0_0_0_3px_var(--color-red-soft)]"
         />
       ) : null}
-      <span className="break-words [overflow-wrap:anywhere] pr-4 font-display text-xl font-semibold uppercase leading-none tracking-[0.02em]">
+      <span className="break-words [overflow-wrap:anywhere] pr-5 font-display text-xl font-semibold uppercase leading-none tracking-[0.02em]">
         {title}
       </span>
       {subtitle ? (

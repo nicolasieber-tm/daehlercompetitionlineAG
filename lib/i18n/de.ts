@@ -140,8 +140,17 @@ export const de = {
       priceHintData:
         "Richtpreise «ab» aus unserer Produkteliste für den {model}, inklusive Einbau, ohne MFK.",
       priceHintGeneric: "Für dieses Fahrzeug nennen wir Ihnen die Preise persönlich.",
-      variantHint: "Eine Variante, Ergänzungen beliebig dazu.",
-      multiHint: "Mehrfachauswahl möglich.",
+      // Rückmeldung Klicktest 22.09.2026: Varianten (eine davon, Kreis-
+      // Indikator) und Ergänzungen (kombinierbar, Quadrat) stehen je Raster
+      // als eigene Blöcke mit dieser Zeile darüber, siehe CategoryStep.tsx
+      // clusterProducts(). Ersetzt die nie gerenderten variantHint/multiHint
+      // aus der Vorschau («Eine Variante, Ergänzungen beliebig dazu.»).
+      cluster: {
+        single: "Eine Variante wählen",
+        singlePerAxle: "Je Achse eine Variante wählen",
+        extras: "Ergänzungen, kombinierbar",
+        multi: "Mehrfachauswahl möglich",
+      },
       // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt
       // 2): Zwischenüberschriften im Motor-Schritt, gruppiert nach
       // variant_group/source_category (siehe components/flow/steps/

@@ -338,3 +338,63 @@ describe("isVmaxLocked / vmaxLiftStage", () => {
     expect(isVmaxLocked(stage1WithVmax, selections)).toBe(false);
   });
 });
+
+// Rückmeldung Klicktest 22.09.2026: Exklusivität mit Achslogik
+// (lib/catalog/variant-groups.ts variantsConflict()).
+describe("flowReducer PICK_PRODUCT: Exklusivgruppen mit Achslogik", () => {
+  const d4 = product({ id: "d4", category: "raeder", name: "Distanzscheibe 4mm", variantGroup: "distanzscheiben" });
+  const d11 = product({ id: "d11", category: "raeder", name: "Distanzscheibe 11mm", variantGroup: "distanzscheiben" });
+  const screws = product({ id: "screws", category: "raeder", name: "Satz Radschrauben (schwarz)", variantGroup: null });
+
+  const padsBoth = product({
+    id: "pads-both",
+    category: "fahrwerk",
+    name: "Sportbremsbeläge für Serienbremsanlage für M3, M4",
+    variantGroup: "bremsbelaege",
+  });
+  const padsVa = product({ id: "pads-va", category: "fahrwerk", name: "Sportbremsbeläge für Serienbremsanlage VA", variantGroup: "bremsbelaege" });
+  const padsHa = product({ id: "pads-ha", category: "fahrwerk", name: "Sportbremsbeläge für Serienbremsanlage HA", variantGroup: "bremsbelaege" });
+  const padsTrackVa = product({
+    id: "pads-track-va",
+    category: "fahrwerk",
+    name: "Bremsbelagsatz Track - Race F2x/F8x VA",
+    variantGroup: "bremsbelaege",
+  });
+
+  function pick(state: FlowState, category: FlowState["categories"][number], p: CatalogProduct): FlowState {
+    return flowReducer(state, { type: "PICK_PRODUCT", category, product: p });
+  }
+
+  it("eine zweite Distanzscheiben-Grösse ersetzt die erste, Radschrauben bleiben dazu wählbar", () => {
+    let state = { ...initialFlowState(), categories: ["raeder"] as FlowState["categories"] };
+    state = pick(state, "raeder", d4);
+    state = pick(state, "raeder", screws);
+    state = pick(state, "raeder", d11);
+    expect(state.selections.raeder?.map((p) => p.id)).toEqual(["screws", "d11"]);
+  });
+
+  it("Bremsbeläge VA und HA sind zusammen wählbar", () => {
+    let state = { ...initialFlowState(), categories: ["fahrwerk"] as FlowState["categories"] };
+    state = pick(state, "fahrwerk", padsVa);
+    state = pick(state, "fahrwerk", padsHa);
+    expect(state.selections.fahrwerk?.map((p) => p.id)).toEqual(["pads-va", "pads-ha"]);
+  });
+
+  it("ein anderer Belag für dieselbe Achse ersetzt nur diese Achse", () => {
+    let state = { ...initialFlowState(), categories: ["fahrwerk"] as FlowState["categories"] };
+    state = pick(state, "fahrwerk", padsVa);
+    state = pick(state, "fahrwerk", padsHa);
+    state = pick(state, "fahrwerk", padsTrackVa);
+    expect(state.selections.fahrwerk?.map((p) => p.id)).toEqual(["pads-ha", "pads-track-va"]);
+  });
+
+  it("der Belag für beide Achsen verdrängt VA und HA, und umgekehrt", () => {
+    let state = { ...initialFlowState(), categories: ["fahrwerk"] as FlowState["categories"] };
+    state = pick(state, "fahrwerk", padsVa);
+    state = pick(state, "fahrwerk", padsHa);
+    state = pick(state, "fahrwerk", padsBoth);
+    expect(state.selections.fahrwerk?.map((p) => p.id)).toEqual(["pads-both"]);
+    state = pick(state, "fahrwerk", padsVa);
+    expect(state.selections.fahrwerk?.map((p) => p.id)).toEqual(["pads-va"]);
+  });
+});

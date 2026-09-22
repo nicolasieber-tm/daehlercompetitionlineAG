@@ -16,6 +16,7 @@ import { bodyStyleFromText, bodyStyleProductVisible } from "@/lib/catalog/body-s
 import { driveProductVisible } from "@/lib/catalog/drive";
 import { gearboxProductVisible } from "@/lib/catalog/gearbox";
 import { hasVmaxLift, isStageProduct } from "@/lib/catalog/product-display";
+import { variantsConflict } from "@/lib/catalog/variant-groups";
 import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import type { VehicleLabelFamily, VehicleLabelModel } from "@/lib/catalog/vehicle-label";
 import type { BodyStyle, Brand, Channel, Character, Drive, FlowCategory, InquiryGearbox, Timing } from "@/lib/db/rows";
@@ -491,13 +492,13 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
         return state;
       }
 
+      // Exklusivität über variant_group, mit Achslogik (VA + HA bleibt
+      // kombinierbar), siehe lib/catalog/variant-groups.ts variantsConflict().
       let next: CatalogProduct[];
       if (isSelected) {
         next = current.filter((p) => p.id !== product.id);
-      } else if (product.variantGroup) {
-        next = [...current.filter((p) => p.variantGroup !== product.variantGroup), product];
       } else {
-        next = [...current, product];
+        next = [...current.filter((p) => !variantsConflict(p, product)), product];
       }
       let selections: FlowState["selections"] = { ...state.selections, [category]: next };
 

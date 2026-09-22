@@ -26,6 +26,7 @@ import {
   motorProductVisible,
   vmaxLiftStage,
 } from "../state";
+import { clusterProducts } from "../clusters";
 import { usePsCounter } from "../usePsCounter";
 import { UPSELL_TARGET } from "../upsell";
 import { vehicleDisplayName } from "../vehicleLabel";
@@ -260,7 +261,7 @@ export function CategoryStep({
     });
   }
 
-  function renderProductTile(product: CatalogProduct) {
+  function renderProductTile(product: CatalogProduct, indicator: "single" | "multi") {
     const isStage = isStageProduct(product);
     const display = isStage
       ? productDisplay(
@@ -304,11 +305,54 @@ export function CategoryStep({
         priceMuted={product.priceStatus !== "priced"}
         badge={locked && lockingStage ? tf(t.steps.category.includedInStage, { stage: stageShortTitle(lockingStage.name, locale) }) : undefined}
         selected={picked.some((p) => p.id === product.id)}
+        indicator={indicator}
         disabled={locked}
         aria-disabled={locked || undefined}
         className={locked ? "opacity-50" : undefined}
         onClick={locked ? undefined : () => handlePick(product)}
       />
+    );
+  }
+
+  /** Raster eines Blocks (Subsection-Gruppe bzw. Excel-Gruppe): je Cluster
+   * eine Hinweiszeile («Eine Variante wählen» / «Ergänzungen, kombinierbar»)
+   * und ein Grid. Die Ergänzungs-Zeile nur, wenn daneben Varianten stehen
+   * oder mehrere Ergänzungen wählbar sind; ein einzelnes Produkt ohne
+   * Alternative braucht keine Zeile. */
+  function renderClusters(products: CatalogProduct[], keyPrefix: string) {
+    const clusters = clusterProducts(products);
+    const hasSingle = clusters.some((c) => c.kind === "single");
+    return (
+      <div className="flex flex-col gap-4">
+        {clusters.map((cluster, ci) => {
+          const label =
+            cluster.kind === "single"
+              ? cluster.perAxle
+                ? t.steps.category.cluster.singlePerAxle
+                : t.steps.category.cluster.single
+              : hasSingle
+                ? t.steps.category.cluster.extras
+                : cluster.products.length > 1
+                  ? t.steps.category.cluster.multi
+                  : null;
+          return (
+            <div key={`${keyPrefix}-${ci}`}>
+              {label ? (
+                <div className="mb-2 flex items-center gap-2 text-[12px] uppercase tracking-[0.08em] text-dim">
+                  <span
+                    aria-hidden
+                    className={["inline-block h-2.5 w-2.5 border border-line-alt", cluster.kind === "single" ? "rounded-full" : "rounded-[2px]"].join(" ")}
+                  />
+                  {label}
+                </div>
+              ) : null}
+              <div className="grid grid-cols-1 gap-2.5 xs:grid-cols-2 md2:grid-cols-3">
+                {cluster.products.map((product) => renderProductTile(product, cluster.kind))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     );
   }
 
@@ -376,9 +420,7 @@ export function CategoryStep({
                       {section.groups.length > 1 && g.groupLabel ? (
                         <div className="mb-2 text-[13px] text-dim">{translateText(g.groupLabel, translations)}</div>
                       ) : null}
-                      <div className="grid grid-cols-1 gap-2.5 xs:grid-cols-2 md2:grid-cols-3">
-                        {g.products.map((product) => renderProductTile(product))}
-                      </div>
+                      {renderClusters(g.products, `${section.id}-${gi}`)}
                     </div>
                   ))}
                 </div>
@@ -398,9 +440,7 @@ export function CategoryStep({
                   {group.groupLabel ? (
                     <div className="mb-2 text-[13px] text-dim">{translateText(group.groupLabel, translations)}</div>
                   ) : null}
-                  <div className="grid grid-cols-1 gap-2.5 xs:grid-cols-2 md2:grid-cols-3">
-                    {products.map((product) => renderProductTile(product))}
-                  </div>
+                  {renderClusters(products, `${group.sourceCategory}-${gi}`)}
                 </div>
               );
             })}

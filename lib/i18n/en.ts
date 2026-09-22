@@ -130,8 +130,12 @@ export const en: Dictionary = {
       priceHintData:
         "Indicative prices marked \"from\", taken from our product list for the {model}, including fitting, excluding roadworthiness test.",
       priceHintGeneric: "We will let you know the prices for this vehicle personally.",
-      variantHint: "One variant, extras can be added freely.",
-      multiHint: "Multiple selection possible.",
+      cluster: {
+        single: "Choose one variant",
+        singlePerAxle: "Choose one variant per axle",
+        extras: "Extras, can be combined",
+        multi: "Multiple selection possible",
+      },
       motorSections: {
         leistungsstufen: "Power stages",
         weitereOptionen: "More options",

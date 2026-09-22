@@ -82,8 +82,33 @@ const RULES: Partial<Record<FlowCategory, VariantRule[]>> = {
       pattern: /Sportfeder|Sportfahrwerk|Gewindefahrwerk|Performance Fahrwerk|Race Fahrwerk/i,
       group: "fahrwerk",
     },
+    // Rückmeldung Klicktest 22.09.2026 («bei den Bremsbelägen konnte ich alle
+    // auswählen»): «Sportbremsbeläge für Serienbremsanlage» (beide Achsen),
+    // «... VA», «... HA», «... für Serien-Keramikanlage», «Bremsbelagsatz
+    // Track - Race VA/HA» sind Belag-Alternativen für dieselbe Bremse. VA und
+    // HA zusammen bleibt über die Achslogik (axleOf()/variantsConflict()
+    // unten) wählbar, ein Produkt ohne Achsangabe deckt beide Achsen ab und
+    // verdrängt VA wie HA. «Bremsbel[aä]g» trifft «Sportbremsbeläge»,
+    // «Sportbremsbelag» und «Bremsbelagsatz».
+    { pattern: /Bremsbel[aä]g/i, group: "bremsbelaege" },
+    // «Hochleistungsbremsanlage, 356mm/8 Kolben» vs. «..., 380mm/8 Kolben»
+    // (3er F30, 4er F32, Z4 E89): eine Anlage. MINI führt «... VA»/«... HA»
+    // getrennt, dort greift dieselbe Achslogik.
+    { pattern: /Hochleistungsbrems/i, group: "bremsanlage" },
   ],
-  raeder: [{ pattern: /Radsatz/i, group: "radsatz" }],
+  raeder: [
+    { pattern: /Radsatz/i, group: "radsatz" },
+    // Rückmeldung Klicktest 22.09.2026 («theoretisch drei Distanzscheiben
+    // auswählen macht keinen Sinn»): «Distanzscheibe 4mm» … «25mm» bzw.
+    // «Distanzscheibe 3mm schwarz eloxiert (2 Stk.)» … sind Grössen, eine
+    // davon. «Satz Radschrauben» und «DTC Gutachten zu Distanzscheiben» in
+    // derselben Gruppenzeile sind Ergänzungen und beginnen nicht mit dem
+    // Wort, bleiben also kombinierbar.
+    { pattern: /^Distanzscheibe\b/i, group: "distanzscheiben" },
+    // «Aufpreis für Lackierung in beliebiger Farbe» vs. «Aufpreis in
+    // "dÄHLer-Edition" frontpoliert» (44 Baureihen): eine Oberfläche je Rad.
+    { pattern: /^Aufpreis\b.*(Lackierung|lackiert|frontpoliert|Wunschfarbe)/i, group: "radoberflaeche" },
+  ],
   exterieur: [
     {
       // "(^|dÄHLer )Frontgrill(?!.*unten)": "Frontgrill Carbon" und
@@ -152,6 +177,16 @@ const RULES: Partial<Record<FlowCategory, VariantRule[]>> = {
       // die Ausnahme ausserhalb der Gruppe.
       exclude: /Lenkradtaste|Griffbereich/i,
     },
+    // Rückmeldung Klicktest 22.09.2026: «Abgasklappensteuerung bedienbar
+    // über Lenkradtaste» vs. «... über Lenkradtaste oder Fernbedienung» vs.
+    // «... mit Fernbedienung» (M2 F87 u.a.) sind Bedienwege für dieselbe
+    // Klappe, einer davon. Anker am Anfang, damit Anlagen-Namen «... mit
+    // Bi-Klappensteuerung» (Kategorie auspuff, dort ohnehin andere Regeln)
+    // und das «Multiinformations Display MID mit Abgasklappensteuerung»
+    // (ein Display, das die Steuerung mitbringt) nicht erfasst werden.
+    // Schreibweise «Abgasklappenstuerung» (Tippfehler in der Excel) über
+    // «ste?uerung» mit abgedeckt.
+    { pattern: /^Abgasklappenste?uerung/i, group: "klappensteuerung" },
   ],
 };
 
@@ -163,4 +198,54 @@ export function variantGroupFor(category: FlowCategory, name: string): string | 
     if (rule.pattern.test(name) && !(rule.exclude && rule.exclude.test(name))) return rule.group;
   }
   return null;
+}
+
+export type Axle = "va" | "ha";
+
+/**
+ * Gruppen, in denen eine Achsangabe im Namen ein eigenes Produkt je Achse
+ * bedeutet (Beläge VA + HA, MINI Bremsanlage VA + HA). Bewusst als Liste:
+ * in anderen Gruppen ist «HA» nur eine Massangabe («Sportfedernsatz für M3
+ * xDrive / -28mm / HA 8mm», M3/M4 G80), dort bleiben die Varianten
+ * uneingeschränkt exklusiv.
+ */
+const PER_AXLE_GROUPS: ReadonlySet<string> = new Set(["bremsbelaege", "bremsanlage"]);
+
+export function isPerAxleGroup(variantGroup: string | null): boolean {
+  return variantGroup !== null && PER_AXLE_GROUPS.has(variantGroup);
+}
+
+/**
+ * Achse aus dem Produktnamen: «... VA» (Vorderachse) bzw. «... HA»
+ * (Hinterachse), null ohne Angabe oder wenn beide genannt sind («VA/HA»,
+ * gilt dann für beide Achsen). Nur als Wort, damit «HA» nicht in anderen
+ * Wörtern trifft.
+ */
+export function axleOf(name: string): Axle | null {
+  const va = /\bVA\b/.test(name);
+  const ha = /\bHA\b/.test(name);
+  if (va && !ha) return "va";
+  if (ha && !va) return "ha";
+  return null;
+}
+
+/**
+ * true, wenn sich zwei Produkte im Flow ausschliessen: gleiche variant_group,
+ * ausser die Gruppe ist achsbezogen (isPerAxleGroup()) und beide nennen eine
+ * verschiedene Achse (VA + HA zusammen ist eine korrekte Wahl, z.B.
+ * Sportbremsbeläge VA und HA). Ein Produkt ohne Achsangabe in derselben
+ * Gruppe deckt beide Achsen ab und verdrängt VA wie HA. Wird vom Reducer
+ * (components/flow/state.ts PICK_PRODUCT) und für die Darstellung
+ * (components/flow/clusters.ts) verwendet.
+ */
+export function variantsConflict(
+  a: { variantGroup: string | null; name: string },
+  b: { variantGroup: string | null; name: string },
+): boolean {
+  if (!a.variantGroup || a.variantGroup !== b.variantGroup) return false;
+  if (!isPerAxleGroup(a.variantGroup)) return true;
+  const axleA = axleOf(a.name);
+  const axleB = axleOf(b.name);
+  if (axleA && axleB && axleA !== axleB) return false;
+  return true;
 }
