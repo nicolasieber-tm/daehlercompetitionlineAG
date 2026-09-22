@@ -278,12 +278,15 @@ test.describe("Sprachwechsel", () => {
 
     await expect(page.getByRole("heading", { name: "How much would you like?" })).toBeVisible();
     // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
-    // Titel lokalisiert ("Stage 1" statt "Stufe 1"), Rest des Produktnamens
-    // (Detail "M6 & A8-Getriebe") bleibt Deutsch, auch in der englischen UI.
-    // Eine Regex statt zwei separater Assertions: "M6 & A8-Getriebe" allein
-    // träfe auch die benachbarte "Stage 1 with V-max removal"-Kachel
-    // (dieselbe Getriebeangabe im Detail, andere PS/Nm-Werte).
-    await expect(page.getByRole("button", { name: /^Stage 1.*620.*M6 & A8-Getriebe/ })).toBeVisible();
+    // Titel lokalisiert ("Stage 1" statt "Stufe 1"). Das Detail "M6 & A8-
+    // Getriebe" kommt seit dem Entscheid vom 21.09.2026 (Posten 4,
+    // Übersetzungstabelle je Quelltext) übersetzt an ("M6 & A8 gearbox"),
+    // solange ein Eintrag in product_translations existiert, sonst Deutsch.
+    // Deshalb nur der sprachneutrale Teil "M6 & A8" in der Regex. Eine Regex
+    // statt zwei separater Assertions: "M6 & A8" allein träfe auch die
+    // benachbarte "Stage 1 with V-max removal"-Kachel (dieselbe
+    // Getriebeangabe im Detail, andere PS/Nm-Werte).
+    await expect(page.getByRole("button", { name: /^Stage 1.*620.*M6 & A8/ })).toBeVisible();
   });
 });
 
