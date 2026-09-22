@@ -64,7 +64,7 @@ Hinweise:
 - `DATABASE_URL` als Referenz auf das Plugin setzen (`${{Postgres.DATABASE_URL}}`), nicht als fester Wert, damit ein Wechsel des Plugins/Credentials automatisch durchgereicht wird.
 - `PGSSLMODE=require` ist Pflicht: Railway-Postgres verlangt TLS, `lib/db/client.ts` liest diese Variable (siehe `docs/db.md`).
 - `BETTER_AUTH_URL`/`NEXT_PUBLIC_APP_URL` erst final setzen, wenn die Domain aus Schritt 8 feststeht; für einen ersten Smoke-Test reicht vorübergehend die von Railway vergebene `*.up.railway.app`-URL.
-- Build/Start: `railway.json` (Railpack, `startCommand: bash scripts/start.sh (Migration, Seed, Admin-Konten, optional Import bei IMPORT_ON_START=1, dann next start)`, Healthcheck `/api/health`) und `nixpacks.toml` (Node 24) liegen im Repo, keine weitere Konfiguration nötig.
+- Build/Start: `.railway/railway.ts` (Infrastructure as Code, seit 22.09.2026 statt `railway.json`, das Railway ab 01.12.2026 nicht mehr liest): Railpack, `startCommand: bash scripts/start.sh` (Migration, Seed, Admin-Konten, optional Import bei IMPORT_ON_START=1, dann next start), Healthcheck `/api/health` mit 600 s, Neustart bei Fehler (max. 10). Dazu `nixpacks.toml` (Node 24). Die Datei beschreibt das ganze Projekt (App-Service, Postgres, Volume, PITR-Bucket, Variablen als `preserve()` ohne Werte). Railway liest sie **nicht** beim Deploy; Änderungen daran werden mit `railway config plan` geprüft und mit `railway config apply` übernommen (braucht `npm install`, das SDK `railway` ist devDependency). Neue Variablen im Dashboard anlegen **und** hier mit `preserve()` nachtragen, sonst will `apply` sie löschen (der Plan zeigt das als destruktive Änderung, `apply` verlangt dafür `--confirm-destructive`).
 
 ## 4. Deploy auslösen
 
@@ -72,8 +72,8 @@ Hinweise:
 railway up
 ```
 
-Railway baut über Railpack (`npm run build`) und startet `npm start`. Der Healthcheck
-(`/api/health`, siehe `railway.json`) muss `{ ok: true, db: true }` liefern, sonst
+Railway baut über Railpack (`npm run build`) und startet `bash scripts/start.sh`. Der Healthcheck
+(`/api/health`, siehe `.railway/railway.ts`) muss `{ ok: true, db: true }` liefern, sonst
 markiert Railway den Deploy als fehlgeschlagen und startet neu
 (`restartPolicyType: ON_FAILURE`).
 

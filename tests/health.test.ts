@@ -1,7 +1,7 @@
 // GET /api/health prüft seit der Railway-Vorbereitung (docs/umbau-railway.md,
 // Phase E3) die DB-Verbindung selbst (`select 1`) statt nur "läuft die
 // App" zu melden - Railway nutzt genau diese Route als healthcheckPath
-// (railway.json) und startet den Service sonst neu, obwohl die App ohne
+// (.railway/railway.ts) und startet den Service sonst neu, obwohl die App ohne
 // DB-Zugriff ohnehin nichts Sinnvolles tun kann.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
