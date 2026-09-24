@@ -399,6 +399,18 @@ export async function setInquiryStatus(id: string, status: InquiryStatus): Promi
   await sql`update inquiries set status = ${status} where id = ${id}`;
 }
 
+/**
+ * Löscht eine Anfrage endgültig. outbound_emails und follow_ups hängen per
+ * "on delete cascade" daran (db/migrations/0001_init.sql) und verschwinden
+ * mit. Die Nummer wird nicht neu vergeben, next_inquiry_number() zählt über
+ * eine eigene Zählertabelle weiter. Gibt false zurück, wenn es die Anfrage
+ * nicht (mehr) gibt.
+ */
+export async function deleteInquiry(id: string): Promise<boolean> {
+  const rows = await sql`delete from inquiries where id = ${id} returning id`;
+  return rows.length > 0;
+}
+
 export async function saveDraft(id: string, subject: string, body: string): Promise<void> {
   await sql`update inquiries set draft_subject = ${subject}, draft_reply = ${body} where id = ${id}`;
 }

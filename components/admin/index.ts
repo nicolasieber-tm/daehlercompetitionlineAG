@@ -2,6 +2,7 @@ export { AdminShell } from "./Shell";
 export { LoginForm } from "./LoginForm";
 export { StatusBadge } from "./StatusBadge";
 export { StatusControl } from "./StatusControl";
+export { DeleteInquiryButton } from "./DeleteInquiryButton";
 export { Toolbar } from "./Toolbar";
 export { FilterBar } from "./FilterBar";
 export type { FilterBarValues } from "./FilterBar";

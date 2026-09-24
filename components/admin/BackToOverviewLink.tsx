@@ -21,16 +21,22 @@ export function rememberOverviewHref(search: string) {
   }
 }
 
+/** Gemerkte Übersichts-URL oder /admin. Nur im Browser aufrufen. */
+export function overviewHref(): string {
+  try {
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    if (stored && (stored === OVERVIEW_PATH || stored.startsWith(`${OVERVIEW_PATH}?`))) return stored;
+  } catch {
+    // siehe rememberOverviewHref()
+  }
+  return OVERVIEW_PATH;
+}
+
 export function BackToOverviewLink() {
   const [href, setHref] = useState(OVERVIEW_PATH);
 
   useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
-      if (stored && (stored === OVERVIEW_PATH || stored.startsWith(`${OVERVIEW_PATH}?`))) setHref(stored);
-    } catch {
-      // siehe rememberOverviewHref()
-    }
+    setHref(overviewHref());
   }, []);
 
   return (

@@ -146,6 +146,12 @@ export const admin = {
     markAnswerReceivedSaved: "Antwort erhalten: Status auf «In Bearbeitung» gesetzt, Follow-ups gestoppt.",
     complete: "Abschliessen",
     completeDone: "Abgeschlossen",
+    delete: "Löschen",
+    deleteConfirmTitle: "Anfrage {number} löschen?",
+    deleteConfirmText:
+      "Die Anfrage wird endgültig gelöscht, samt Antwortentwurf, Mail-Protokoll und geplanten Follow-ups. Der geteilte Link funktioniert danach nicht mehr. Das lässt sich nicht rückgängig machen.",
+    deleteConfirm: "Endgültig löschen",
+    deleteDone: "Anfrage {number} gelöscht.",
     repliedAt: "Beantwortet am {date}",
     summary: {
       title: "Zusammenfassung",

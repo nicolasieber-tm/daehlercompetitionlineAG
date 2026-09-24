@@ -8,7 +8,13 @@
 // Next-Redirect auf /admin/login, der beim aufrufenden Client transparent
 // als Navigation ankommt.
 import { requireAdmin } from "@/lib/admin/auth";
-import { regenerateDraft as regenerateDraftData, saveDraft as saveDraftData, setInquiryStatus } from "@/lib/admin/inquiries";
+import { revalidatePath } from "next/cache";
+import {
+  deleteInquiry,
+  regenerateDraft as regenerateDraftData,
+  saveDraft as saveDraftData,
+  setInquiryStatus,
+} from "@/lib/admin/inquiries";
 import { buildMailContext } from "@/lib/inquiry/context";
 import { sendInquiryMail } from "@/lib/mail";
 import { markAnswerReceived, markReplied } from "@/lib/followups/schedule";
@@ -43,6 +49,23 @@ export async function markAnswerReceivedAction(inquiryId: string): Promise<void>
 export async function markCompletedAction(inquiryId: string): Promise<void> {
   await requireAdmin();
   await setInquiryStatus(inquiryId, "abgeschlossen");
+}
+
+/**
+ * Löscht die Anfrage samt Mail-Protokoll und Follow-ups (Cascade). Der
+ * Aufrufer (components/admin/DeleteInquiryButton.tsx) navigiert danach
+ * selbst zur Übersicht.
+ */
+export async function deleteInquiryAction(inquiryId: string): Promise<ActionResult> {
+  await requireAdmin();
+  try {
+    const deleted = await deleteInquiry(inquiryId);
+    if (!deleted) return { ok: false, error: "Anfrage nicht gefunden." };
+    revalidatePath("/admin");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Anfrage konnte nicht gelöscht werden." };
+  }
 }
 
 export async function saveDraftAction(inquiryId: string, subject: string, body: string): Promise<ActionResult> {

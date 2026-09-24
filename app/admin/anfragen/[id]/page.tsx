@@ -16,6 +16,7 @@ import type { InquiryStatus } from "@/lib/db/rows";
 import { Toolbar } from "@/components/admin/Toolbar";
 import { BackToOverviewLink } from "@/components/admin/BackToOverviewLink";
 import { StatusControl } from "@/components/admin/StatusControl";
+import { DeleteInquiryButton } from "@/components/admin/DeleteInquiryButton";
 import { SummaryBlock } from "@/components/admin/SummaryBlock";
 import { CustomerCard } from "@/components/admin/CustomerCard";
 import { VehicleCard } from "@/components/admin/VehicleCard";
@@ -55,11 +56,14 @@ export default async function AdminInquiryDetailPage({ params }: { params: Promi
           .filter(Boolean)
           .join(" · ")}
         actions={
-          <StatusControl
-            inquiryId={inquiry.id}
-            status={inquiry.status as InquiryStatus}
-            answerReceivedAt={inquiry.answer_received_at}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusControl
+              inquiryId={inquiry.id}
+              status={inquiry.status as InquiryStatus}
+              answerReceivedAt={inquiry.answer_received_at}
+            />
+            <DeleteInquiryButton inquiryId={inquiry.id} number={inquiry.number} />
+          </div>
         }
       />
 
