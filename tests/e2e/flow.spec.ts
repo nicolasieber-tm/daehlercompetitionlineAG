@@ -188,7 +188,7 @@ test.describe("Kundenflow Desktop, BMW M2 G87 mit Preisen", () => {
     const sharePage = await page.context().newPage();
     await sharePage.goto(shareUrl!);
     await expect(sharePage.getByRole("heading", { name: /Ihr Paket/ })).toBeVisible();
-    await expect(sharePage.getByRole("link", { name: "Eigene Anfrage starten" })).toBeVisible();
+    await expect(sharePage.getByRole("link", { name: "Neue Anfrage starten" })).toBeVisible();
     // Dieselbe Prüfung wie oben: die Teilen-Seite zeigt keinen rohen
     // Excel-Namen mit der Basis-Angabe.
     await expect(sharePage.getByText("(Basis", { exact: false })).toHaveCount(0);

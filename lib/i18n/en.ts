@@ -328,7 +328,7 @@ export const en: Dictionary = {
         then: { title: "Then", text: "You bring it in. We do the rest." },
       },
       restart: "Start again",
-      ownRequest: "Start your own request",
+      ownRequest: "Start a new request",
     },
   },
 

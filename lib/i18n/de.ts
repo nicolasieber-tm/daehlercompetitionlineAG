@@ -362,7 +362,7 @@ export const de = {
         then: { title: "Dann", text: "Sie bringen ihn vorbei. Wir machen den Rest." },
       },
       restart: "Nochmals von vorne",
-      ownRequest: "Eigene Anfrage starten",
+      ownRequest: "Neue Anfrage starten",
     },
   },
 
