@@ -6,6 +6,8 @@ export const de = {
   brand: {
     name: "dÄHLer",
     tagline: "Competition Line · Belp",
+    websiteUrl: "https://www.daehler.com",
+    websiteLabel: "Zur Webseite daehler.com",
     eyebrow: "Ihre Anfrage in wenigen Schritten",
     title: "Ihre Anfrage für mehr",
     titleHighlight: "Charakter",

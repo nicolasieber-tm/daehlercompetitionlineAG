@@ -21,12 +21,18 @@ export function Hero() {
     >
       <div className="mx-auto flex min-h-[360px] max-w-[1040px] flex-wrap items-end justify-between gap-7 px-4 py-9 sm:px-6">
         <div>
-          <div className="font-display text-[30px] font-bold uppercase leading-none tracking-[0.04em]">
-            {t.brand.name}
+          {/* Wortmarke führt zurück auf daehler.com: wer über den
+              Google-Button direkt hier landet, soll zur Webseite finden. */}
+          <a
+            href={t.brand.websiteUrl}
+            aria-label={t.brand.websiteLabel}
+            className="group inline-block font-display text-[30px] font-bold uppercase leading-none tracking-[0.04em] text-text"
+          >
+            <span className="transition-colors duration-150 group-hover:text-red-bright">{t.brand.name}</span>
             <small className="mt-0.5 block text-[11px] font-semibold tracking-[0.22em] text-muted">
               {t.brand.tagline}
             </small>
-          </div>
+          </a>
           <p className="mt-5 font-display text-xs font-semibold uppercase tracking-[0.14em] text-red-bright">
             {t.brand.eyebrow}
           </p>

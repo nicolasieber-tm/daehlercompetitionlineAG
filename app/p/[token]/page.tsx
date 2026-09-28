@@ -131,9 +131,13 @@ export default async function SharedInquiryPage({
     <main className="min-h-screen bg-bg px-4 py-10 text-text sm:px-6">
       <div className="mx-auto flex max-w-[760px] flex-col gap-6">
         <div>
-          <span className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-red-bright">
+          <a
+            href={t.brand.websiteUrl}
+            aria-label={t.brand.websiteLabel}
+            className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-red-bright transition-colors duration-150 hover:text-text"
+          >
             {t.brand.name} {t.brand.tagline}
-          </span>
+          </a>
           <h1 className="mt-2 text-balance font-display text-3xl font-bold uppercase tracking-wide">
             {t.steps.done.package.header}: {inquiry.vehicleLabel}
           </h1>

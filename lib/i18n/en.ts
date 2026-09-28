@@ -10,6 +10,8 @@ export const en: Dictionary = {
   brand: {
     name: "dÄHLer",
     tagline: "Competition Line · Belp",
+    websiteUrl: "https://www.daehler.com",
+    websiteLabel: "To the website daehler.com",
     eyebrow: "Your request in a few short steps",
     title: "Your request for more",
     titleHighlight: "Character",
