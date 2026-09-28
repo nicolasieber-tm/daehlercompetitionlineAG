@@ -6,7 +6,7 @@
 // playwright.config.ts, ADMIN_POLL_MS dort auf 3s verkürzt). Erzeugte
 // Anfragen tragen ein eindeutiges Test-Präfix in der Nummer, damit sie
 // danach gezielt wieder gelöscht werden können.
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Cookie, type Page } from "@playwright/test";
 import postgres from "postgres";
 import { randomUUID } from "node:crypto";
 
@@ -27,6 +27,28 @@ async function adminLogin(page: Page) {
   await page.getByRole("button", { name: "Anmelden" }).click();
   await page.waitForURL((u) => u.pathname.startsWith("/admin") && !u.pathname.includes("login"), { timeout: 30000 });
 }
+
+// Einmal pro Lauf (je Projekt) anmelden, die Session-Cookies nur im Speicher
+// halten und jedem Test in seinen eigenen, frischen Kontext geben. Vorher
+// meldete sich jeder Test selbst an; better-auth drosselt die Anmeldung
+// (lib/auth/server.ts, rateLimit), im Gesamtlauf liefen dadurch einzelne
+// Logins in den Timeout (Befund 28.09.2026). Bewusst kein storageState in
+// eine Datei: kein gültiges Login-Cookie auf der Platte.
+let adminCookies: Cookie[] = [];
+
+test.beforeAll(async ({ browser }, testInfo) => {
+  const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+  try {
+    await adminLogin(await context.newPage());
+    adminCookies = await context.cookies();
+  } finally {
+    await context.close();
+  }
+});
+
+test.beforeEach(async ({ context }) => {
+  await context.addCookies(adminCookies);
+});
 
 /** Legt eine minimale Test-Anfrage direkt in der DB an (Status "neu"), wie ein Absender im Hintergrund. Liefert die id. */
 async function insertInquiry(number: string, firstName: string, lastName: string): Promise<string> {
@@ -61,7 +83,6 @@ test.describe("Admin-Übersicht: ganze Zeile klickbar", () => {
     const number = `${NUMBER_PREFIX}-ROWCLICK`;
     const id = await insertInquiry(number, "Nadia", "Muster");
 
-    await adminLogin(page);
     await page.goto("/admin");
 
     // Genau EIN Treffer, egal ob die Desktop-Tabelle oder die Mobile-Karte
@@ -84,7 +105,6 @@ test.describe("Admin-Übersicht: ganze Zeile klickbar", () => {
     const number = `${NUMBER_PREFIX}-LINK`;
     const id = await insertInquiry(number, "Timo", "Sieber");
 
-    await adminLogin(page);
     await page.goto("/admin");
 
     // exact: true, sonst matcht auch die Zeile selbst (role="link", deren
@@ -100,7 +120,6 @@ test.describe("Anfrage-Detail: Zurück zur Übersicht", () => {
     const number = `${NUMBER_PREFIX}-BACK`;
     const id = await insertInquiry(number, "Reto", "Zurück");
 
-    await adminLogin(page);
     await page.goto(`/admin?q=${encodeURIComponent(number)}`);
 
     const customerCell = page.getByText("Reto Zurück", { exact: true }).and(page.locator(":visible"));
@@ -116,8 +135,6 @@ test.describe("Anfrage-Detail: Zurück zur Übersicht", () => {
     const number = `${NUMBER_PREFIX}-BACKDIRECT`;
     const id = await insertInquiry(number, "Dora", "Direkt");
 
-    await adminLogin(page);
-    await page.evaluate(() => sessionStorage.clear());
     await page.goto(`/admin/anfragen/${id}`);
 
     await expect(page.getByRole("link", { name: "Zur Übersicht" })).toHaveAttribute("href", "/admin");
@@ -126,14 +143,12 @@ test.describe("Anfrage-Detail: Zurück zur Übersicht", () => {
 
 test.describe("Admin-Übersicht: Live-Refresh", () => {
   test("Aktualisieren-Button ist sichtbar", async ({ page }) => {
-    await adminLogin(page);
     await page.goto("/admin");
 
     await expect(page.getByRole("button", { name: /Aktualisieren/ })).toBeVisible();
   });
 
   test("eine im Hintergrund angelegte Anfrage erscheint ohne manuelles Neuladen (Polling ADMIN_POLL_MS)", async ({ page }) => {
-    await adminLogin(page);
     await page.goto("/admin");
 
     const number = `${NUMBER_PREFIX}-LIVE`;
