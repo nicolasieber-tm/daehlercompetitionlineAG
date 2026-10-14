@@ -61,6 +61,9 @@ export const en: Dictionary = {
       beenHereYes: "Yes",
       seriesKnown: "{ps} PS standard and {nm} Nm standard",
       seriesUnknown: "We will let you know the standard output personally.",
+      modelQuestion: "Which version do you drive?",
+      modelRequired: "Please tap your version.",
+      changeResetsSelection: "Changing the vehicle resets the products you have selected so far. Change anyway?",
       seriesPsChoice: "What is the standard output of your vehicle?",
       seriesPsRequired: "Please select your standard output so we can show the right options.",
       gearboxQuestion: "Which gearbox does your vehicle have?",
@@ -128,6 +131,17 @@ export const en: Dictionary = {
         exterieur: "What would you like added?",
         interieur: "What goes inside?",
       },
+      pickTitle: "Select products",
+      pickHint: "Tap the products you want. Only selected products appear in your enquiry.",
+      pickedOne: "1 product selected",
+      pickedMany: "{count} products selected",
+      followUpHint: "Optional, helps us advise you. Does not replace the product selection above.",
+      emptyWarning: {
+        title: "No product selected yet",
+        text: "You have not selected a product for {category} yet. Select a product above so it appears in your enquiry. If you would rather get advice, tap «Next» again.",
+      },
+      tailpipeHint:
+        "The rear silencer you selected comes without tailpipes. Select matching tailpipes above, or we will advise you.",
       loading: "Loading products …",
       priceHintData:
         "Indicative prices marked \"from\", taken from our product list for the {model}, including fitting, excluding roadworthiness test.",
@@ -259,6 +273,11 @@ export const en: Dictionary = {
     },
 
     contact: {
+      emptyCategories: {
+        title: "Areas without a product",
+        text: "You have not selected a product here yet. We are happy to advise you, or you can still select something now.",
+        pick: "Select {category}",
+      },
       label: "And who are you?",
       firstName: "First name",
       lastName: "Last name",
@@ -323,7 +342,7 @@ export const en: Dictionary = {
         now: { title: "Now", text: "The email confirmation is on its way." },
         day1: {
           title: "Within 1 working day",
-          text: "A concrete proposal with price and appointment window.",
+          text: "A concrete offer with price.",
         },
         then: { title: "Then", text: "You bring it in. We do the rest." },
       },
@@ -351,9 +370,7 @@ export const en: Dictionary = {
     },
     confirmation: {
       subject: "Your request for the {model}, No. {number}",
-      intro: "Dear {first},",
-      body: "Thank you for your request for your {model}. Below is the overview of your package. We will check compatibility and get back to you within one working day with a concrete proposal.",
-      closing: "Kind regards from Belp",
+      withoutProducts: "No product selected, we will be glad to advise you personally: {categories}.",
       vehicleLabel: "Vehicle",
       wishLabel: "Wish",
       timingLabel: "Timing",
@@ -410,20 +427,13 @@ export const en: Dictionary = {
 
   draft: {
     subject: "Your request for the {vehicle}, No. {number}",
-    greeting: "Dear {first} {last}",
-    thanks:
-      "Thank you for your request for your {model}{yearSuffix}.",
     // See de.ts yearSuffix comment: {model} can already end in brackets
     // (the codes, e.g. "BMW M2 (G87)") - a comma instead of a second pair
     // of brackets keeps "model year" from reading like a nested bracket.
     yearSuffix: ", model year {year}",
-    character: {
-      dezent: "Discreet yet noticeable, we can do that.",
-      sportlich: "Sporty and still practical for everyday use, that is exactly our line.",
-      maximum: "\"Maximum\" is music to our ears.",
-    },
-    itemsIntro: "In principle, we can put this together:",
     itemLine: "• {category}: {name}{description}{price}",
+    itemLineGrouped: "- {name}{description}{price}",
+    categoryAdvice: "We will be glad to advise you personally on the right solution.",
     itemDescription: " ({description})",
     itemPrice: ", from {price}",
     itemPriceInPreparation: ", in preparation",
@@ -432,23 +442,12 @@ export const en: Dictionary = {
     performanceLine:
       "With {stage} your {model} reaches {detail}, WLTP tested and with a Swiss approval certificate. The one year warranty extension to the factory warranty is included.",
     priceLine:
-      "Indicative price for the package: {price}, including fitting, excluding roadworthiness test. We will confirm the final price once {clarification}.",
+      "Indicative price for the complete package: {price}, including fitting, excluding roadworthiness test. The final price will be confirmed after checking {clarification}. This way we make sure that all components are perfectly matched.",
     priceLineOnRequest:
-      "We will let you know the indicative price after a short review, including fitting, excluding roadworthiness test. We will confirm the final price once {clarification}.",
-    clarificationFahrwerk: "we know whether your car has the adaptive M suspension",
-    clarificationMotorAuspuff: "we have checked the combination of software and exhaust system",
-    clarificationGeneric: "we have clarified the details",
-    timingFlexible: "We are flexible on timing, just let us know what suits you.",
-    timingUnknown: "As soon as we know your preferred timing, we will be happy to reserve a workshop slot for you.",
-    timingPhrases: {
-      asap: "the coming weeks",
-      m1_2: "the period in one to two months",
-      m3_6: "the period in three to six months",
-    },
-    timingFixed:
-      "For {timing} we have workshop slots available, we would be happy to reserve one for you once you give us the go ahead.",
-    closingCall: "Call us or simply reply to this email, and we will discuss the details.",
-    signOff: "Kind regards from Belp",
+      "We will let you know the indicative price after a short check of {clarification}, including fitting, excluding roadworthiness test. This way we make sure that all components are perfectly matched.",
+    clarificationFahrwerk: "your standard suspension (adaptive M suspension or not)",
+    clarificationMotorAuspuff: "the desired combination of software tuning and exhaust system",
+    clarificationGeneric: "the desired configuration",
     // No hardcoded text: name comes from settings.signature_name, {company}
     // from settings.mail_from_name plus optional settings.company_address
     // (only when set) and phone from settings.signature_phone, see

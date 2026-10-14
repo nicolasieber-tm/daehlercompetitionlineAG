@@ -22,6 +22,8 @@ import { categoryLabel, itemLineText, optionLabel, vehicleLabel } from "@/lib/ma
 import { vehicleInternalLine } from "@/lib/catalog/vehicle-label";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import type { MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
+import { categoriesWithoutItems } from "@/lib/draft/template";
+import type { FlowCategory } from "@/lib/db/rows";
 
 const LOCALE = "de" as const;
 const t = admin.mail.inbox.ticket;
@@ -153,6 +155,14 @@ export function buildSummaryText(ctx: MailInquiryContext): string {
   const character = characterLabel(inquiry.character) ?? t.none;
   const timing = optionLabel(de.steps.timing.options, inquiry.timing) ?? t.none;
 
+  // Rückmeldung dÄHLer 14.10.2026: gewählte Bereiche ohne Produkt.
+  const withoutProducts =
+    ctx.family?.has_pricelist === false
+      ? []
+      : categoriesWithoutItems(inquiry.categories as FlowCategory[], ctx.items as { category: FlowCategory }[]).map((c) =>
+          categoryLabel(c, LOCALE),
+        );
+
   const packageLines =
     ctx.items.length > 0
       ? ctx.items.map((item) => `  ${itemLineText(displayItem(item), LOCALE).replace(/^•\s*/, "")}`)
@@ -169,6 +179,7 @@ export function buildSummaryText(ctx: MailInquiryContext): string {
     line(t.vehicle, vehicleLine),
     line(t.wish, wish),
     line(t.goal, goalText(ctx) || t.none),
+    ...(withoutProducts.length > 0 ? [line(t.withoutProducts, withoutProducts.join(", "))] : []),
     line(t.character, character),
     line(t.timing, timing),
     "",

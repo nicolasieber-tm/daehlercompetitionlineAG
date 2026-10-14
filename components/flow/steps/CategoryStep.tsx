@@ -6,7 +6,7 @@
 // Siehe docs/vorschau.html viewCat() und docs/architektur.md Abschnitt
 // "Kundenflow" Punkt 3.
 import type { Dispatch } from "react";
-import { Button, Tile } from "@/components/ui";
+import { Button, ChoiceLabel, Tile } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import { chfFrom } from "@/lib/i18n/format";
 import { de } from "@/lib/i18n/de";
@@ -175,15 +175,21 @@ export function CategoryStep({
   family,
   model,
   seriesPs,
+  seriesNm,
   allGroups,
   notes,
   state,
   dispatch,
+  emptyWarning,
 }: {
   category: FlowCategory;
   family: CatalogFamily;
   model: CatalogModel | null;
   seriesPs: number | null;
+  /** Serien-Drehmoment zur gewählten Serienleistung (Admin), für «+x Nm» im PS-Zähler. */
+  seriesNm: number | null;
+  /** true nach «Weiter» ohne Produktauswahl, siehe Flow.tsx handleNext. */
+  emptyWarning: boolean;
   allGroups: ProductGroup[];
   notes: CategoryNote[];
   state: FlowState;
@@ -338,10 +344,10 @@ export function CategoryStep({
           return (
             <div key={`${keyPrefix}-${ci}`}>
               {label ? (
-                <div className="mb-2 flex items-center gap-2 text-[12px] uppercase tracking-[0.08em] text-dim">
+                <div className="mb-2 flex items-center gap-2 text-[13px] uppercase tracking-[0.08em] text-text-soft">
                   <span
                     aria-hidden
-                    className={["inline-block h-2.5 w-2.5 border border-line-alt", cluster.kind === "single" ? "rounded-full" : "rounded-[2px]"].join(" ")}
+                    className={["inline-block h-2.5 w-2.5 border border-muted", cluster.kind === "single" ? "rounded-full" : "rounded-[2px]"].join(" ")}
                   />
                   {label}
                 </div>
@@ -357,6 +363,17 @@ export function CategoryStep({
   }
 
   const subsections = buildSubsections(category, groupsHere, visibleProductsOf, t);
+
+  // Rückmeldung dÄHLer 14.10.2026: Endschalldämpfer, die laut Excel «ohne
+  // Endrohre» geliefert werden, brauchen eigene Endrohre. Hinweis nur, wenn
+  // die Excel für dieses Fahrzeug überhaupt Endrohre führt und noch keine
+  // gewählt sind. Reine Textprüfung auf die Excel-Namen, keine Pflicht.
+  const isTailpipe = (p: CatalogProduct) => /endrohr/i.test(p.name) && !/ohne\s+endrohr/i.test(p.name);
+  const needsTailpipes =
+    category === "auspuff" &&
+    picked.some((p) => /ohne\s+endrohr/i.test(p.name)) &&
+    !picked.some(isTailpipe) &&
+    groupsHere.some((g) => visibleProductsOf(g).some(isTailpipe));
 
   /** Kurzer, unterscheidbarer Titel statt des vollen Excel-Rohnamens (siehe
    * renderProductTile oben) - für die Stellen ausserhalb der Tiles, die
@@ -399,7 +416,11 @@ export function CategoryStep({
         {tf(t.steps.category.priceHintData, { model: vehicleDisplayName(family, model, state.line) })}
       </p>
 
-      <div className="mt-5 flex flex-col gap-6">
+      <div className="mt-6">
+        <ChoiceLabel hint={t.steps.category.pickHint}>{t.steps.category.pickTitle}</ChoiceLabel>
+      </div>
+
+      <div className="mt-2 flex flex-col gap-6">
         {subsections
           ? subsections.map((section) => (
               <div key={section.id}>
@@ -471,7 +492,15 @@ export function CategoryStep({
             <span className="ml-auto font-mono text-[13px] text-ok">
               {tf(t.steps.category.psCounter.plus, {
                 diff: (stageProduct.psTo ?? seriesPs) - seriesPs,
-                detail: `${stageProduct.nmTo ?? "?"} Nm`,
+                // Rückmeldung dÄHLer 14.10.2026: Drehmoment wie die Leistung
+                // als Zuwachs («+120 Nm»), sofern das Serien-Drehmoment im
+                // Admin hinterlegt ist; sonst wie bisher der Zielwert.
+                detail:
+                  stageProduct.nmTo == null
+                    ? "? Nm"
+                    : seriesNm != null
+                      ? `+${stageProduct.nmTo - seriesNm} Nm`
+                      : `${stageProduct.nmTo} Nm`,
               })}
             </span>
           ) : null}
@@ -480,9 +509,7 @@ export function CategoryStep({
 
       {followUp ? (
         <div className="mt-6">
-          <div className="mb-2.5 font-display text-xs font-semibold uppercase tracking-[0.14em] text-red-bright">
-            {followUp.question}
-          </div>
+          <ChoiceLabel hint={t.steps.category.followUpHint}>{followUp.question}</ChoiceLabel>
           <div className="flex flex-wrap gap-2">
             {followUp.options.map((option) => (
               <button
@@ -505,6 +532,27 @@ export function CategoryStep({
             ))}
           </div>
         </div>
+      ) : null}
+
+      {needsTailpipes ? (
+        <div className="mt-5 border border-line-alt border-l-4 border-l-warn bg-panel px-4 py-3 text-[14px] text-text-soft" role="status">
+          {t.steps.category.tailpipeHint}
+        </div>
+      ) : null}
+
+      {picked.length === 0 && emptyWarning ? (
+        <div className="mt-5 border border-warn bg-panel px-4 py-3.5" role="alert">
+          <b className="block font-display text-[17px] font-semibold uppercase tracking-[0.06em] text-warn">
+            {t.steps.category.emptyWarning.title}
+          </b>
+          <span className="mt-1 block text-[14px] text-text-soft">
+            {tf(t.steps.category.emptyWarning.text, { category: t.steps.wish.categories[category].title })}
+          </span>
+        </div>
+      ) : picked.length > 0 ? (
+        <p className="mt-5 font-display text-[14px] font-semibold uppercase tracking-[0.06em] text-ok" aria-live="polite">
+          ✓ {tf(picked.length === 1 ? t.steps.category.pickedOne : t.steps.category.pickedMany, { count: picked.length })}
+        </p>
       ) : null}
 
       {upsellOffered ? (

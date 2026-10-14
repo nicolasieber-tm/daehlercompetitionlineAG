@@ -11,6 +11,8 @@ import { tf } from "@/lib/i18n/dictionaries";
 import { Toolbar } from "@/components/admin/Toolbar";
 import { Card } from "@/components/admin/Card";
 import { SettingsForm } from "@/components/admin/SettingsForm";
+import { MailTextsForm } from "@/components/admin/MailTextsForm";
+import { resolveMailTexts } from "@/lib/mail/texts";
 
 export const metadata: Metadata = { title: `${admin.settings.title} – Admin` };
 
@@ -27,6 +29,10 @@ export default async function AdminSettingsPage() {
 
       <Card title={admin.settings.title}>
         <SettingsForm values={settings} />
+      </Card>
+
+      <Card title={admin.settings.mailTexts.title}>
+        <MailTextsForm values={resolveMailTexts("de", settings)} />
       </Card>
 
       <Card title={admin.settings.overrides.title}>

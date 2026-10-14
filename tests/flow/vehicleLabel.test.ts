@@ -42,6 +42,7 @@ function model(overrides: Partial<CatalogModel> & { name: string }): CatalogMode
     fuel: null,
     seriesPs: null,
     seriesNm: null,
+    seriesNmByPs: {},
     seriesPsSuggested: [],
     sort: 0,
     hasGearboxSpecificProducts: false,

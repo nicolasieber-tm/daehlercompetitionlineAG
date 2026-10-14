@@ -105,15 +105,15 @@ describe("buildDraft (en) mit Übersetzungen", () => {
 
   it("Positionszeilen englisch, Leistungssatz mit «Stage 1»", () => {
     const { body } = buildDraft(ctx, "en");
-    expect(body).toContain("• Engine: Stage 1 (620 PS / 740 Nm, M6 & A8 gearbox), from CHF 4'180");
-    expect(body).toContain("• Exterior: Rear wing carbon, from CHF 2'810");
+    expect(body).toContain("Engine\n- Stage 1 (620 PS / 740 Nm, M6 & A8 gearbox), from CHF 4'180");
+    expect(body).toContain("Exterior\n- Rear wing carbon, from CHF 2'810");
     expect(body).toContain("With Stage 1 your BMW M2 (G87) reaches 620 PS / 740 Nm");
     expect(body).not.toContain("Stufe");
   });
 
   it("deutsch bleibt unverändert, auch mit Map (Map wird nur für die Entwurfssprache übergeben)", () => {
     const { body } = buildDraft({ ...ctx, translations: null }, "de");
-    expect(body).toContain("• Motor: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180");
-    expect(body).toContain("• Exterieur: Heckflügel Carbon, ab CHF 2'810");
+    expect(body).toContain("Motor\n- Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180");
+    expect(body).toContain("Exterieur\n- Heckflügel Carbon, ab CHF 2'810");
   });
 });

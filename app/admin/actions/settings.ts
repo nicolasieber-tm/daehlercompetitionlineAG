@@ -15,15 +15,29 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
 import { sql } from "@/lib/db/client";
 import { SETTINGS_KEYS } from "@/lib/admin/settings";
+import { MAIL_TEXT_KEYS, unknownMailTextPlaceholders } from "@/lib/mail/texts";
 import type { ActionResult } from "./inquiries";
 
 export async function saveSettingsAction(values: Record<string, string>): Promise<ActionResult> {
   await requireAdmin();
 
-  const rows = SETTINGS_KEYS.filter((key) => values[key] !== undefined).map((key) => ({
+  // Mailtexte (lib/mail/texts.ts, Rückmeldung dÄHLer 14.10.2026) laufen
+  // über dieselbe Tabelle, eigenes Formular (components/admin/MailTextsForm.tsx).
+  const allowedKeys: readonly string[] = [...SETTINGS_KEYS, ...MAIL_TEXT_KEYS];
+  const rows = allowedKeys.filter((key) => values[key] !== undefined).map((key) => ({
     key,
-    value: (values[key] ?? "").trim(),
+    value: (values[key] ?? "").replace(/\r\n/g, "\n").trim(),
   }));
+  const unknown = [
+    ...new Set(
+      rows
+        .filter((r) => (MAIL_TEXT_KEYS as readonly string[]).includes(r.key))
+        .flatMap((r) => unknownMailTextPlaceholders(r.value)),
+    ),
+  ];
+  if (unknown.length > 0) {
+    return { ok: false, error: `Unbekannte Platzhalter: ${unknown.join(", ")}. Erlaubt sind {{vorname}}, {{name}}, {{fahrzeug}}, {{jahrgang}}, {{nummer}}.` };
+  }
   if (rows.length === 0) {
     return { ok: false, error: "Keine Werte zum Speichern übergeben." };
   }

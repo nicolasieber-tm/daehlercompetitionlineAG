@@ -70,6 +70,8 @@ export interface MailInquiryContext {
   appUrl: string;
   shareUrl: string;
   adminUrl: string;
+  /** Rohe settings mit den Admin-Mailtexten (lib/mail/texts.ts), null/fehlend = Standardtexte. */
+  texts?: Partial<Record<string, string>> | null;
 }
 
 /**

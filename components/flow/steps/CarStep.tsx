@@ -5,13 +5,13 @@
 // Baujahr und "schon einmal bei uns gewesen". Siehe docs/vorschau.html
 // viewCar() und docs/architektur.md, Abschnitt "Kundenflow" Punkt 1.
 import type { Dispatch } from "react";
-import { Chip, Field, Question, StepLabel, Tile } from "@/components/ui";
+import { ChoiceLabel, Chip, Field, Question, StepLabel, Tile } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
 import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import type { Brand, Fuel } from "@/lib/db/rows";
 import type { FlowAction, FlowState } from "../state";
-import { YEAR_OPTIONS_BASE, bodyStyleFromLine, effectiveSeriesPs } from "../state";
+import { YEAR_OPTIONS_BASE, allSelectedProducts, bodyStyleFromLine, effectiveSeriesPs } from "../state";
 import { vehicleDisplayName } from "../vehicleLabel";
 
 const FUEL_ORDER: Fuel[] = ["benzin", "diesel", "elektro"];
@@ -81,6 +81,16 @@ export function CarStep({
     bodyStyleOptions.length > 0 && bodyStyleFromLine(selectedFamily, selectedModel, state.line) === null;
   const driveOptions = selectedModel?.driveOptions ?? [];
 
+  // Rückmeldung dÄHLer 14.10.2026: ein Wechsel von Baureihe, Version oder
+  // Serienleistung leert bzw. filtert die bereits gewählten Produkte (siehe
+  // state.ts SELECT_FAMILY/SELECT_MODEL/SET_SERIES_PS). Bisher geschah das
+  // still, wer zurückging und kurz eine andere Version antippte, verlor
+  // seine Auswahl unbemerkt. Jetzt erst nach Rückfrage.
+  const hasSelections = allSelectedProducts(state).length > 0;
+  function confirmSelectionReset(): boolean {
+    return !hasSelections || window.confirm(t.steps.car.changeResetsSelection);
+  }
+
   return (
     <div>
       <StepLabel>{t.steps.car.label}</StepLabel>
@@ -106,61 +116,75 @@ export function CarStep({
             imageUrl={family.photoUrl ?? undefined}
             badge={family.hasPricelist ? t.steps.car.photoHint : undefined}
             selected={state.familyId === family.id}
-            onClick={() => dispatch({ type: "SELECT_FAMILY", familyId: family.id, hasPricelist: family.hasPricelist })}
+            onClick={() => {
+              if (state.familyId === family.id || !confirmSelectionReset()) return;
+              dispatch({ type: "SELECT_FAMILY", familyId: family.id, hasPricelist: family.hasPricelist });
+            }}
           />
         ))}
       </div>
 
       {selectedFamily && selectedFamily.models.length > 0 ? (
-        <div className="mt-6 flex flex-col gap-4">
-          {orderedFuelKeys.map((key) => (
-            <div key={key}>
-              {key !== "none" ? (
-                <div className="mb-1.5 font-display text-xs font-semibold uppercase tracking-[0.1em] text-muted">
-                  {t.steps.car.fuelGroups[key]}
+        <div className="mt-7">
+          <ChoiceLabel hint={state.modelId === null ? t.steps.car.modelRequired : undefined} missing={state.modelId === null}>
+            {t.steps.car.modelQuestion}
+          </ChoiceLabel>
+          <div className="flex flex-col gap-4">
+            {orderedFuelKeys.map((key) => (
+              <div key={key}>
+                {key !== "none" ? (
+                  <div className="mb-1.5 font-display text-xs font-semibold uppercase tracking-[0.1em] text-muted">
+                    {t.steps.car.fuelGroups[key]}
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {(fuelGroups.get(key) ?? []).map((model) => (
+                    <Chip
+                      key={model.id}
+                      active={state.modelId === model.id}
+                      onClick={() => {
+                        if (state.modelId === model.id || !confirmSelectionReset()) return;
+                        dispatch({ type: "SELECT_MODEL", modelId: model.id });
+                      }}
+                    >
+                      {model.name}
+                    </Chip>
+                  ))}
                 </div>
-              ) : null}
-              <div className="flex flex-wrap gap-2">
-                {(fuelGroups.get(key) ?? []).map((model) => (
-                  <Chip
-                    key={model.id}
-                    active={state.modelId === model.id}
-                    onClick={() => dispatch({ type: "SELECT_MODEL", modelId: model.id })}
-                  >
-                    {model.name}
-                  </Chip>
-                ))}
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       ) : null}
 
       {showSeriesPsChoice ? (
         <div className="mt-6">
-          <StepLabel>{t.steps.car.seriesPsChoice}</StepLabel>
+          <ChoiceLabel hint={state.seriesPsChoice === null ? t.steps.car.seriesPsRequired : undefined} missing={state.seriesPsChoice === null}>
+            {t.steps.car.seriesPsChoice}
+          </ChoiceLabel>
           <div className="flex flex-wrap gap-2">
             {selectedModel!.seriesPsSuggested.map((ps) => (
-              <Chip key={ps} active={state.seriesPsChoice === ps} onClick={() => dispatch({ type: "SET_SERIES_PS", ps })}>
+              <Chip
+                key={ps}
+                active={state.seriesPsChoice === ps}
+                onClick={() => {
+                  if (state.seriesPsChoice === ps) return;
+                  if (state.seriesPsChoice !== null && !confirmSelectionReset()) return;
+                  dispatch({ type: "SET_SERIES_PS", ps });
+                }}
+              >
                 {ps} PS
               </Chip>
             ))}
           </div>
-          {/* Ohne feste model.seriesPs und mit mehreren Vorschlägen bleibt
-              "Weiter" gesperrt, bis eine Serienleistung gewählt ist (siehe
-              Flow.tsx canNext) - ohne diesen Hinweistext wäre für den
-              Kunden nicht ersichtlich, WARUM der Button deaktiviert ist. */}
-          {state.seriesPsChoice === null ? (
-            <p className="mt-2 text-[13px] text-muted" aria-live="polite">
-              {t.steps.car.seriesPsRequired}
-            </p>
-          ) : null}
         </div>
       ) : null}
 
       {showGearboxChoice ? (
         <div className="mt-6">
-          <StepLabel>{t.steps.car.gearboxQuestion}</StepLabel>
+          <ChoiceLabel hint={state.gearboxChoice === null ? t.steps.car.gearboxRequired : undefined} missing={state.gearboxChoice === null}>
+            {t.steps.car.gearboxQuestion}
+          </ChoiceLabel>
           <div className="flex flex-wrap gap-2" role="group" aria-label={t.steps.car.gearboxQuestion}>
             {gearboxOptions.map((option) => (
               <Chip
@@ -172,19 +196,14 @@ export function CarStep({
               </Chip>
             ))}
           </div>
-          {/* Pflicht vor "Weiter" (siehe Flow.tsx canNext), analog dem
-              Serienleistungs-Hinweis oben. */}
-          {state.gearboxChoice === null ? (
-            <p className="mt-2 text-[13px] text-muted" aria-live="polite">
-              {t.steps.car.gearboxRequired}
-            </p>
-          ) : null}
         </div>
       ) : null}
 
       {lineOptions.length > 0 ? (
         <div className="mt-6">
-          <StepLabel>{t.steps.car.lineQuestion}</StepLabel>
+          <ChoiceLabel hint={state.line === null ? t.steps.car.lineRequired : undefined} missing={state.line === null}>
+            {t.steps.car.lineQuestion}
+          </ChoiceLabel>
           <div className="flex flex-wrap gap-2" role="group" aria-label={t.steps.car.lineQuestion}>
             {lineOptions.map((option) => (
               <Chip
@@ -196,18 +215,14 @@ export function CarStep({
               </Chip>
             ))}
           </div>
-          {/* Pflicht vor "Weiter" (siehe Flow.tsx canNext), analog Serienleistung/Getriebe oben. */}
-          {state.line === null ? (
-            <p className="mt-2 text-[13px] text-muted" aria-live="polite">
-              {t.steps.car.lineRequired}
-            </p>
-          ) : null}
         </div>
       ) : null}
 
       {showBodyStyleChoice ? (
         <div className="mt-6">
-          <StepLabel>{t.steps.car.bodyStyleQuestion}</StepLabel>
+          <ChoiceLabel hint={state.bodyStyleChoice === null ? t.steps.car.bodyStyleRequired : undefined} missing={state.bodyStyleChoice === null}>
+            {t.steps.car.bodyStyleQuestion}
+          </ChoiceLabel>
           <div className="flex flex-wrap gap-2" role="group" aria-label={t.steps.car.bodyStyleQuestion}>
             {bodyStyleOptions.map((style) => (
               <Chip
@@ -219,17 +234,14 @@ export function CarStep({
               </Chip>
             ))}
           </div>
-          {state.bodyStyleChoice === null ? (
-            <p className="mt-2 text-[13px] text-muted" aria-live="polite">
-              {t.steps.car.bodyStyleRequired}
-            </p>
-          ) : null}
         </div>
       ) : null}
 
       {driveOptions.length > 0 ? (
         <div className="mt-6">
-          <StepLabel>{t.steps.car.driveQuestion}</StepLabel>
+          <ChoiceLabel hint={state.driveChoice === null ? t.steps.car.driveRequired : undefined} missing={state.driveChoice === null}>
+            {t.steps.car.driveQuestion}
+          </ChoiceLabel>
           <div className="flex flex-wrap gap-2" role="group" aria-label={t.steps.car.driveQuestion}>
             {driveOptions.map((drive) => (
               <Chip key={drive} active={state.driveChoice === drive} onClick={() => dispatch({ type: "SET_DRIVE", drive })}>
@@ -237,11 +249,6 @@ export function CarStep({
               </Chip>
             ))}
           </div>
-          {state.driveChoice === null ? (
-            <p className="mt-2 text-[13px] text-muted" aria-live="polite">
-              {t.steps.car.driveRequired}
-            </p>
-          ) : null}
         </div>
       ) : null}
 

@@ -6,6 +6,9 @@
 import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
+import { categoriesWithoutItems } from "@/lib/draft/template";
+import { fillMailText, resolveMailTexts } from "../texts";
+import type { FlowCategory } from "@/lib/db/rows";
 import type { MailInquiryContext, MailInquiryItem } from "../types";
 import {
   beforeAfterTable,
@@ -20,6 +23,7 @@ import {
   sectionHeading,
   vehicleLabel,
   stepsList,
+  paragraphs,
 } from "../render";
 
 /**
@@ -56,7 +60,20 @@ function customerItems(
 export function buildConfirmation(ctx: MailInquiryContext): { subject: string; html: string; text: string } {
   const dict = getDictionary(ctx.locale);
   const model = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: ctx.inquiry.vehicle_text, line: ctx.inquiry.line });
-  const first = ctx.inquiry.first_name ?? "";
+  const texts = resolveMailTexts(ctx.locale, ctx.texts);
+  const vars = {
+    vorname: ctx.inquiry.first_name ?? "",
+    name: ctx.inquiry.last_name ?? "",
+    fahrzeug: model,
+    nummer: ctx.inquiry.number,
+  };
+  // Rückmeldung dÄHLer 14.10.2026 (Anfrage 2026-0016): gewählte Bereiche
+  // ohne angetipptes Produkt erscheinen ausdrücklich, statt in der
+  // Positionsliste einfach zu fehlen.
+  const withoutProducts =
+    ctx.family?.has_pricelist === false
+      ? []
+      : categoriesWithoutItems(ctx.inquiry.categories as FlowCategory[], ctx.items as { category: FlowCategory }[]);
   const subject = tf(dict.mail.confirmation.subject, { model, number: ctx.inquiry.number });
 
   const wish = ctx.inquiry.categories
@@ -80,14 +97,14 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
     items: ctx.items,
     character: ctx.inquiry.character,
     seriesPs: ctx.inquiry.series_ps,
-    seriesNm: ctx.model?.series_nm ?? null,
+    seriesNm: ctx.inquiry.series_nm ?? ctx.model?.series_nm ?? null,
     locale: ctx.locale,
     translations: ctx.translations,
   });
 
   const blocks = [
-    paragraph(tf(dict.mail.confirmation.intro, { first })),
-    paragraph(tf(dict.mail.confirmation.body, { model })),
+    // Einleitung und Schluss pflegt der Kunde im Admin (lib/mail/texts.ts).
+    ...paragraphs(fillMailText(texts.text_confirmation_intro, vars)),
     definitionList([
       { label: dict.mail.confirmation.vehicleLabel, value: model },
       { label: dict.mail.confirmation.wishLabel, value: wish },
@@ -97,7 +114,18 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
     ...(showBeforeAfter
       ? [sectionHeading(dict.mail.shared.beforeAfterTitle), beforeAfterTable(beforeAfterRows, ctx.locale)]
       : []),
-    itemList(customerItems(ctx.items, ctx.locale, ctx.translations), ctx.locale),
+    ...(ctx.items.length > 0 || withoutProducts.length === 0
+      ? [itemList(customerItems(ctx.items, ctx.locale, ctx.translations), ctx.locale)]
+      : []),
+    ...(withoutProducts.length > 0
+      ? [
+          paragraph(
+            tf(dict.mail.confirmation.withoutProducts, {
+              categories: withoutProducts.map((c) => categoryLabel(c, ctx.locale)).join(", "),
+            }),
+          ),
+        ]
+      : []),
     estimateBox({ estimatedTotal: ctx.estimatedTotal, hasOnRequest, locale: ctx.locale }),
     buttonLink(dict.mail.shared.viewPackageButton, ctx.shareUrl),
     stepsList([
@@ -105,7 +133,7 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
       { label: dict.steps.done.next.day1.title, value: dict.steps.done.next.day1.text },
       { label: dict.steps.done.next.then.title, value: dict.steps.done.next.then.text },
     ]),
-    paragraph(dict.mail.confirmation.closing),
+    ...paragraphs(fillMailText(texts.text_confirmation_closing, vars)),
   ];
 
   const { html, text } = renderMail({ title: subject, blocks });

@@ -521,6 +521,7 @@ export async function regenerateDraft(id: string): Promise<{ subject: string; bo
       companyName: settings.mail_from_name || "dÄHLer Competition Line AG",
       companyAddress: settings.company_address || "dÄHLer Competition Line AG, Belp",
       signaturePhone: settings.signature_phone || "",
+      texts: settings,
     },
   };
 

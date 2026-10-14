@@ -204,6 +204,23 @@ export function effectiveSeriesPs(
   return seriesPsChoice;
 }
 
+/**
+ * Serien-Drehmoment zur wirksamen Serienleistung: Admin-Wert je
+ * Serienleistung (models.series_nm_by_ps, z.B. M2 G87 460 PS / 480 PS),
+ * sonst der allgemeine models.series_nm. Rückmeldung dÄHLer 14.10.2026
+ * («+120 Nm» statt nur des Zielwerts).
+ */
+export function effectiveSeriesNm(
+  model: { seriesNm: number | null; seriesNmByPs: Record<string, number> },
+  seriesPs: number | null,
+): number | null {
+  if (seriesPs != null) {
+    const byPs = model.seriesNmByPs[String(seriesPs)];
+    if (typeof byPs === "number") return byPs;
+  }
+  return model.seriesNm;
+}
+
 /** Motor-Filter: ps_base leer ODER seriesPs in ps_base enthalten (siehe Aufgabenstellung). */
 export function motorProductVisible(product: CatalogProduct, seriesPs: number | null): boolean {
   if (product.psBase.length === 0) return true;
@@ -324,6 +341,7 @@ export type FlowAction =
   | { type: "SET_PRIVACY"; value: boolean }
   | { type: "GO_NEXT"; steps: StepId[] }
   | { type: "GO_BACK"; steps: StepId[] }
+  | { type: "GO_TO"; step: StepId }
   | { type: "MARK_SUBMIT_ATTEMPTED" }
   | { type: "SUBMIT_START" }
   | { type: "SUBMIT_SUCCESS"; result: SubmitResult }
@@ -570,6 +588,9 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
       const prevIdx = Math.max(idx - 1, 0);
       return { ...state, currentStep: action.steps[prevIdx] };
     }
+
+    case "GO_TO":
+      return { ...state, currentStep: action.step };
 
     case "MARK_SUBMIT_ATTEMPTED":
       return { ...state, submitAttempted: true };

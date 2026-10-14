@@ -246,6 +246,8 @@ export async function createInquiry(
     companyName: settings.mail_from_name || "dÄHLer Competition Line AG",
     companyAddress: settings.company_address || "dÄHLer Competition Line AG, Belp",
     signaturePhone: settings.signature_phone || "",
+    // Admin-Mailtexte (lib/mail/texts.ts), Rückmeldung dÄHLer 14.10.2026.
+    texts: settings,
   };
   const draftItems: DraftItem[] = selected.map((p) => ({
     category: p.category,
@@ -343,16 +345,26 @@ export async function createInquiry(
     // Indexsignatur); der JSON-Rundtrip macht daraus ein plain object,
     // inhaltlich identisch (CheckResult ist bereits eine reine {id, text}-
     // Struktur).
+    // Rückmeldung dÄHLer 14.10.2026: Serien-Drehmoment zur gewählten
+    // Serienleistung festhalten (models.series_nm_by_ps, sonst series_nm),
+    // für «+x Nm» in Mails, Teilen-Seite und Admin. Nie vom Client
+    // übernommen, nur aus dem Admin-Wert abgeleitet.
+    const seriesNmByPs = model?.series_nm_by_ps ?? {};
+    const seriesNm =
+      (payload.seriesPs != null && typeof seriesNmByPs[String(payload.seriesPs)] === "number"
+        ? seriesNmByPs[String(payload.seriesPs)]
+        : model?.series_nm) ?? null;
+
     const [inserted] = await tx<{ id: string }[]>`
       insert into inquiries (
         number, status, source, locale, family_id, model_id, vehicle_text, year, been_here, gearbox,
-        series_ps, line, body_style, drive, categories, consulting, selections, follow_up_answers, character, timing,
+        series_ps, series_nm, line, body_style, drive, categories, consulting, selections, follow_up_answers, character, timing,
         first_name, last_name, city, phone, email, channel, message, estimated_total, checks,
         draft_subject, draft_reply, share_token, translations
       ) values (
         ${number}, 'neu', ${opts.source}, ${payload.locale}, ${payload.familyId}, ${payload.modelId},
         ${payload.vehicleText}, ${payload.year}, ${payload.beenHere}, ${payload.gearbox},
-        ${payload.seriesPs}, ${line}, ${bodyStyle}, ${drive}, ${payload.categories}, ${payload.consulting}, ${sql.json(selectionsJson)},
+        ${payload.seriesPs}, ${seriesNm}, ${line}, ${bodyStyle}, ${drive}, ${payload.categories}, ${payload.consulting}, ${sql.json(selectionsJson)},
         ${sql.json(payload.followUpAnswers)}, ${payload.character}, ${payload.timing},
         ${payload.firstName}, ${payload.lastName}, ${payload.city}, ${payload.phone}, ${payload.email},
         ${payload.channel}, ${payload.message || null}, ${estimatedTotal}, ${sql.json(JSON.parse(JSON.stringify(checks)))},

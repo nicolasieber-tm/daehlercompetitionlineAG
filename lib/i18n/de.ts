@@ -57,6 +57,13 @@ export const de = {
       beenHereYes: "Ja",
       seriesKnown: "{ps} PS Serie und {nm} Nm Serie",
       seriesUnknown: "Die Serienleistung tragen wir für Sie nach.",
+      // Rückmeldung dÄHLer 14.10.2026: die Versions-Chips (z.B. M2 / M2 CS)
+      // standen bisher ohne Überschrift unter den Baureihen-Kacheln und
+      // wurden übersehen.
+      modelQuestion: "Welche Version fahren Sie?",
+      modelRequired: "Bitte tippen Sie auf Ihre Version.",
+      changeResetsSelection:
+        "Wenn Sie das Fahrzeug ändern, wird Ihre bisherige Produktauswahl zurückgesetzt. Trotzdem ändern?",
       seriesPsChoice: "Welche Serienleistung hat Ihr Fahrzeug?",
       seriesPsRequired: "Bitte wählen Sie Ihre Serienleistung, damit wir passende Optionen zeigen können.",
       // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt
@@ -138,6 +145,20 @@ export const de = {
         exterieur: "Was kommt dran?",
         interieur: "Was kommt rein?",
       },
+      // Rückmeldung dÄHLer 14.10.2026: klar machen, dass Produkte angetippt
+      // werden müssen, und warnen, wenn eine gewählte Kategorie ohne Produkt
+      // bleibt (sonst steht sie in der Anfrage nur als Wunsch ohne Position).
+      pickTitle: "Produkte auswählen",
+      pickHint: "Tippen Sie auf die gewünschten Produkte. Nur ausgewählte Produkte erscheinen in Ihrer Anfrage.",
+      pickedOne: "1 Produkt ausgewählt",
+      pickedMany: "{count} Produkte ausgewählt",
+      followUpHint: "Freiwillig, hilft uns bei der Beratung. Ersetzt die Produktauswahl oben nicht.",
+      emptyWarning: {
+        title: "Noch kein Produkt ausgewählt",
+        text: "Bei {category} haben Sie noch kein Produkt angetippt. Wählen Sie oben ein Produkt, damit es in Ihrer Anfrage erscheint. Möchten Sie sich dazu lieber beraten lassen, tippen Sie nochmals auf «Weiter».",
+      },
+      tailpipeHint:
+        "Ihr gewählter Endschalldämpfer wird ohne Endrohre geliefert. Wählen Sie oben passende Endrohre dazu, oder wir beraten Sie dazu.",
       loading: "Produkte werden geladen …",
       priceHintData:
         "Richtpreise «ab» aus unserer Produkteliste für den {model}, inklusive Einbau, ohne MFK.",
@@ -290,6 +311,11 @@ export const de = {
     },
 
     contact: {
+      emptyCategories: {
+        title: "Bereiche ohne Produktauswahl",
+        text: "Hier haben Sie noch kein Produkt ausgewählt. Wir beraten Sie gerne dazu, oder Sie wählen jetzt noch etwas aus.",
+        pick: "{category} auswählen",
+      },
       label: "Und wer sind Sie?",
       firstName: "Vorname",
       lastName: "Name",
@@ -357,7 +383,7 @@ export const de = {
         now: { title: "Jetzt", text: "Die Bestätigung per Mail ist unterwegs." },
         day1: {
           title: "Innert 1 Arbeitstag",
-          text: "Konkreter Vorschlag mit Preis und Terminfenster.",
+          text: "Konkretes Angebot mit Preis.",
         },
         then: { title: "Dann", text: "Sie bringen ihn vorbei. Wir machen den Rest." },
       },
@@ -391,9 +417,8 @@ export const de = {
     },
     confirmation: {
       subject: "Ihre Anfrage für den {model}, Nr. {number}",
-      intro: "Guten Tag {first},",
-      body: "Vielen Dank für Ihre Anfrage für Ihren {model}. Nachfolgend die Übersicht über Ihr Paket. Wir prüfen die Kompatibilität und melden uns innert einem Arbeitstag mit einem konkreten Vorschlag.",
-      closing: "Sportliche Grüsse aus Belp",
+      // Einleitung und Schluss: im Admin bearbeitbar, siehe lib/mail/texts.ts.
+      withoutProducts: "Ohne Produktauswahl, dazu beraten wir Sie gerne persönlich: {categories}.",
       // Zeilenbeschriftungen der Zusammenfassung (Fahrzeug, Wunsch, Termin,
       // Kontaktkanal), siehe docs/architektur.md, Abschnitt "Anfrage anlegen".
       vehicleLabel: "Fahrzeug",
@@ -471,9 +496,6 @@ export const de = {
     // aus demselben Feld, nicht {model}: der Antwortentwurf kennt auch
     // Fahrzeuge ohne zugeordnetes Modell, siehe inquiries.vehicle_text).
     subject: "Ihre Anfrage für den {vehicle}, Nr. {number}",
-    greeting: "Guten Tag {first} {last}",
-    thanks:
-      "Danke für Ihre Anfrage für Ihren {model}{yearSuffix}.",
     // Korrektur 15.09.2026 (Feinschliff-Prüfung, Befund "Doppelklammer"):
     // {model} kann selbst schon in Klammern enden (die Codes, z.B. "BMW M2
     // (G87)") - ein weiteres, direkt folgendes "(Jahrgang 2026)" liest sich
@@ -481,18 +503,17 @@ export const de = {
     // Klammer trennt die beiden Angaben klar, ohne dass es wie eine
     // verschachtelte/zweite Klammer aussieht.
     yearSuffix: ", Jahrgang {year}",
-    character: {
-      dezent: "Dezent und trotzdem spürbar, das können wir.",
-      sportlich: "Sportlich und alltagstauglich, das ist genau unsere Linie.",
-      maximum: "«Maximum» hören wir gern.",
-    },
-    itemsIntro: "Grundsätzlich können wir das so umsetzen:",
     // Positionszeile mit Beschreibung und Preis, siehe docs/architektur.md,
     // Abschnitt Antwortentwurf: "• Motor: Stufe 1 (620 PS / 740 Nm), ab CHF
     // 4'180". {description} und {price} kommen bereits mit ihrer
     // Umklammerung/ihrem Komma aus den Bausteinen unten, sonst bleiben sie
     // leer (kein doppeltes Leerzeichen oder Komma).
     itemLine: "• {category}: {name}{description}{price}",
+    // Rückmeldung dÄHLer 14.10.2026: im Antwortentwurf stehen die
+    // Positionen unter einer Bereichsüberschrift («Motor»), je Produkt eine
+    // Zeile mit Strich; Bereiche ohne gewähltes Produkt mit categoryAdvice.
+    itemLineGrouped: "- {name}{description}{price}",
+    categoryAdvice: "Gerne beraten wir Sie persönlich zur passenden Lösung.",
     itemDescription: " ({description})",
     itemPrice: ", ab {price}",
     itemPriceInPreparation: ", in Vorbereitung",
@@ -500,38 +521,16 @@ export const de = {
     itemsFallback: "Wir stellen Ihnen ein Paket nach Ihrem Wunsch zusammen.",
     performanceLine:
       "Mit {stage} kommt Ihr {model} auf {detail}, WLTP-geprüft und mit CH-Gutachten. Die Ergänzungsgarantie zur Werksgarantie ist für ein Jahr inbegriffen.",
-    // Prüfung Phase B, Punkt 6: durchgehend "wir" (nie "ich"), wie im
-    // restlichen Antwortentwurf. {clarification} ist bereits ein
-    // vollständiger Nebensatz (siehe die drei clarification*-Bausteine
-    // unten, jeweils inkl. Subjekt "wir"), deshalb hier kein eigenes "wir
-    // ... geklärt haben" mehr drumherum bauen.
+    // Rückmeldung dÄHLer 14.10.2026 (Beispielmail): «inklusive Montage,
+    // exklusive MFK», definitiver Preis nach Prüfung, mit Begründung.
+    // {clarification} ist ein Genitiv-Anschluss an «nach Prüfung».
     priceLine:
-      "Richtpreis für das Paket: {price}, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald {clarification}.",
-    // Für Fahrzeuge ohne Preisliste (Kurzablauf, siehe CLAUDE.md) oder ohne
-    // bekannte Summe: ersetzt nur den Preis-Teilsatz von priceLine, der
-    // Klärungs-Nebensatz {clarification} gehört wie dort weiterhin dazu
-    // (docs/vorschau.html draft(): ein durchgehendes Template für beide
-    // Fälle, siehe lib/draft/template.ts).
+      "Richtpreis für das Gesamtpaket: {price}, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung {clarification} bestätigt. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
     priceLineOnRequest:
-      "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald {clarification}.",
-    clarificationFahrwerk: "wir wissen, ob Ihr Wagen das adaptive M-Fahrwerk hat",
-    clarificationMotorAuspuff: "wir die Kombination aus Software und Abgasanlage geprüft haben",
-    clarificationGeneric: "wir die Details geklärt haben",
-    timingFlexible: "Beim Termin sind wir flexibel, sagen Sie uns einfach, was Ihnen passt.",
-    // Schnellweg (Posten 3) ohne erkannten Zeitraum (Prüfung Phase B, Punkt
-    // 7: timing kann null sein, siehe lib/draft/template.ts DraftContext).
-    timingUnknown: "Sobald wir Ihren Wunschtermin kennen, reservieren wir Ihnen gerne ein Werkstattfenster.",
-    // Dativ-Formen je Zeitraum-Chip (steps.timing.options), damit
-    // timingFixed grammatisch korrekt bleibt ("Für {timing} ...").
-    timingPhrases: {
-      asap: "die nächsten Wochen",
-      m1_2: "die Zeit in ein bis zwei Monaten",
-      m3_6: "die Zeit in drei bis sechs Monaten",
-    },
-    timingFixed:
-      "Für {timing} haben wir Werkstattfenster, wir reservieren Ihnen gerne eines, sobald Sie grünes Licht geben.",
-    closingCall: "Rufen Sie uns an oder antworten Sie kurz auf diese Mail, dann besprechen wir die Details.",
-    signOff: "Sportliche Grüsse aus Belp",
+      "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung {clarification}, inklusive Montage, exklusive MFK. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
+    clarificationFahrwerk: "Ihres Serienfahrwerks (adaptives M-Fahrwerk ja oder nein)",
+    clarificationMotorAuspuff: "der gewünschten Kombination aus Software-Leistungssteigerung und Abgasanlage",
+    clarificationGeneric: "der gewünschten Ausführung",
     // Kein fest verdrahteter Text: Name kommt aus settings.signature_name,
     // {company} aus settings.mail_from_name plus optional settings.
     // company_address (nur wenn gesetzt) und Telefon aus settings.

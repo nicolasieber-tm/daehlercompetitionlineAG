@@ -13,7 +13,7 @@ export type { FieldProps } from "./Field";
 export { Progress } from "./Progress";
 export type { ProgressProps } from "./Progress";
 
-export { StepLabel, Question, Subtitle } from "./StepLabel";
+export { StepLabel, Question, Subtitle, ChoiceLabel } from "./StepLabel";
 
 export { Upsell } from "./Upsell";
 export type { UpsellProps } from "./Upsell";

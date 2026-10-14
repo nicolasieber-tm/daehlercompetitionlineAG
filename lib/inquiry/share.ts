@@ -104,12 +104,13 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
       family_id: string | null;
       model_id: string | null;
       series_ps: number | null;
+      series_nm: number | null;
       line: string | null;
       translations: unknown;
     }[]
   >`
     select number, first_name, vehicle_text, year, character, categories, consulting, selections,
-           estimated_total, locale, created_at, family_id, model_id, series_ps, line, translations
+           estimated_total, locale, created_at, family_id, model_id, series_ps, series_nm, line, translations
     from inquiries
     where share_token = ${token}
   `;
@@ -172,7 +173,7 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
     categories: inquiry.categories,
     consulting: inquiry.consulting,
     seriesPs: inquiry.series_ps,
-    seriesNm: model?.series_nm ?? null,
+    seriesNm: inquiry.series_nm ?? model?.series_nm ?? null,
     items,
     estimatedTotal: inquiry.estimated_total,
     locale: inquiry.locale,

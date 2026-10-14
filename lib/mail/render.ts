@@ -203,14 +203,16 @@ function itemLineParts(item: MailInquiryItem, locale: Locale): ItemLineParts {
  * reiner Fliesstext ohne die Einrückung, die itemList() (unten) für die
  * Mailvorlagen verwendet.
  */
-export function itemLineText(item: MailInquiryItem, locale: Locale): string {
+export function itemLineText(item: MailInquiryItem, locale: Locale, opts?: { grouped?: boolean }): string {
   const dict = getDictionary(locale);
   const { category, name, descriptionLines, price } = itemLineParts(item, locale);
   const description =
     descriptionLines.length > 0
       ? tf(dict.draft.itemDescription, { description: descriptionLines.join(", ") })
       : "";
-  return tf(dict.draft.itemLine, { category, name, description, price });
+  // grouped: Zeile unter einer Bereichsüberschrift im Antwortentwurf
+  // («- Stufe 1 ..., ab CHF 4'580»), ohne den Kategorienamen davor.
+  return tf(opts?.grouped ? dict.draft.itemLineGrouped : dict.draft.itemLine, { category, name, description, price });
 }
 
 // --- Bausteine ---------------------------------------------------------------

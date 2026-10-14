@@ -4,7 +4,7 @@
 // Navigation. Zustand über useReducer (siehe state.ts). Referenz für Ablauf
 // und Verhalten: docs/vorschau.html; Seitenaufbau/API-Anbindung:
 // docs/architektur.md, Abschnitt "Kundenflow".
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Progress } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
@@ -24,6 +24,7 @@ import {
   buildSteps,
   categoryOfStep,
   effectiveBodyStyle,
+  effectiveSeriesNm,
   effectiveSeriesPs,
   flowReducer,
   initialFlowState,
@@ -44,9 +45,21 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
   const seriesPs = selectedModel
     ? effectiveSeriesPs(selectedModel.seriesPs, selectedModel.seriesPsSuggested, state.seriesPsChoice)
     : null;
-  const seriesNm = selectedModel?.seriesNm ?? null;
+  const seriesNm = selectedModel ? effectiveSeriesNm(selectedModel, seriesPs) : null;
 
   const currentCategory = categoryOfStep(state.currentStep);
+
+  // Gewählte Kategorien ohne angetipptes Produkt (nur mit Preisliste und nur
+  // dort, wo die Excel für das Fahrzeug überhaupt Produkte führt), für die
+  // Kontrollzeile im Kontakt-Schritt. Rückmeldung dÄHLer 14.10.2026.
+  const categoriesWithoutProducts = steps
+    .map(categoryOfStep)
+    .filter((c): c is NonNullable<typeof c> => c !== null)
+    .filter(
+      (c) =>
+        (state.selections[c] ?? []).length === 0 &&
+        state.productGroups.some((g) => g.category === c && g.products.length > 0),
+    );
 
   const loadProducts = useCallback(() => {
     if (!state.modelId) return;
@@ -229,17 +242,39 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, locale]);
 
+  // Rückmeldung dÄHLer 14.10.2026 (Anfrage 2026-0016: Motor, Auspuff und
+  // Fahrwerk gewählt, aber nur bei Räder ein Produkt angetippt): «Weiter»
+  // in einem Kategorie-Schritt ohne Produktauswahl hält beim ersten Mal an
+  // und zeigt einen Hinweis (CategoryStep emptyWarning), erst der zweite
+  // Klick geht weiter. Kein Zwang: wer beraten werden will, kommt durch.
+  const [emptyWarnStep, setEmptyWarnStep] = useState<string | null>(null);
+  const currentCategoryHasProducts =
+    currentCategory !== null && state.productGroups.some((g) => g.category === currentCategory && g.products.length > 0);
+
   const handleNext = useCallback(() => {
     if (state.currentStep === "contact") {
       dispatch({ type: "MARK_SUBMIT_ATTEMPTED" });
       if (isContactValid(state, t)) void submit();
       return;
     }
+    if (
+      currentCategory &&
+      currentCategoryHasProducts &&
+      (state.selections[currentCategory] ?? []).length === 0 &&
+      emptyWarnStep !== state.currentStep
+    ) {
+      setEmptyWarnStep(state.currentStep);
+      return;
+    }
+    setEmptyWarnStep(null);
     dispatch({ type: "GO_NEXT", steps });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, steps, t]);
+  }, [state, steps, t, currentCategory, currentCategoryHasProducts, emptyWarnStep]);
 
-  const handleBack = useCallback(() => dispatch({ type: "GO_BACK", steps }), [steps]);
+  const handleBack = useCallback(() => {
+    setEmptyWarnStep(null);
+    dispatch({ type: "GO_BACK", steps });
+  }, [steps]);
 
   function handleFormSubmit(e: FormEvent) {
     e.preventDefault();
@@ -278,17 +313,27 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
           family={selectedFamily}
           model={selectedModel}
           seriesPs={seriesPs}
+          seriesNm={seriesNm}
           allGroups={state.productGroups}
           notes={state.productNotes}
           state={state}
           dispatch={dispatch}
+          emptyWarning={emptyWarnStep === state.currentStep}
         />
       );
     }
   } else if (state.currentStep === "character") {
     stepContent = <CharacterStep family={selectedFamily} model={selectedModel} state={state} dispatch={dispatch} />;
   } else if (state.currentStep === "contact") {
-    stepContent = <ContactStep family={selectedFamily} model={selectedModel} state={state} dispatch={dispatch} />;
+    stepContent = (
+      <ContactStep
+        family={selectedFamily}
+        model={selectedModel}
+        state={state}
+        dispatch={dispatch}
+        emptyCategories={categoriesWithoutProducts}
+      />
+    );
   } else if (state.currentStep === "done" && state.result) {
     stepContent = (
       <DoneStep family={selectedFamily} model={selectedModel} seriesPs={seriesPs} seriesNm={seriesNm} state={state} dispatch={dispatch} />

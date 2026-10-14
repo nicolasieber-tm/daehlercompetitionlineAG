@@ -18,6 +18,8 @@ import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import { vehicleInternalLine } from "@/lib/catalog/vehicle-label";
 import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
 import type { MailInquiryContext, MailInquiryItem } from "../types";
+import { categoriesWithoutItems } from "@/lib/draft/template";
+import type { FlowCategory } from "@/lib/db/rows";
 import {
   beforeAfterTable,
   buttonLink,
@@ -180,7 +182,7 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
     items: ctx.items,
     character: inquiry.character,
     seriesPs: inquiry.series_ps,
-    seriesNm: ctx.model?.series_nm ?? null,
+    seriesNm: ctx.inquiry.series_nm ?? ctx.model?.series_nm ?? null,
     locale: LOCALE,
   });
 
@@ -194,6 +196,17 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
       { label: t.vehicle, value: vehicleLine },
       { label: t.wish, value: wish },
       { label: t.goal, value: goalLine(ctx) },
+      // Rückmeldung dÄHLer 14.10.2026 (Anfrage 2026-0016): gewählte Bereiche
+      // ohne angetipptes Produkt ausdrücklich nennen.
+      {
+        label: t.withoutProducts,
+        value:
+          ctx.family?.has_pricelist === false
+            ? ""
+            : categoriesWithoutItems(inquiry.categories as FlowCategory[], ctx.items as { category: FlowCategory }[])
+                .map((c) => categoryLabel(c, LOCALE))
+                .join(", "),
+      },
       { label: t.character, value: character },
       { label: t.timing, value: timing },
     ]),

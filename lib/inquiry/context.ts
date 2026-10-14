@@ -11,6 +11,7 @@ import type { Locale } from "@/lib/i18n/dictionaries";
 import type { MailCheck, MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
 import { parseStoredTranslations } from "@/lib/translations/resolve";
 import { shareUrl } from "./share";
+import { getSettings } from "@/lib/mail/settings";
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -101,6 +102,15 @@ export async function buildMailContext(inquiryId: string): Promise<MailInquiryCo
     : [];
 
   const locale = (inquiry.locale as Locale) ?? "de";
+
+  // Admin-Mailtexte (lib/mail/texts.ts). Fehlen die Einstellungen (DB-Fehler),
+  // greifen die Standardtexte, der Versand soll daran nicht scheitern.
+  let texts: Record<string, string> | null = null;
+  try {
+    texts = await getSettings();
+  } catch (err) {
+    console.error("buildMailContext: settings für Mailtexte nicht geladen, Standardtexte.", err);
+  }
   return {
     inquiry,
     family: family ?? null,
@@ -114,5 +124,6 @@ export async function buildMailContext(inquiryId: string): Promise<MailInquiryCo
     appUrl: appUrl(),
     shareUrl: shareUrl(inquiry.share_token),
     adminUrl: `${appUrl()}/admin/anfragen/${inquiry.id}`,
+    texts,
   };
 }

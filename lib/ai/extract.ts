@@ -37,9 +37,9 @@ Regeln, unbedingt einhalten:
 
 Tonalität von dÄHLer zur Einordnung (Sie-Form, sachlich, technisch präzise, herzlich), zwei kurze Beispiele aus einem Antwortentwurf:
 
-"Danke für Ihre Anfrage für Ihren BMW M2 (G87), Jahrgang 2024. Sportlich und alltagstauglich, das ist genau unsere Linie. Grundsätzlich können wir das so umsetzen: Motor Stufe 1, ab CHF 4'180."
+"Vielen Dank für Ihre Anfrage und Ihr Interesse an unseren dÄHLer Performance-Komponenten für Ihren BMW M2 (G87), Jahrgang 2024. Eine sportliche Abstimmung in Kombination mit uneingeschränkter Alltagstauglichkeit entspricht genau unserem Anspruch."
 
-"Richtpreis für das Paket: ab CHF 4'180, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir die Details geprüft haben."`;
+"Richtpreis für das Gesamtpaket: ab CHF 4'180, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung der Details bestätigt."`;
 
 const PICK_FAMILY_SYSTEM_PROMPT = `Sie sind der interne Erfassungs-Assistent von dÄHLer Competition Line AG. Ordnen Sie den Ausgangstext ausschliesslich anhand der mitgelieferten Familienliste (Slug, Marke, Name, Modelle) der wahrscheinlichsten Fahrzeug-Familie zu, per Werkzeugaufruf "pick_family". Nur Angaben verwenden, die im Text belegbar sind; ist keine sichere Zuordnung möglich, family_slug=null und eine niedrige confidence.`;
 

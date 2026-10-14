@@ -7,7 +7,7 @@ import type { Dispatch } from "react";
 import { Chip, Field, Question, StepLabel } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
-import type { Channel, Timing } from "@/lib/db/rows";
+import type { Channel, FlowCategory, Timing } from "@/lib/db/rows";
 import type { ContactFields, FlowAction, FlowState } from "../state";
 import { vehicleDisplayName } from "../vehicleLabel";
 
@@ -51,11 +51,14 @@ export function ContactStep({
   model,
   state,
   dispatch,
+  emptyCategories = [],
 }: {
   family: CatalogFamily | null;
   model: CatalogModel | null;
   state: FlowState;
   dispatch: Dispatch<FlowAction>;
+  /** Gewählte Kategorien ohne Produkt (Flow.tsx), Kontrollhinweis vor dem Absenden. */
+  emptyCategories?: FlowCategory[];
 }) {
   const { t, tf } = useT();
 
@@ -93,6 +96,25 @@ export function ContactStep({
 
   return (
     <div>
+      {/* Rückmeldung dÄHLer 14.10.2026: letzte Kontrolle vor dem Absenden,
+          welche gewählten Bereiche noch ohne Produkt sind, mit Sprung
+          zurück in den jeweiligen Schritt. */}
+      {emptyCategories.length > 0 ? (
+        <div className="mb-8 border border-warn bg-panel px-4 py-3.5" role="status">
+          <b className="block font-display text-[17px] font-semibold uppercase tracking-[0.06em] text-warn">
+            {t.steps.contact.emptyCategories.title}
+          </b>
+          <span className="mt-1 block text-[14px] text-text-soft">{t.steps.contact.emptyCategories.text}</span>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {emptyCategories.map((c) => (
+              <Chip key={c} onClick={() => dispatch({ type: "GO_TO", step: `cat:${c}` })}>
+                {tf(t.steps.contact.emptyCategories.pick, { category: t.steps.wish.categories[c].title })}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <StepLabel>{t.steps.timing.label}</StepLabel>
       <Question>{t.steps.timing.question}</Question>
       <div className="mt-5 flex flex-wrap gap-2">

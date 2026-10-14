@@ -12,6 +12,7 @@ import { chfFrom } from "@/lib/i18n/format";
 import { categoryLabel, companyLine, itemLineText } from "@/lib/mail/render";
 import { displayItemFields, isStandaloneVmaxProduct, stageShortTitle } from "@/lib/catalog/product-display";
 import type { TranslationMap } from "@/lib/translations/resolve";
+import { fillMailText, resolveMailTexts } from "@/lib/mail/texts";
 import type { Character, FlowCategory, PriceStatus, Timing } from "@/lib/db/rows";
 
 export interface DraftItem {
@@ -40,6 +41,8 @@ export interface DraftSettings {
   /** settings.company_address, wird in der Signatur nur angehängt, wenn gesetzt. */
   companyAddress: string;
   signaturePhone: string;
+  /** Rohe settings mit den Admin-Mailtexten (lib/mail/texts.ts), leer = Standardtexte. */
+  texts?: Partial<Record<string, string>>;
 }
 
 export interface DraftContext {
@@ -158,48 +161,75 @@ function buildItemLine(item: DraftItem, locale: Locale, translations?: Translati
       price_status: item.priceStatus,
     },
     locale,
+    { grouped: true },
   );
+}
+
+/**
+ * Gewählte Kategorien ohne ausgewähltes Produkt (Rückmeldung dÄHLer
+ * 14.10.2026, Anfrage 2026-0016: Motor, Auspuff, Fahrwerk gewählt, aber nur
+ * bei Räder ein Produkt angetippt). Erscheinen im Entwurf als Bereich mit
+ * Beratungszeile statt stillschweigend zu fehlen.
+ */
+export function categoriesWithoutItems(
+  categories: readonly FlowCategory[],
+  items: readonly { category: FlowCategory }[],
+): FlowCategory[] {
+  return categories.filter((c) => !items.some((item) => item.category === c));
 }
 
 /** Antwortentwurf: Betreff und vollständiger Text, Absätze mit Leerzeile getrennt. */
 export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string; body: string } {
   const dict = getDictionary(locale);
   const d = dict.draft;
+  // Rückmeldung dÄHLer 14.10.2026: Einleitung, Charaktersatz, Überleitung
+  // zum Angebot, Terminsatz und Schluss pflegt der Kunde im Admin
+  // (lib/mail/texts.ts), Positionen, Leistung und Richtpreis baut das Tool.
+  const texts = resolveMailTexts(locale, ctx.settings.texts);
 
   const subject = tf(d.subject, { vehicle: ctx.vehicleLabel, number: ctx.number });
 
   const yearSuffix = ctx.year && !isOlderYear(ctx.year) ? tf(d.yearSuffix, { year: ctx.year }) : "";
-  // Prüfung Phase B, Punkt 7: character ist im Schnellweg optional (null),
-  // wenn das Sprachmodell keinen erkennen konnte (siehe DraftContext.character-
-  // Kommentar). Ohne character bleibt der Charakter-Satz einfach weg statt
-  // `d.character[null]` (undefined, ergäbe "... Modell. undefined").
-  const thanksBase = tf(d.thanks, { model: ctx.vehicleLabel, yearSuffix });
-  const thanksParagraph = ctx.character ? `${thanksBase} ${d.character[ctx.character]}` : thanksBase;
+  const vars = {
+    vorname: ctx.firstName,
+    name: ctx.lastName,
+    fahrzeug: ctx.vehicleLabel,
+    jahrgang: yearSuffix,
+    nummer: ctx.number,
+  };
+  const introParagraph = fillMailText(texts.text_draft_intro, vars);
 
-  // Positionen: im Kurzablauf (family.has_pricelist === false, siehe
-  // CLAUDE.md "Modelle ohne Preisliste") gibt es keinen Produkt-Schritt,
-  // also auch keine Preise - die Positionen werden durch die gewünschten
-  // Kategorien als Wunschliste ersetzt (Aufgabenstellung: "Kurzablauf (kein
-  // Modell / keine Preisliste): Positionen durch Kategorien-Wunschliste
-  // ersetzen").
-  let itemsParagraph: string;
+  // character ist im Schnellweg optional (null), dann entfällt der Satz.
+  const characterText = ctx.character ? fillMailText(texts[`text_draft_character_${ctx.character}`], vars) : "";
+  const itemsIntro = fillMailText(texts.text_draft_items_intro, vars);
+
+  // Positionen, nach Bereich gruppiert («Motor», darunter je Produkt eine
+  // Zeile mit Strich), Wunsch von dÄHLer 14.10.2026 (übersichtlicher mit
+  // Aufzählung). Kurzablauf ohne Preisliste: nur die gewünschten Bereiche.
+  let itemsBlock: string;
   if (!ctx.hasPricelist) {
-    const wishLines = ctx.categories.map((c) => `• ${categoryLabel(c, locale)}`);
-    if (ctx.consulting) wishLines.push(`• ${dict.steps.done.package.adviceLine}`);
-    itemsParagraph = wishLines.length > 0 ? `${d.itemsIntro}\n${wishLines.join("\n")}` : d.itemsFallback;
-  } else if (ctx.items.length === 0) {
-    // Preisliste vorhanden, aber nichts ausgewählt (z.B. nur "Komplettpaket,
-    // beraten Sie mich" ohne konkrete Produkte) - derselbe Fallback wie
-    // lib/mail/render.ts itemList() für den Fall leerer Positionen.
-    itemsParagraph = d.itemsFallback;
+    const wishLines = ctx.categories.map((c) => `- ${categoryLabel(c, locale)}`);
+    if (ctx.consulting) wishLines.push(`- ${dict.steps.done.package.adviceLine}`);
+    itemsBlock = wishLines.length > 0 ? wishLines.join("\n") : d.itemsFallback;
+  } else if (ctx.items.length === 0 && ctx.categories.length === 0) {
+    itemsBlock = d.itemsFallback;
   } else {
-    const lines = ctx.items.map((item) => buildItemLine(item, locale, ctx.translations));
-    itemsParagraph = `${d.itemsIntro}\n${lines.join("\n")}`;
+    const order: FlowCategory[] = [...ctx.categories];
+    for (const item of ctx.items) if (!order.includes(item.category)) order.push(item.category);
+    const blocks = order.map((category) => {
+      const lines = ctx.items
+        .filter((item) => item.category === category)
+        .map((item) => buildItemLine(item, locale, ctx.translations));
+      const body = lines.length > 0 ? lines.join("\n") : `- ${d.categoryAdvice}`;
+      return `${categoryLabel(category, locale)}\n${body}`;
+    });
+    if (ctx.consulting) blocks.push(`${dict.steps.done.package.adviceLine}\n- ${d.categoryAdvice}`);
+    itemsBlock = blocks.join("\n\n");
   }
+  const leadParagraph = [characterText, itemsIntro].filter(Boolean).join(" ");
 
   // Leistungs-Satz: nur bei gewählter Motor-Leistungsstufe (variant_group
-  // 'leistung') mit bekanntem Zielwert (ps_to), siehe Aufgabenstellung
-  // "Leistungs-Satz bei Motorstufe (ps_to/nm_to)".
+  // 'leistung') mit bekanntem Zielwert (ps_to).
   const stageItem = ctx.items.find(
     (item) => item.category === "motor" && item.variantGroup === "leistung" && item.psTo != null,
   );
@@ -212,44 +242,20 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
       })
     : null;
 
-  // Richtpreis-Satz mit Vorbehalt. Prüfung Phase B, Punkt 6 (korrigiert eine
-  // frühere, bewusste Abweichung von der Vorschau, siehe docs/vorschau.html
-  // draft(): dort ist der Satz EIN durchgehendes Template ("Richtpreis für
-  // das Paket: {ab CHF x / nennen wir dir nach kurzer Prüfung}, inklusive
-  // Einbau, ohne MFK. Den definitiven Preis bestätige ich dir, sobald
-  // {clarification}.") - der Klärungs-Nebensatz gehört in BEIDEN Fällen
-  // dazu, nicht nur wenn eine Summe bekannt ist. draft.priceLine und
-  // draft.priceLineOnRequest tragen deshalb jetzt beide {clarification} als
-  // eigenen, vollständigen zweiten Satz.
+  // Richtpreis mit Vorbehalt, der Klärungs-Nebensatz je nach Kategorien.
   const clarification = d[clarificationKey(ctx.categories)];
   const priceParagraph =
     ctx.estimatedTotal != null
       ? tf(d.priceLine, { price: chfFrom(ctx.estimatedTotal, locale), clarification })
       : tf(d.priceLineOnRequest, { clarification });
 
-  // Prüfung Phase B, Punkt 7: timing ist im Schnellweg optional (null), wenn
-  // das Sprachmodell keinen Zeitraum erkennen konnte (siehe DraftContext.
-  // timing-Kommentar). draft.timingUnknown ist ein neutraler Satz, der ohne
-  // Zeitraumangabe an dessen Stelle tritt.
-  const timingParagraph =
-    ctx.timing == null
-      ? d.timingUnknown
-      : ctx.timing === "flexible"
-        ? d.timingFlexible
-        : tf(d.timingFixed, { timing: d.timingPhrases[ctx.timing] });
+  // Terminsatz: ein Text für alle Zeiträume (Wunsch dÄHLer 14.10.2026, die
+  // bisherigen Zeitraum-Varianten waren zu konkret), im Admin anpassbar.
+  const timingParagraph = fillMailText(texts.text_draft_timing, vars);
 
-  // Prüfung Phase B, Punkt 6: Firmenname aus settings.mail_from_name
-  // (ctx.settings.companyName), die Adresse (companyAddress) wird nur
-  // angehängt, wenn gesetzt (siehe docs/vorschau.html draft(): die Signatur
-  // zeigt dort ohne Adresse nur "dÄHLer Competition Line AG · Telefon").
-  // Ohne companyName (lib/inquiry/create.ts liefert es noch nicht, siehe
-  // DraftSettings-Kommentar) bleibt es beim bisherigen Verhalten
-  // (companyAddress allein als Firmenzeile). Über companyLine()
-  // (lib/mail/render.ts), damit ein künftig doch übergebenes companyName
-  // nicht doppelt erscheint, wenn companyAddress ihn (wie der ausgelieferte
-  // Seed-Wert "dÄHLer Competition Line AG, Belp") bereits selbst enthält -
-  // Befund «polish» #1, dieselbe Korrektur wie in
-  // lib/mail/templates/follow_up.ts.
+  // Signatur: Name aus settings.signature_name, Firmenzeile aus
+  // settings.mail_from_name plus optional company_address (companyLine()
+  // dedupliziert), Telefon aus settings.signature_phone.
   const company = ctx.settings.companyName
     ? companyLine(ctx.settings.companyName, ctx.settings.companyAddress)
     : ctx.settings.companyAddress;
@@ -258,18 +264,17 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
     company,
     phone: ctx.settings.signaturePhone,
   });
-  const closingParagraph = `${d.signOff}\n${signature}`;
+  const closingParagraph = `${fillMailText(texts.text_draft_closing, vars)}\n${signature}`;
 
   const paragraphs = [
-    tf(d.greeting, { first: ctx.firstName, last: ctx.lastName }),
-    thanksParagraph,
-    itemsParagraph,
+    introParagraph,
+    leadParagraph,
+    itemsBlock,
     performanceParagraph,
     priceParagraph,
     timingParagraph,
-    d.closingCall,
     closingParagraph,
-  ].filter((p): p is string => !!p);
+  ].filter((p): p is string => !!p && p.trim() !== "");
 
   return { subject, body: paragraphs.join("\n\n") };
 }

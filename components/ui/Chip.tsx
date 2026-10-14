@@ -23,7 +23,7 @@ export function Chip({ active = false, className = "", children, ...props }: Chi
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-bright focus-visible:outline-offset-2",
         active
           ? "border-red bg-red text-white"
-          : "border-line-alt bg-transparent text-muted hover:border-muted hover:text-text",
+          : "border-muted/60 bg-panel text-text-soft hover:border-text hover:text-text",
         className,
       ].join(" ")}
     >

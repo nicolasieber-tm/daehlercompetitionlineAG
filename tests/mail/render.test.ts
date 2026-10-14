@@ -32,6 +32,7 @@ function model(overrides: Partial<Model> & { name: string }): Model {
     id: "model-1",
     photo_url: null,
     series_nm: null,
+    series_nm_by_ps: {},
     series_ps: null,
     series_ps_suggested: [],
     slug: "slug",

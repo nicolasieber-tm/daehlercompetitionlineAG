@@ -178,7 +178,8 @@ describe("Sprachneutrale IDs bei Auswahlwerten", () => {
   });
 });
 
-// draft.priceLine: {clarification} ist bereits ein vollständiger Nebensatz
+// draft.priceLine: {clarification} ist ein Genitiv-Anschluss an «nach Prüfung»
+// (Rückmeldung dÄHLer 14.10.2026, vorher ein vollständiger Nebensatz)
 // (docs/architektur.md, Befund "priceLine"), die drei Varianten müssen zu
 // grammatisch vollständigen Sätzen zusammengebaut werden. Der Test baut die
 // Zusammensetzung nach, wie sie lib/draft/template.ts später vornehmen wird
@@ -188,15 +189,15 @@ describe("draft.priceLine: Satzbau mit clarification", () => {
     const price = "ab CHF 4'180";
 
     expect(tf(de.draft.priceLine, { price, clarification: de.draft.clarificationFahrwerk })).toBe(
-      "Richtpreis für das Paket: ab CHF 4'180, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir wissen, ob Ihr Wagen das adaptive M-Fahrwerk hat.",
+      "Richtpreis für das Gesamtpaket: ab CHF 4'180, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung Ihres Serienfahrwerks (adaptives M-Fahrwerk ja oder nein) bestätigt. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
     );
     expect(
       tf(de.draft.priceLine, { price, clarification: de.draft.clarificationMotorAuspuff }),
     ).toBe(
-      "Richtpreis für das Paket: ab CHF 4'180, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir die Kombination aus Software und Abgasanlage geprüft haben.",
+      "Richtpreis für das Gesamtpaket: ab CHF 4'180, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung der gewünschten Kombination aus Software-Leistungssteigerung und Abgasanlage bestätigt. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
     );
     expect(tf(de.draft.priceLine, { price, clarification: de.draft.clarificationGeneric })).toBe(
-      "Richtpreis für das Paket: ab CHF 4'180, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir die Details geklärt haben.",
+      "Richtpreis für das Gesamtpaket: ab CHF 4'180, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung der gewünschten Ausführung bestätigt. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
     );
   });
 
@@ -204,15 +205,15 @@ describe("draft.priceLine: Satzbau mit clarification", () => {
     const price = "from CHF 4'180";
 
     expect(tf(en.draft.priceLine, { price, clarification: en.draft.clarificationFahrwerk })).toBe(
-      "Indicative price for the package: from CHF 4'180, including fitting, excluding roadworthiness test. We will confirm the final price once we know whether your car has the adaptive M suspension.",
+      "Indicative price for the complete package: from CHF 4'180, including fitting, excluding roadworthiness test. The final price will be confirmed after checking your standard suspension (adaptive M suspension or not). This way we make sure that all components are perfectly matched.",
     );
     expect(
       tf(en.draft.priceLine, { price, clarification: en.draft.clarificationMotorAuspuff }),
     ).toBe(
-      "Indicative price for the package: from CHF 4'180, including fitting, excluding roadworthiness test. We will confirm the final price once we have checked the combination of software and exhaust system.",
+      "Indicative price for the complete package: from CHF 4'180, including fitting, excluding roadworthiness test. The final price will be confirmed after checking the desired combination of software tuning and exhaust system. This way we make sure that all components are perfectly matched.",
     );
     expect(tf(en.draft.priceLine, { price, clarification: en.draft.clarificationGeneric })).toBe(
-      "Indicative price for the package: from CHF 4'180, including fitting, excluding roadworthiness test. We will confirm the final price once we have clarified the details.",
+      "Indicative price for the complete package: from CHF 4'180, including fitting, excluding roadworthiness test. The final price will be confirmed after checking the desired configuration. This way we make sure that all components are perfectly matched.",
     );
   });
 

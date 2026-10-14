@@ -71,40 +71,49 @@ function m2Ctx(): DraftContext {
   };
 }
 
+// Rückmeldung dÄHLer 14.10.2026: Standardtexte nach seiner Beispielmail
+// (lib/mail/texts.ts), Positionen nach Bereich gruppiert mit Strichen.
+const INTRO_DE = "Vielen Dank für Ihre Anfrage und Ihr Interesse an unseren dÄHLer Performance-Komponenten für Ihren";
+const LEAD_DE =
+  "Eine sportliche Abstimmung in Kombination mit uneingeschränkter Alltagstauglichkeit entspricht genau unserem Anspruch. Gerne prüfen wir die passende Lösung für Ihr Fahrzeug und unterbreiten Ihnen dazu folgendes Angebot:";
+const TIMING_DE =
+  "Für die kommenden Wochen verfügen wir noch über mögliche Werkstatttermine. Gerne reservieren wir Ihnen einen passenden Termin, sobald Sie uns Ihr Einverständnis geben und die gewünschte Ausführung feststeht.";
+const CLOSING_DE = [
+  "Bei Fragen oder zur weiteren Besprechung stehen wir Ihnen selbstverständlich gerne telefonisch oder per E-Mail zur Verfügung. Wir freuen uns, Ihr Fahrzeug gemeinsam mit Ihnen sportlich und technisch sinnvoll weiterzuentwickeln.",
+  ["Freundliche Grüsse", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
+].join("\n\n");
+
 const M2_BODY_DE = [
   "Guten Tag Max Muster",
-  "Danke für Ihre Anfrage für Ihren BMW M2 (G87), Jahrgang 2025. Sportlich und alltagstauglich, das ist genau unsere Linie.",
+  `${INTRO_DE} BMW M2 (G87), Jahrgang 2025.`,
+  LEAD_DE,
   [
-    "Grundsätzlich können wir das so umsetzen:",
-    // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 1):
-    // Positionszeile jetzt über lib/catalog/product-display.ts
-    // displayItemFields() zusammengefaltet, statt des vollen, mehrdeutigen
-    // Excel-Rohnamens (siehe lib/draft/template.ts buildItemLine()).
-    "• Motor: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180",
-    "• Auspuff: Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, ab CHF 5'260",
-    "• Fahrwerk: Sportfedernsatz für M2 / VA -20mm/ HA -14mm, ab CHF 1'630",
-  ].join("\n"),
+    ["Motor", "- Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180"].join("\n"),
+    ["Auspuff", "- Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, ab CHF 5'260"].join("\n"),
+    ["Fahrwerk", "- Sportfedernsatz für M2 / VA -20mm/ HA -14mm, ab CHF 1'630"].join("\n"),
+  ].join("\n\n"),
   "Mit Stufe 1 kommt Ihr BMW M2 (G87) auf 620 PS / 740 Nm, WLTP-geprüft und mit CH-Gutachten. Die Ergänzungsgarantie zur Werksgarantie ist für ein Jahr inbegriffen.",
-  "Richtpreis für das Paket: ab CHF 11'070, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir wissen, ob Ihr Wagen das adaptive M-Fahrwerk hat.",
-  "Für die Zeit in ein bis zwei Monaten haben wir Werkstattfenster, wir reservieren Ihnen gerne eines, sobald Sie grünes Licht geben.",
-  "Rufen Sie uns an oder antworten Sie kurz auf diese Mail, dann besprechen wir die Details.",
-  ["Sportliche Grüsse aus Belp", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
+  "Richtpreis für das Gesamtpaket: ab CHF 11'070, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung Ihres Serienfahrwerks (adaptives M-Fahrwerk ja oder nein) bestätigt. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
+  TIMING_DE,
+  CLOSING_DE,
 ].join("\n\n");
 
 const M2_BODY_EN = [
   "Dear Max Muster",
-  "Thank you for your request for your BMW M2 (G87), model year 2025. Sporty and still practical for everyday use, that is exactly our line.",
+  "Thank you for your enquiry and your interest in dÄHLer performance components for your BMW M2 (G87), model year 2025.",
+  "A sporty set-up combined with full everyday usability is exactly what we stand for. We will be glad to check the right solution for your car and are pleased to offer you the following:",
   [
-    "In principle, we can put this together:",
-    "• Engine: Stage 1 (620 PS / 740 Nm, M6 & A8-Getriebe), from CHF 4'180",
-    "• Exhaust: Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, from CHF 5'260",
-    "• Suspension: Sportfedernsatz für M2 / VA -20mm/ HA -14mm, from CHF 1'630",
-  ].join("\n"),
+    ["Engine", "- Stage 1 (620 PS / 740 Nm, M6 & A8-Getriebe), from CHF 4'180"].join("\n"),
+    ["Exhaust", "- Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, from CHF 5'260"].join("\n"),
+    ["Suspension", "- Sportfedernsatz für M2 / VA -20mm/ HA -14mm, from CHF 1'630"].join("\n"),
+  ].join("\n\n"),
   "With Stage 1 your BMW M2 (G87) reaches 620 PS / 740 Nm, WLTP tested and with a Swiss approval certificate. The one year warranty extension to the factory warranty is included.",
-  "Indicative price for the package: from CHF 11'070, including fitting, excluding roadworthiness test. We will confirm the final price once we know whether your car has the adaptive M suspension.",
-  "For the period in one to two months we have workshop slots available, we would be happy to reserve one for you once you give us the go ahead.",
-  "Call us or simply reply to this email, and we will discuss the details.",
-  ["Kind regards from Belp", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
+  "Indicative price for the complete package: from CHF 11'070, including fitting, excluding roadworthiness test. The final price will be confirmed after checking your standard suspension (adaptive M suspension or not). This way we make sure that all components are perfectly matched.",
+  "We still have workshop slots available in the coming weeks. We will be happy to reserve a suitable date for you as soon as you give us the go-ahead and the desired configuration is settled.",
+  [
+    "If you have any questions or would like to discuss the details, we are happy to help by phone or e-mail. We look forward to developing your car together with you, sporty and technically sound.",
+    ["Kind regards", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
+  ].join("\n\n"),
 ].join("\n\n");
 
 function wiesmannCtx(): DraftContext {
@@ -127,12 +136,12 @@ function wiesmannCtx(): DraftContext {
 
 const WIESMANN_BODY_DE = [
   "Guten Tag Peter Beispiel",
-  "Danke für Ihre Anfrage für Ihren Wiesmann. Dezent und trotzdem spürbar, das können wir.",
-  ["Grundsätzlich können wir das so umsetzen:", "• Motor", "• Exterieur"].join("\n"),
-  "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Einbau, ohne MFK. Den definitiven Preis bestätigen wir Ihnen, sobald wir die Details geklärt haben.",
-  "Beim Termin sind wir flexibel, sagen Sie uns einfach, was Ihnen passt.",
-  "Rufen Sie uns an oder antworten Sie kurz auf diese Mail, dann besprechen wir die Details.",
-  ["Sportliche Grüsse aus Belp", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
+  `${INTRO_DE} Wiesmann.`,
+  "Spürbar mehr Fahrfreude bei einem dezenten Auftritt entspricht genau unserem Anspruch. Gerne prüfen wir die passende Lösung für Ihr Fahrzeug und unterbreiten Ihnen dazu folgendes Angebot:",
+  ["- Motor", "- Exterieur"].join("\n"),
+  "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung der gewünschten Ausführung, inklusive Montage, exklusive MFK. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
+  TIMING_DE,
+  CLOSING_DE,
 ].join("\n\n");
 
 /** Jede Zeile grammatisch prüfen: keine doppelten Leerzeichen, kein
@@ -228,14 +237,14 @@ describe("buildDraft: Kurzablauf Platzhalterfamilie (docs/architektur.md, Abschn
   it("ohne vehicleText: Marke + Platzhalter-Familienname (einzig verfügbarer Anhaltspunkt)", () => {
     const { subject, body } = buildDraft(kurzablaufCtx(null), "de");
     expect(subject).toBe("Ihre Anfrage für den BMW Älteres Modell, Nr. 2026-0099");
-    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW Älteres Modell.");
+    expect(body).toContain(`${INTRO_DE} BMW Älteres Modell.`);
     assertClean(body, SETTINGS.signaturePhone);
   });
 
   it("mit vehicleText: Marke + vehicleText, der nichtssagende Platzhaltername bleibt weg (kein doppeltes Lesen, Kundenrückmeldung)", () => {
     const { subject, body } = buildDraft(kurzablaufCtx("320i Touring, Baujahr ca. 2011"), "de");
     expect(subject).toBe("Ihre Anfrage für den BMW 320i Touring, Baujahr ca. 2011, Nr. 2026-0099");
-    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW 320i Touring, Baujahr ca. 2011.");
+    expect(body).toContain(`${INTRO_DE} BMW 320i Touring, Baujahr ca. 2011.`);
     assertClean(body, SETTINGS.signaturePhone);
   });
 });
@@ -276,8 +285,8 @@ describe("buildDraft: die beiden M2 G87 Stufe-1-Positionen (Basis 480 PS) sind u
     const ctxWith = { ...m2Ctx(), items: [STUFE_1_VMAX] };
     const { body: bodyWithout } = buildDraft(ctxWithout, "de");
     const { body: bodyWith } = buildDraft(ctxWith, "de");
-    expect(bodyWithout).toContain("• Motor: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180");
-    expect(bodyWith).toContain("• Motor: Stufe 1 mit V/max-Aufhebung (640 PS / 770 Nm, M6 & A8-Getriebe), ab CHF 4'980");
+    expect(bodyWithout).toContain("Motor\n- Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180");
+    expect(bodyWith).toContain("Motor\n- Stufe 1 mit V/max-Aufhebung (640 PS / 770 Nm, M6 & A8-Getriebe), ab CHF 4'980");
   });
 });
 
@@ -303,7 +312,7 @@ describe("buildDraft: eigenständiges V/max-Produkt 'ohne Leistungssteigerung' (
     const ctx = { ...m2Ctx(), items: [VMAX_OHNE_LEISTUNGSSTEIGERUNG], estimatedTotal: 2230 };
     const { body } = buildDraft(ctx, "de");
     expect(body).toContain(
-      "• Motor: Aufhebung der serienmässigen V/max Begrenzung ohne Leistungssteigerung, ab CHF 2'230",
+      "Motor\n- Aufhebung der serienmässigen V/max Begrenzung ohne Leistungssteigerung, ab CHF 2'230",
     );
     expect(body).not.toContain("Leistungssteigerung mit V/max-Aufhebung");
   });
@@ -314,7 +323,7 @@ describe("buildDraft: Positionszeile mit mehrzeiliger Beschreibung (Befund #2 de
     const ctx = { ...m2Ctx(), items: [RADSATZ], estimatedTotal: 7100 };
     const { body } = buildDraft(ctx, "de");
     expect(body).toContain(
-      '• Räder: CDC1 FORGED Radsatz geschmiedet bestehend aus (10 x 20" mit 275/30 20, 10 x 20" mit 285/30 20), ab CHF 7\'100',
+      'Räder\n- CDC1 FORGED Radsatz geschmiedet bestehend aus (10 x 20" mit 275/30 20, 10 x 20" mit 285/30 20), ab CHF 7\'100',
     );
     assertClean(body, SETTINGS.signaturePhone);
   });
@@ -329,17 +338,15 @@ describe("buildDraft: character/timing null (Schnellweg ohne erkannten Charakter
   it("character null: der Charakter-Satz entfällt, der Rest des Dank-Absatzes bleibt", () => {
     const ctx = { ...m2Ctx(), character: null };
     const { body } = buildDraft(ctx, "de");
-    expect(body).toContain("Danke für Ihre Anfrage für Ihren BMW M2 (G87), Jahrgang 2025.");
+    expect(body).toContain(`${INTRO_DE} BMW M2 (G87), Jahrgang 2025.`);
     expect(body).not.toContain("undefined");
     assertClean(body, SETTINGS.signaturePhone);
   });
 
-  it("timing null: ein neutraler Satz ersetzt die Zeitraum-Zeile", () => {
+  it("timing null: derselbe Terminsatz wie bei jedem Zeitraum (Wunsch dÄHLer 14.10.2026)", () => {
     const ctx = { ...m2Ctx(), timing: null };
     const { body } = buildDraft(ctx, "de");
-    expect(body).toContain(
-      "Sobald wir Ihren Wunschtermin kennen, reservieren wir Ihnen gerne ein Werkstattfenster.",
-    );
+    expect(body).toContain(TIMING_DE);
     expect(body).not.toContain("undefined");
     assertClean(body, SETTINGS.signaturePhone);
   });
@@ -394,5 +401,54 @@ describe("buildDraft: Signatur ohne company_address", () => {
     const { body } = buildDraft(ctx, "de");
     expect(body.endsWith("dÄHLer Competition Line AG, Belp · +41 31 819 88 77")).toBe(true);
     expect(body).not.toContain("dÄHLer Competition Line AG, dÄHLer Competition Line AG");
+  });
+});
+
+// --- Rückmeldung dÄHLer 14.10.2026 ---------------------------------------
+describe("buildDraft: Bereich ohne gewähltes Produkt (Anfrage 2026-0016)", () => {
+  it("gewählte Kategorie ohne Produkt erscheint mit Beratungszeile, kein «Grundsätzlich»", () => {
+    const ctx = { ...m2Ctx(), categories: ["motor", "auspuff", "fahrwerk", "raeder"] as DraftContext["categories"], items: [RADSATZ], estimatedTotal: 7100 };
+    const { body } = buildDraft(ctx, "de");
+    expect(body).toContain("Motor\n- Gerne beraten wir Sie persönlich zur passenden Lösung.");
+    expect(body).toContain("Auspuff\n- Gerne beraten wir Sie persönlich zur passenden Lösung.");
+    expect(body).toContain("Fahrwerk\n- Gerne beraten wir Sie persönlich zur passenden Lösung.");
+    expect(body).toContain("Räder\n- CDC1 FORGED");
+    expect(body).not.toMatch(/grundsätzlich/i);
+    assertClean(body, SETTINGS.signaturePhone);
+  });
+});
+
+describe("buildDraft: Mailtexte aus dem Admin (lib/mail/texts.ts)", () => {
+  it("ersetzt Einleitung, Terminsatz und Schluss, Platzhalter werden gefüllt", () => {
+    const ctx = {
+      ...m2Ctx(),
+      settings: {
+        ...SETTINGS,
+        texts: {
+          text_draft_intro: "Grüezi {{vorname}} {{name}}\n\nMerci für die Anfrage zu Ihrem {{fahrzeug}}{{jahrgang}} (Nr. {{nummer}}).",
+          text_draft_timing: "",
+          text_draft_closing: "Bis bald\n\nHerzliche Grüsse",
+        },
+      },
+    };
+    const { body } = buildDraft(ctx, "de");
+    expect(body.startsWith("Grüezi Max Muster\n\nMerci für die Anfrage zu Ihrem BMW M2 (G87), Jahrgang 2025 (Nr. 2026-0012).")).toBe(true);
+    // Leeres Feld = Standardtext.
+    expect(body).toContain(TIMING_DE);
+    expect(body).toContain("Bis bald\n\nHerzliche Grüsse\nChristoph Dähler");
+    assertClean(body, SETTINGS.signaturePhone);
+  });
+
+  it("unbekannter Platzhalter wird geleert, nie roh an den Kunden", () => {
+    const ctx = { ...m2Ctx(), settings: { ...SETTINGS, texts: { text_draft_intro: "Guten Tag {{anrede}} {{name}}" } } };
+    const { body } = buildDraft(ctx, "de");
+    expect(body.startsWith("Guten Tag Muster")).toBe(true);
+    expect(body).not.toContain("{{");
+  });
+
+  it("englischer Entwurf ignoriert die deutschen Admin-Texte", () => {
+    const ctx = { ...m2Ctx(), settings: { ...SETTINGS, texts: { text_draft_intro: "Grüezi" } } };
+    const { body } = buildDraft(ctx, "en");
+    expect(body.startsWith("Dear Max Muster")).toBe(true);
   });
 });

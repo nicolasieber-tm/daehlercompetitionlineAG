@@ -257,6 +257,47 @@ export const admin = {
       signature_phone: { label: "Signatur, Telefon", help: "Telefonnummer in der Signatur." },
       company_address: { label: "Firmenadresse", help: "Firmenzeile in Signatur und Mail-Fusszeile." },
     },
+    // Rückmeldung dÄHLer 14.10.2026, siehe lib/mail/texts.ts.
+    mailTexts: {
+      title: "Mailtexte",
+      intro:
+        "Diese Texte rahmen die Mails an Ihre Kunden ein. Fahrzeug, Positionen, Preise, Vorher/Nachher und Richtsumme fügt das Tool automatisch dazwischen ein. Ein leeres Feld verwendet den Standardtext. Änderungen gelten für neue Anfragen und für «Entwurf neu erzeugen».",
+      placeholders: "Platzhalter, die das Tool ersetzt:",
+      confirmationTitle: "Bestätigungsmail an den Kunden (automatisch nach dem Absenden)",
+      draftTitle: "Antwortentwurf (bearbeiten Sie vor dem Senden in der Anfrage)",
+      restoreDefault: "Standardtext wiederherstellen",
+      save: "Mailtexte speichern",
+      saved: "Mailtexte gespeichert.",
+      fields: {
+        text_confirmation_intro: {
+          label: "Bestätigung: Anrede und Einleitung",
+          help: "Steht vor der Übersicht mit Fahrzeug, Wunsch und Paket.",
+        },
+        text_confirmation_closing: {
+          label: "Bestätigung: Schluss und Grüsse",
+          help: "Steht nach dem Paket und den nächsten Schritten.",
+        },
+        text_draft_intro: {
+          label: "Antwort: Anrede und Dank",
+          help: "{{jahrgang}} ergibt z.B. «, Jahrgang 2025» oder bleibt leer.",
+        },
+        text_draft_character_dezent: { label: "Antwort: Satz bei Charakter «Dezent»", help: "" },
+        text_draft_character_sportlich: { label: "Antwort: Satz bei Charakter «Sportlich»", help: "" },
+        text_draft_character_maximum: { label: "Antwort: Satz bei Charakter «Maximum»", help: "" },
+        text_draft_items_intro: {
+          label: "Antwort: Überleitung zu den Positionen",
+          help: "Danach folgen die Positionen, nach Bereich gruppiert.",
+        },
+        text_draft_timing: {
+          label: "Antwort: Termin",
+          help: "Steht nach Leistungsangabe und Richtpreis.",
+        },
+        text_draft_closing: {
+          label: "Antwort: Schluss und Grüsse",
+          help: "Danach folgt die Signatur (Name, Firma, Telefon aus den Einstellungen oben).",
+        },
+      },
+    },
     overrides: {
       title: "Testmodus (Umgebungsvariablen)",
       description: "Wird nicht hier, sondern in der Server-Umgebung gesetzt. Nur zur Kontrolle sichtbar.",
@@ -422,6 +463,7 @@ export const admin = {
           products: "Produkte",
         },
         suggested: "Vorschläge",
+        nmPerPs: "Je Serienleistung",
         save: "Speichern",
         saved: "Gespeichert.",
       },
@@ -676,6 +718,8 @@ export const admin = {
         vehicle: "FAHRZEUG",
         wish: "GEWÜNSCHT",
         goal: "ZIEL",
+        // Rückmeldung dÄHLer 14.10.2026: gewählte Bereiche ohne Produkt.
+        withoutProducts: "OHNE PRODUKT",
         character: "CHARAKTER",
         timing: "TERMIN",
         package: "GESCHÄTZTES PAKET",
