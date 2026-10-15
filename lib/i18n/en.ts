@@ -59,7 +59,6 @@ export const en: Dictionary = {
       beenHereLabel: "Have you been to us before?",
       beenHereNo: "No",
       beenHereYes: "Yes",
-      seriesKnown: "{ps} PS standard and {nm} Nm standard",
       seriesUnknown: "We will let you know the standard output personally.",
       modelQuestion: "Which version do you drive?",
       modelRequired: "Please tap your version.",
@@ -169,7 +168,7 @@ export const en: Dictionary = {
         seriesUnit: "PS standard",
         targetUnitWithStage: "PS with {stage}",
         targetUnitUnselected: "PS · choose a stage",
-        plus: "+{diff} PS · {detail}",
+        plus: "+{diff} PS",
       },
       includedInStage: "Included in {stage}",
       followUp: {

@@ -15,7 +15,7 @@ export function PowerBeforeValue({ power }: { power: PowerBeforeAfter }) {
     <span className="inline-flex flex-wrap items-baseline gap-1.5">
       <b className="font-display text-2xl font-bold leading-none tabular-nums text-dim">{power.beforePs}</b>
       <span className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-dim">
-        PS{power.beforeNm != null ? ` · ${power.beforeNm} Nm` : ""}
+        PS
       </span>
     </span>
   );

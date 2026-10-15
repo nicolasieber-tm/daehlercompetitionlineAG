@@ -5,7 +5,7 @@
 // Leistungsstufe) als auch von der Teilen-Ansicht (app/p/[token]/page.tsx,
 // Server Component, nur mit den schlankeren Feldern aus
 // lib/inquiry/share.ts SharedInquiryView) verwendet - daher sind die
-// "reichen" Felder (seriesPs/seriesNm, psTo/nmTo je Position) optional.
+// "reichen" Felder (seriesPs, psTo/nmTo je Position) optional.
 //
 // Kundenwunsch (CLAUDE.md Abschnitt "AUFGABE"): dieselbe Vorher/Nachher-
 // Übersicht soll auch in den Kundenmails erscheinen. Die eigentliche
@@ -37,7 +37,6 @@ export interface BeforeAfterInput {
   consulting: boolean;
   character: string | null;
   seriesPs?: number | null;
-  seriesNm?: number | null;
   /** Übersetzungen der Positionstexte für `locale` (Posten 4), siehe lib/catalog/before-after.ts. */
   translations?: TranslationMap | null;
 }
@@ -94,7 +93,6 @@ export function buildBeforeAfterRows(input: BeforeAfterInput, t: Dictionary, loc
     items,
     character: input.character,
     seriesPs: input.seriesPs,
-    seriesNm: input.seriesNm,
     locale,
     translations: input.translations,
   });

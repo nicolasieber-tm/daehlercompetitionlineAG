@@ -97,7 +97,6 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
     items: ctx.items,
     character: ctx.inquiry.character,
     seriesPs: ctx.inquiry.series_ps,
-    seriesNm: ctx.inquiry.series_nm ?? ctx.model?.series_nm ?? null,
     locale: ctx.locale,
     translations: ctx.translations,
   });

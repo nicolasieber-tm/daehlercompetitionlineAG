@@ -98,7 +98,6 @@ export default async function SharedInquiryPage({
     })),
     character: inquiry.character,
     seriesPs: inquiry.seriesPs,
-    seriesNm: inquiry.seriesNm,
     locale,
     // Posten 4: eingefrorene Übersetzungen der Anfrage (lib/inquiry/share.ts).
     translations: inquiry.translations,

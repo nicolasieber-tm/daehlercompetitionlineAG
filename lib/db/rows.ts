@@ -52,8 +52,6 @@ export interface Model {
   fuel: string | null;
   series_ps: number | null;
   series_nm: number | null;
-  /** Admin: Serien-Drehmoment je Serienleistung, {"<PS>": <Nm>} (Migration 0007). */
-  series_nm_by_ps: Record<string, number>;
   series_ps_suggested: number[];
   photo_url: string | null;
   sort: number;
@@ -182,8 +180,6 @@ export interface Inquiry {
   ai_extraction: Json;
   gearbox: string | null;
   series_ps: number | null;
-  /** Serien-Drehmoment zu series_ps (Migration 0007), null wenn im Admin nicht gepflegt. */
-  series_nm: number | null;
   /** Kundenentscheid 17.09.2026: gewählte Alternative bei mehrdeutiger
    * Baureihe (vehicleLineOptions()-id, z.B. "x2"), sonst null. Siehe
    * db/migrations/0004_inquiries_line.sql. */

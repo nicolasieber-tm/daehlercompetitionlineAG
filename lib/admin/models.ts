@@ -132,8 +132,6 @@ export interface AdminModelItem {
   fuel: Fuel | null;
   seriesPs: number | null;
   seriesNm: number | null;
-  /** Serien-Nm je Serienleistung (models.series_nm_by_ps), Migration 0007. */
-  seriesNmByPs: Record<string, number>;
   seriesPsSuggested: number[];
   sort: number;
   active: boolean;
@@ -174,7 +172,6 @@ interface ModelDetailRow {
   fuel: string | null;
   series_ps: number | null;
   series_nm: number | null;
-  series_nm_by_ps: Record<string, number> | null;
   series_ps_suggested: number[];
   sort: number;
   active: boolean;
@@ -195,7 +192,7 @@ export async function getFamilyDetailForAdmin(slug: string): Promise<AdminFamily
 
   const models = await sql<ModelDetailRow[]>`
     select
-      m.id, m.slug, m.name, m.fuel, m.series_ps, m.series_nm, m.series_nm_by_ps, m.series_ps_suggested, m.sort, m.active,
+      m.id, m.slug, m.name, m.fuel, m.series_ps, m.series_nm, m.series_ps_suggested, m.sort, m.active,
       (
         (select count(*) from product_fitment pf
           join products p on p.id = pf.product_id
@@ -227,7 +224,6 @@ export async function getFamilyDetailForAdmin(slug: string): Promise<AdminFamily
       fuel: m.fuel as Fuel | null,
       seriesPs: m.series_ps,
       seriesNm: m.series_nm,
-      seriesNmByPs: m.series_nm_by_ps ?? {},
       seriesPsSuggested: m.series_ps_suggested,
       sort: m.sort,
       active: m.active,
@@ -286,17 +282,11 @@ export async function updateFamilyMeta(familyId: string, patch: FamilyMetaPatch)
 export interface ModelPatch {
   seriesPs?: number | null;
   seriesNm?: number | null;
-  seriesNmByPs?: Record<string, number>;
   active?: boolean;
 }
 
 export async function updateModel(modelId: string, patch: ModelPatch): Promise<void> {
-  if (
-    patch.seriesPs === undefined &&
-    patch.seriesNm === undefined &&
-    patch.seriesNmByPs === undefined &&
-    patch.active === undefined
-  ) {
+  if (patch.seriesPs === undefined && patch.seriesNm === undefined && patch.active === undefined) {
     return;
   }
 
@@ -305,7 +295,6 @@ export async function updateModel(modelId: string, patch: ModelPatch): Promise<v
     set
       series_ps = ${patch.seriesPs !== undefined ? patch.seriesPs : sql`series_ps`},
       series_nm = ${patch.seriesNm !== undefined ? patch.seriesNm : sql`series_nm`},
-      series_nm_by_ps = ${patch.seriesNmByPs !== undefined ? sql.json(patch.seriesNmByPs) : sql`series_nm_by_ps`},
       active = ${patch.active !== undefined ? patch.active : sql`active`}
     where id = ${modelId}
   `;

@@ -26,18 +26,17 @@ describe("buildBeforeAfterRows", () => {
           { category: "motor", name: "Sportluftfilter Satz", psTo: null, nmTo: null, variantGroup: "ansaugung" },
         ],
         seriesPs: 460,
-        seriesNm: 550,
       }),
       de,
       "de",
     );
     const leistung = rows.find((r) => r.key === "leistung")!;
-    expect(leistung.before).toBe("460 PS · 550 Nm");
+    expect(leistung.before).toBe("460 PS");
     expect(leistung.after).toBe("590 PS · 720 Nm · Sportluftfilter Satz");
     // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
     // Punkt 3): row.power für die grosse Zahlen-Darstellung, zusätzlich zu
     // den unveränderten before/after-Texten oben.
-    expect(leistung.power).toEqual({ beforePs: 460, beforeNm: 550, afterPs: 590, afterNm: 720, diffPs: 130, diffNm: 170 });
+    expect(leistung.power).toEqual({ beforePs: 460, afterPs: 590, afterNm: 720, diffPs: 130 });
     // Befund Prüfer (Beleg Anfrage 2026-0293): row.extras liefert die
     // weiteren gewählten Motor-Optionen separat, damit die Anzeige sie auch
     // bei gesetztem row.power (grosse Zahlen-Darstellung statt after-Text)
@@ -45,7 +44,7 @@ describe("buildBeforeAfterRows", () => {
     expect(leistung.extras).toBe("Sportluftfilter Satz");
   });
 
-  it("Motor mit Leistungsstufe, aber ohne bekanntes series_nm: power ohne Nm-Angaben", () => {
+  it("Motor mit Leistungsstufe ohne weitere Optionen: power, keine extras", () => {
     const rows = buildBeforeAfterRows(
       baseInput({
         categories: ["motor"],
@@ -53,19 +52,18 @@ describe("buildBeforeAfterRows", () => {
           { category: "motor", name: "Stufe 1: (Basis 460 PS) 590PS / 720Nm", psTo: 590, nmTo: 720, variantGroup: "leistung" },
         ],
         seriesPs: 460,
-        seriesNm: null,
       }),
       de,
       "de",
     );
     const leistung = rows.find((r) => r.key === "leistung")!;
-    expect(leistung.power).toEqual({ beforePs: 460, beforeNm: null, afterPs: 590, afterNm: 720, diffPs: 130, diffNm: null });
+    expect(leistung.power).toEqual({ beforePs: 460, afterPs: 590, afterNm: 720, diffPs: 130 });
     expect(leistung.extras).toBe("");
   });
 
   it("Motor OHNE gewählte Leistungsstufe: kein power, before/after bleiben Text", () => {
     const rows = buildBeforeAfterRows(
-      baseInput({ categories: ["motor"], items: [], seriesPs: 460, seriesNm: 550 }),
+      baseInput({ categories: ["motor"], items: [], seriesPs: 460 }),
       de,
       "de",
     );

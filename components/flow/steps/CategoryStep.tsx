@@ -175,7 +175,6 @@ export function CategoryStep({
   family,
   model,
   seriesPs,
-  seriesNm,
   allGroups,
   notes,
   state,
@@ -186,8 +185,6 @@ export function CategoryStep({
   family: CatalogFamily;
   model: CatalogModel | null;
   seriesPs: number | null;
-  /** Serien-Drehmoment zur gewählten Serienleistung (Admin), für «+x Nm» im PS-Zähler. */
-  seriesNm: number | null;
   /** true nach «Weiter» ohne Produktauswahl, siehe Flow.tsx handleNext. */
   emptyWarning: boolean;
   allGroups: ProductGroup[];
@@ -490,18 +487,11 @@ export function CategoryStep({
           </div>
           {stageProduct ? (
             <span className="ml-auto font-mono text-[13px] text-ok">
-              {tf(t.steps.category.psCounter.plus, {
-                diff: (stageProduct.psTo ?? seriesPs) - seriesPs,
-                // Rückmeldung dÄHLer 14.10.2026: Drehmoment wie die Leistung
-                // als Zuwachs («+120 Nm»), sofern das Serien-Drehmoment im
-                // Admin hinterlegt ist; sonst wie bisher der Zielwert.
-                detail:
-                  stageProduct.nmTo == null
-                    ? "? Nm"
-                    : seriesNm != null
-                      ? `+${stageProduct.nmTo - seriesNm} Nm`
-                      : `${stageProduct.nmTo} Nm`,
-              })}
+              {/* Rückmeldung dÄHLer 15.10.2026: nur der
+                  PS-Zuwachs. Die Excel nennt kein Serien-Drehmoment, nur den
+                  Zielwert, der steht auf der Kachel («620 PS / 740 Nm»). Ein
+                  grünes «740 Nm» neben «+140 PS» las sich wie ein Zuwachs. */}
+              {tf(t.steps.category.psCounter.plus, { diff: (stageProduct.psTo ?? seriesPs) - seriesPs })}
             </span>
           ) : null}
         </div>

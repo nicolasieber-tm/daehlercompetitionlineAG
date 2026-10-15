@@ -51,7 +51,6 @@ function baseInquiry(overrides: Partial<Inquiry> = {}): Inquiry {
     replied_at: null,
     selections: [],
     series_ps: null,
-    series_nm: null,
     share_token: "share-token-1234567890ab",
     source: "web",
     status: "neu",
@@ -93,7 +92,6 @@ function baseModel(overrides: Partial<Model> = {}): Model {
     name: "M3 Touring",
     photo_url: null,
     series_nm: 650,
-    series_nm_by_ps: {},
     series_ps: 510,
     series_ps_suggested: [510],
     slug: "m3-touring",
@@ -751,8 +749,9 @@ describe("Klicktest-Rückmeldung: Getriebe-Zeile und Positionsdarstellung", () =
   it("buildConfirmation zeigt die Vorher/Nachher-Leistungszeile in der Tabelle bei gewählter Stufe", () => {
     const ctx = m2Ctx({ items: [{ ...stufe1, variant_group: "leistung" }] });
     const result = buildConfirmation({ ...ctx, inquiry: { ...ctx.inquiry, series_ps: 480 } });
-    // baseModel() liefert series_nm 650 (siehe Fixture oben).
-    expect(result.text).toMatch(/Leistung\n  Vorher: 480 PS · 650 Nm\n  Nachher · by dÄHLer: 620 PS · 740 Nm \(\+140 PS \/ \+90 Nm\)/);
+    // Rückmeldung dÄHLer 15.10.2026: Serien-Nm nie angezeigt (auch wenn
+    // models.series_nm gesetzt ist, baseModel() liefert 650), Plus nur PS.
+    expect(result.text).toMatch(/Leistung\n  Vorher: 480 PS\n  Nachher · by dÄHLer: 620 PS · 740 Nm \(\+140 PS\)/);
     expect(result.html).toContain("28px");
   });
 
@@ -805,7 +804,6 @@ describe("beforeAfterTable in den Kundenmails", () => {
       items: ctx.items,
       character: ctx.inquiry.character,
       seriesPs: ctx.inquiry.series_ps,
-      seriesNm: ctx.model?.series_nm ?? null,
       locale: ctx.locale,
     });
     expect(rows.length).toBeGreaterThan(0);

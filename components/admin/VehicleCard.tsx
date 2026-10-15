@@ -23,7 +23,7 @@ export function VehicleCard({ ctx }: { ctx: MailInquiryContext }) {
           <>
             <dt className="text-muted">{admin.detail.vehicle.series}</dt>
             <dd className="font-mono text-text">
-              {model.series_ps} PS{model.series_nm != null ? ` / ${model.series_nm} Nm` : ""}
+              {model.series_ps} PS
             </dd>
           </>
         )}

@@ -55,7 +55,6 @@ export interface BeforeAfterInput {
   followUpAnswers?: Partial<Record<string, string | null>>;
   character: string | null;
   seriesPs?: number | null;
-  seriesNm?: number | null;
   locale: Locale;
   /** Entscheid 21.09.2026 (Posten 4): Übersetzungen der Positionstexte für `locale`, siehe lib/translations/resolve.ts; ohne Map bleiben die Excel-Texte deutsch. */
   translations?: TranslationMap | null;
@@ -131,10 +130,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput): BeforeAfterRow[] 
     const motorItems = itemsOf(input.items, "motor");
     const stage = motorItems.find((i) => i.variant_group === "leistung" && i.ps_to != null);
     const extras = motorItems.filter((i) => i !== stage);
-    const before =
-      input.seriesPs != null && input.seriesNm != null
-        ? `${input.seriesPs} PS · ${input.seriesNm} Nm`
-        : b.seriesValue;
+    const before = input.seriesPs != null ? `${input.seriesPs} PS` : b.seriesValue;
     let after: string;
     const extraNames = extras.map((i) => displayName(i, locale, translations)).join(", ");
     if (stage) {
@@ -144,7 +140,7 @@ export function buildBeforeAfterRows(input: BeforeAfterInput): BeforeAfterRow[] 
     } else {
       after = advice;
     }
-    const power = buildPowerBeforeAfter(input.seriesPs, input.seriesNm, stage?.ps_to, stage?.nm_to) ?? undefined;
+    const power = buildPowerBeforeAfter(input.seriesPs, stage?.ps_to, stage?.nm_to) ?? undefined;
     rows.push({ id: "leistung", label: b.rows.leistung, before, after, power, extras: stage ? extraNames : undefined });
   }
 

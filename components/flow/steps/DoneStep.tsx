@@ -20,14 +20,12 @@ export function DoneStep({
   family,
   model,
   seriesPs,
-  seriesNm,
   state,
   dispatch,
 }: {
   family: CatalogFamily | null;
   model: CatalogModel | null;
   seriesPs: number | null;
-  seriesNm: number | null;
   state: FlowState;
   dispatch: Dispatch<FlowAction>;
 }) {
@@ -133,7 +131,6 @@ export function DoneStep({
       consulting: state.consulting,
       character: state.character,
       seriesPs,
-      seriesNm,
       translations,
     },
     t,

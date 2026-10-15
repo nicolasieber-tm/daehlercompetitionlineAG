@@ -374,7 +374,7 @@ function rowCellsHtml(row: BeforeAfterRow): { beforeHtml: string; afterHtml: str
       )}</span>`
     : "";
   return {
-    beforeHtml: powerCellHtml(row.power.beforePs, row.power.beforeNm, DIM, DIM),
+    beforeHtml: powerCellHtml(row.power.beforePs, null, DIM, DIM),
     afterHtml:
       powerCellHtml(row.power.afterPs, row.power.afterNm, TEXT, MUTED) +
       ` <span style="display:inline-block;padding:2px 7px;border-radius:3px;background:${OK_GREEN_BG};color:${OK_GREEN_TEXT};font-family:${MONO};font-size:12px;font-weight:bold;">${escapeHtml(
@@ -479,7 +479,7 @@ export function beforeAfterTable(rows: BeforeAfterRow[], locale: Locale): MailBl
       let beforeText = row.before;
       let afterText = row.after;
       if (row.power) {
-        beforeText = powerTextValue(row.power.beforePs, row.power.beforeNm);
+        beforeText = powerTextValue(row.power.beforePs, null);
         afterText = `${powerTextValue(row.power.afterPs, row.power.afterNm)} (${formatPowerPlusText(row.power)})${
           row.extras ? ` · ${row.extras}` : ""
         }`;

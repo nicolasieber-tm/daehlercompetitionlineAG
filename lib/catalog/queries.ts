@@ -33,8 +33,6 @@ export interface CatalogModel {
   fuel: Fuel | null;
   seriesPs: number | null;
   seriesNm: number | null;
-  /** Admin: Serien-Drehmoment je Serienleistung (models.series_nm_by_ps), Schlüssel = PS als Text. */
-  seriesNmByPs: Record<string, number>;
   seriesPsSuggested: number[];
   sort: number;
   /** true, wenn mindestens ein aktives Produkt, das dieses Modell fittet
@@ -202,7 +200,6 @@ interface FamilyModelRow {
   model_fuel: string | null;
   model_series_ps: number | null;
   model_series_nm: number | null;
-  model_series_nm_by_ps: Record<string, number> | null;
   model_series_ps_suggested: number[] | null;
   model_sort: number | null;
 }
@@ -294,7 +291,6 @@ function groupFamilyRows(rows: FamilyModelRow[], coverage: VariantCoverage): Cat
         fuel: row.model_fuel as Fuel | null,
         seriesPs: row.model_series_ps,
         seriesNm: row.model_series_nm,
-        seriesNmByPs: row.model_series_nm_by_ps ?? {},
         seriesPsSuggested: row.model_series_ps_suggested ?? [],
         sort: row.model_sort ?? 0,
         hasGearboxSpecificProducts: variantProducts.some((p) => p.gearbox !== null),
@@ -384,7 +380,7 @@ export async function getFamilies(): Promise<CatalogFamily[]> {
       mf.id as family_id, mf.brand, mf.name as family_name, mf.slug as family_slug,
       mf.codes, mf.has_pricelist, mf.photo_url, mf.short_text, mf.sort as family_sort,
       m.id as model_id, m.name as model_name, m.slug as model_slug, m.fuel as model_fuel,
-      m.series_ps as model_series_ps, m.series_nm as model_series_nm, m.series_nm_by_ps as model_series_nm_by_ps,
+      m.series_ps as model_series_ps, m.series_nm as model_series_nm,
       m.series_ps_suggested as model_series_ps_suggested, m.sort as model_sort
     from model_families mf
     left join models m on m.family_id = mf.id and m.active = true
@@ -401,7 +397,7 @@ export async function getFamilyBySlug(slug: string): Promise<CatalogFamily | nul
       mf.id as family_id, mf.brand, mf.name as family_name, mf.slug as family_slug,
       mf.codes, mf.has_pricelist, mf.photo_url, mf.short_text, mf.sort as family_sort,
       m.id as model_id, m.name as model_name, m.slug as model_slug, m.fuel as model_fuel,
-      m.series_ps as model_series_ps, m.series_nm as model_series_nm, m.series_nm_by_ps as model_series_nm_by_ps,
+      m.series_ps as model_series_ps, m.series_nm as model_series_nm,
       m.series_ps_suggested as model_series_ps_suggested, m.sort as model_sort
     from model_families mf
     left join models m on m.family_id = mf.id and m.active = true

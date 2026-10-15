@@ -145,7 +145,7 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
     .filter(Boolean)
     .join(" · ");
   const seriesText = ctx.model?.series_ps
-    ? ` · Serie ${ctx.model.series_ps} PS / ${ctx.model.series_nm ?? "?"} Nm`
+    ? ` · Serie ${ctx.model.series_ps} PS`
     : "";
   // Rückmeldung erster Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 3):
   // "Getriebe: Handschalter" analog "Serie ... PS / ... Nm" hart in die
@@ -182,7 +182,6 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
     items: ctx.items,
     character: inquiry.character,
     seriesPs: inquiry.series_ps,
-    seriesNm: ctx.inquiry.series_nm ?? ctx.model?.series_nm ?? null,
     locale: LOCALE,
   });
 

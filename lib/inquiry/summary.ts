@@ -131,7 +131,7 @@ export function buildSummaryText(ctx: MailInquiryContext): string {
     .filter(Boolean)
     .join(" · ");
   const seriesText = ctx.model?.series_ps
-    ? ` · Serie ${ctx.model.series_ps} PS / ${ctx.model.series_nm ?? "?"} Nm`
+    ? ` · Serie ${ctx.model.series_ps} PS`
     : "";
   // "Getriebe: Handschalter" wie "Serie ... PS / ... Nm" oben hart in die
   // Fahrzeug-Zeile eingesetzt statt über admin.mail.inbox.ticket (das trägt

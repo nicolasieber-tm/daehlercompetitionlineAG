@@ -14,20 +14,9 @@ import {
 } from "@/lib/catalog/power-before-after";
 
 describe("buildPowerBeforeAfter", () => {
-  it("mit Stufe und bekanntem series_nm: Vorher/Nachher inkl. Nm-Differenz", () => {
-    const power = buildPowerBeforeAfter(480, 550, 640, 770);
-    expect(power).toEqual({ beforePs: 480, beforeNm: 550, afterPs: 640, afterNm: 770, diffPs: 160, diffNm: 220 });
-    expect(formatPowerBeforeText(power!)).toBe("480 PS / 550 Nm");
-    expect(formatPowerAfterText(power!)).toBe("640 PS / 770 Nm");
-    expect(formatPowerPlusText(power!)).toBe("+160 PS / +220 Nm");
-    expect(formatPowerLine(power!)).toBe("480 PS / 550 Nm → 640 PS / 770 Nm (+160 PS / +220 Nm)");
-  });
-
-  it("mit Stufe, aber OHNE bekanntes series_nm: keine Nm-Angabe vorher, kein Nm-Anteil im Plus", () => {
-    // Reale M2 G87 "M2" Daten: models.series_nm ist nicht gesetzt (siehe
-    // docs/db.md), nur die Zielleistung der Stufe ist bekannt.
-    const power = buildPowerBeforeAfter(460, null, 610, 750);
-    expect(power).toEqual({ beforePs: 460, beforeNm: null, afterPs: 610, afterNm: 750, diffPs: 150, diffNm: null });
+  it("mit Stufe: vorher nur PS, nachher PS und Ziel-Nm, Plus nur PS (Rückmeldung dÄHLer 15.10.2026)", () => {
+    const power = buildPowerBeforeAfter(460, 610, 750);
+    expect(power).toEqual({ beforePs: 460, afterPs: 610, afterNm: 750, diffPs: 150 });
     expect(formatPowerBeforeText(power!)).toBe("460 PS");
     expect(formatPowerAfterText(power!)).toBe("610 PS / 750 Nm");
     expect(formatPowerPlusText(power!)).toBe("+150 PS");
@@ -35,11 +24,11 @@ describe("buildPowerBeforeAfter", () => {
   });
 
   it("ohne gewählte Stufe (afterPs unbekannt): null", () => {
-    expect(buildPowerBeforeAfter(460, 550, null, null)).toBeNull();
-    expect(buildPowerBeforeAfter(460, 550, undefined, undefined)).toBeNull();
+    expect(buildPowerBeforeAfter(460, null, null)).toBeNull();
+    expect(buildPowerBeforeAfter(460, undefined, undefined)).toBeNull();
   });
 
   it("ohne bekannte Serienleistung (beforePs unbekannt): null", () => {
-    expect(buildPowerBeforeAfter(null, null, 610, 750)).toBeNull();
+    expect(buildPowerBeforeAfter(null, 610, 750)).toBeNull();
   });
 });

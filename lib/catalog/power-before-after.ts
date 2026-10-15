@@ -11,14 +11,15 @@
 // verwendet.
 
 /** Vorher/Nachher-Leistungszahlen samt Differenz, nur gebildet, wenn beide PS-Werte bekannt sind (siehe buildPowerBeforeAfter()). */
+// Rückmeldung dÄHLer 15.10.2026: das Drehmoment erscheint nur als
+// Zielwert der Stufe (aus der Excel, «620 PS / 740 Nm»), nie als Serienwert
+// oder Zuwachs. Die Excel nennt kein Serien-Drehmoment, eine Pflege im Admin
+// für über 100 Motorisierungen ist nicht gewünscht.
 export interface PowerBeforeAfter {
   beforePs: number;
-  beforeNm: number | null;
   afterPs: number;
   afterNm: number | null;
   diffPs: number;
-  /** Nur gefüllt, wenn beide Nm-Werte (vorher UND nachher) bekannt sind. */
-  diffNm: number | null;
 }
 
 /**
@@ -30,26 +31,21 @@ export interface PowerBeforeAfter {
  */
 export function buildPowerBeforeAfter(
   seriesPs: number | null | undefined,
-  seriesNm: number | null | undefined,
   stagePsTo: number | null | undefined,
   stageNmTo: number | null | undefined,
 ): PowerBeforeAfter | null {
   if (seriesPs == null || stagePsTo == null) return null;
-  const beforeNm = seriesNm ?? null;
-  const afterNm = stageNmTo ?? null;
   return {
     beforePs: seriesPs,
-    beforeNm,
     afterPs: stagePsTo,
-    afterNm,
+    afterNm: stageNmTo ?? null,
     diffPs: stagePsTo - seriesPs,
-    diffNm: beforeNm != null && afterNm != null ? afterNm - beforeNm : null,
   };
 }
 
-/** "460 PS" oder, wenn bekannt, "460 PS / 550 Nm". */
+/** "460 PS". */
 export function formatPowerBeforeText(power: PowerBeforeAfter): string {
-  return power.beforeNm != null ? `${power.beforePs} PS / ${power.beforeNm} Nm` : `${power.beforePs} PS`;
+  return `${power.beforePs} PS`;
 }
 
 /** "620 PS" oder, wenn bekannt, "620 PS / 740 Nm". */
@@ -57,10 +53,9 @@ export function formatPowerAfterText(power: PowerBeforeAfter): string {
   return power.afterNm != null ? `${power.afterPs} PS / ${power.afterNm} Nm` : `${power.afterPs} PS`;
 }
 
-/** "+160 PS", zusätzlich "/ +x Nm" wenn beide Nm-Werte bekannt sind. */
+/** "+160 PS". */
 export function formatPowerPlusText(power: PowerBeforeAfter): string {
-  const ps = `+${power.diffPs} PS`;
-  return power.diffNm != null ? `${ps} / +${power.diffNm} Nm` : ps;
+  return `+${power.diffPs} PS`;
 }
 
 /** Klartext-Zeile für Mails: "460 PS → 620 PS / 740 Nm (+160 PS)". */

@@ -38,7 +38,6 @@ describe("lib/catalog/before-after.ts buildBeforeAfterRows", () => {
         consulting: false,
         character: "sportlich",
         seriesPs: 460,
-        seriesNm: 550,
         locale: "de",
       }),
     );
@@ -46,9 +45,9 @@ describe("lib/catalog/before-after.ts buildBeforeAfterRows", () => {
 
     const leistung = rows.find((r) => r.id === "leistung")!;
     expect(leistung.label).toBe("Leistung");
-    expect(leistung.before).toBe("460 PS · 550 Nm");
+    expect(leistung.before).toBe("460 PS");
     expect(leistung.after).toBe("590 PS · 720 Nm · Sportluftfilter Satz");
-    expect(leistung.power).toEqual({ beforePs: 460, beforeNm: 550, afterPs: 590, afterNm: 720, diffPs: 130, diffNm: 170 });
+    expect(leistung.power).toEqual({ beforePs: 460, afterPs: 590, afterNm: 720, diffPs: 130 });
     expect(leistung.extras).toBe("Sportluftfilter Satz");
 
     const sound = rows.find((r) => r.id === "sound")!;
@@ -105,7 +104,6 @@ describe("lib/catalog/before-after.ts buildBeforeAfterRows", () => {
         categories: ["motor"],
         items: [{ category: "motor", name: "Sportluftfilter Satz", variant_group: "ansaugung" }],
         seriesPs: 460,
-        seriesNm: 550,
       }),
     );
     const leistung = rows.find((r) => r.id === "leistung")!;
@@ -122,13 +120,12 @@ describe("lib/catalog/before-after.ts buildBeforeAfterRows", () => {
         ],
         character: "sportlich",
         seriesPs: 460,
-        seriesNm: 550,
         locale: "en",
       }),
     );
     const leistung = rows.find((r) => r.id === "leistung")!;
     expect(leistung.label).toBe("Power");
-    expect(leistung.before).toBe("460 PS · 550 Nm");
+    expect(leistung.before).toBe("460 PS");
     expect(leistung.after).toBe("590 PS · 720 Nm");
 
     const sound = rows.find((r) => r.id === "sound")!;

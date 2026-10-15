@@ -463,7 +463,6 @@ export const admin = {
           products: "Produkte",
         },
         suggested: "Vorschläge",
-        nmPerPs: "Je Serienleistung",
         save: "Speichern",
         saved: "Gespeichert.",
       },

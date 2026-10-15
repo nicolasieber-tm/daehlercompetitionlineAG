@@ -262,9 +262,7 @@ export function CarStep({
 
       {selectedModel ? (
         <div className="mt-[18px] font-mono text-sm tabular-nums text-muted">
-          {selectedModel.seriesPs != null && selectedModel.seriesNm != null ? (
-            <span>{tf(t.steps.car.seriesKnown, { ps: selectedModel.seriesPs, nm: selectedModel.seriesNm })}</span>
-          ) : seriesPs != null ? (
+          {seriesPs != null ? (
             <span>
               <b className="mr-1 font-display text-[22px] font-semibold text-text">{seriesPs}</b>
               {t.steps.category.psCounter.seriesUnit}

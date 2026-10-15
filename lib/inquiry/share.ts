@@ -51,8 +51,6 @@ export interface SharedInquiryView {
    * buildBeforeAfterRows(), verwendet von app/p/[token]/page.tsx).
    */
   seriesPs: number | null;
-  /** models.series_nm des gewählten Modells, nur wenn bekannt (statisch je Modell, deshalb hier per Join statt eigener inquiries-Spalte). */
-  seriesNm: number | null;
   items: Array<{
     category: string;
     // Nachzug Prüfung Phase D, Punkt 1: name/description sind hier bewusst
@@ -104,20 +102,19 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
       family_id: string | null;
       model_id: string | null;
       series_ps: number | null;
-      series_nm: number | null;
       line: string | null;
       translations: unknown;
     }[]
   >`
     select number, first_name, vehicle_text, year, character, categories, consulting, selections,
-           estimated_total, locale, created_at, family_id, model_id, series_ps, series_nm, line, translations
+           estimated_total, locale, created_at, family_id, model_id, series_ps, line, translations
     from inquiries
     where share_token = ${token}
   `;
   if (!inquiry) return null;
 
   let family: { brand: string; name: string; codes: string[] } | null = null;
-  let model: { name: string; series_nm: number | null } | null = null;
+  let model: { name: string } | null = null;
   if (inquiry.family_id) {
     const [row] = await sql<{ brand: string; name: string; codes: string[] }[]>`
       select brand, name, codes from model_families where id = ${inquiry.family_id}
@@ -125,12 +122,8 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
     family = row ?? null;
   }
   if (inquiry.model_id) {
-    // series_nm zusätzlich zu name (Rückmeldung zweiter Klicktest, CLAUDE.md
-    // Abschnitt "AUFGABE", Punkt 3): statisch je Modell, deshalb per Join
-    // statt einer eigenen inquiries-Spalte (anders als series_ps, das die
-    // ambivalente Chip-Auswahl im Fahrzeug-Schritt festhält).
-    const [row] = await sql<{ name: string; series_nm: number | null }[]>`
-      select name, series_nm from models where id = ${inquiry.model_id}
+    const [row] = await sql<{ name: string }[]>`
+      select name from models where id = ${inquiry.model_id}
     `;
     model = row ?? null;
   }
@@ -173,7 +166,6 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
     categories: inquiry.categories,
     consulting: inquiry.consulting,
     seriesPs: inquiry.series_ps,
-    seriesNm: inquiry.series_nm ?? model?.series_nm ?? null,
     items,
     estimatedTotal: inquiry.estimated_total,
     locale: inquiry.locale,

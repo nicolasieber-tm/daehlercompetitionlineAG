@@ -24,7 +24,6 @@ import {
   buildSteps,
   categoryOfStep,
   effectiveBodyStyle,
-  effectiveSeriesNm,
   effectiveSeriesPs,
   flowReducer,
   initialFlowState,
@@ -45,7 +44,6 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
   const seriesPs = selectedModel
     ? effectiveSeriesPs(selectedModel.seriesPs, selectedModel.seriesPsSuggested, state.seriesPsChoice)
     : null;
-  const seriesNm = selectedModel ? effectiveSeriesNm(selectedModel, seriesPs) : null;
 
   const currentCategory = categoryOfStep(state.currentStep);
 
@@ -313,7 +311,6 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
           family={selectedFamily}
           model={selectedModel}
           seriesPs={seriesPs}
-          seriesNm={seriesNm}
           allGroups={state.productGroups}
           notes={state.productNotes}
           state={state}
@@ -336,7 +333,7 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
     );
   } else if (state.currentStep === "done" && state.result) {
     stepContent = (
-      <DoneStep family={selectedFamily} model={selectedModel} seriesPs={seriesPs} seriesNm={seriesNm} state={state} dispatch={dispatch} />
+      <DoneStep family={selectedFamily} model={selectedModel} seriesPs={seriesPs} state={state} dispatch={dispatch} />
     );
   }
 

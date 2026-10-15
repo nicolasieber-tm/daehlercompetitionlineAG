@@ -55,7 +55,6 @@ export const de = {
       beenHereLabel: "Schon einmal bei uns gewesen?",
       beenHereNo: "Nein",
       beenHereYes: "Ja",
-      seriesKnown: "{ps} PS Serie und {nm} Nm Serie",
       seriesUnknown: "Die Serienleistung tragen wir für Sie nach.",
       // Rückmeldung dÄHLer 14.10.2026: die Versions-Chips (z.B. M2 / M2 CS)
       // standen bisher ohne Überschrift unter den Baureihen-Kacheln und
@@ -203,7 +202,7 @@ export const de = {
         seriesUnit: "PS Serie",
         targetUnitWithStage: "PS mit {stage}",
         targetUnitUnselected: "PS · wählen Sie eine Stufe",
-        plus: "+{diff} PS · {detail}",
+        plus: "+{diff} PS",
       },
       // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
       // Punkt 1): Sperr-Hinweis an einer Kachel, deren V/max-Aufhebung
