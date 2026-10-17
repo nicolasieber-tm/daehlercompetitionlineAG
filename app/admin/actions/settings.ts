@@ -15,7 +15,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
 import { sql } from "@/lib/db/client";
 import { SETTINGS_KEYS } from "@/lib/admin/settings";
-import { MAIL_TEXT_KEYS, unknownMailTextPlaceholders } from "@/lib/mail/texts";
+import { MAIL_TEXT_SETTING_KEYS, unknownMailTextPlaceholders } from "@/lib/mail/texts";
 import type { ActionResult } from "./inquiries";
 
 export async function saveSettingsAction(values: Record<string, string>): Promise<ActionResult> {
@@ -23,7 +23,7 @@ export async function saveSettingsAction(values: Record<string, string>): Promis
 
   // Mailtexte (lib/mail/texts.ts, Rückmeldung dÄHLer 14.10.2026) laufen
   // über dieselbe Tabelle, eigenes Formular (components/admin/MailTextsForm.tsx).
-  const allowedKeys: readonly string[] = [...SETTINGS_KEYS, ...MAIL_TEXT_KEYS];
+  const allowedKeys: readonly string[] = [...SETTINGS_KEYS, ...MAIL_TEXT_SETTING_KEYS];
   const rows = allowedKeys.filter((key) => values[key] !== undefined).map((key) => ({
     key,
     value: (values[key] ?? "").replace(/\r\n/g, "\n").trim(),
@@ -31,7 +31,7 @@ export async function saveSettingsAction(values: Record<string, string>): Promis
   const unknown = [
     ...new Set(
       rows
-        .filter((r) => (MAIL_TEXT_KEYS as readonly string[]).includes(r.key))
+        .filter((r) => MAIL_TEXT_SETTING_KEYS.includes(r.key))
         .flatMap((r) => unknownMailTextPlaceholders(r.value)),
     ),
   ];

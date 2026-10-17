@@ -6,9 +6,9 @@
 // Standardtexte unten folgen seiner Beispielmail vom 14.10.2026.
 //
 // Struktur, Positionen, Preise, Vorher/Nachher und Richtsumme baut weiterhin
-// das Tool, die Texte rahmen sie nur ein. Die Admin-Texte gelten für
-// Deutsch; englische Anfragen (Posten 4) nutzen die englischen
-// Standardtexte, die Excel und der Admin sind deutsch.
+// das Tool, die Texte rahmen sie nur ein. Je Sprache eine eigene Fassung
+// (Posten 4, Wunsch dÄHLer 17.10.2026): Deutsch unter dem Schlüssel selbst,
+// Englisch unter «<Schlüssel>_en» (mailTextSettingKey()).
 import type { Locale } from "@/lib/i18n/dictionaries";
 
 export const MAIL_TEXT_KEYS = [
@@ -24,6 +24,16 @@ export const MAIL_TEXT_KEYS = [
 ] as const;
 
 export type MailTextKey = (typeof MAIL_TEXT_KEYS)[number];
+
+/** settings-Schlüssel eines Mailtexts je Sprache: Deutsch ohne, Englisch mit Suffix «_en». */
+export function mailTextSettingKey(key: MailTextKey, locale: Locale): string {
+  return locale === "de" ? key : `${key}_${locale}`;
+}
+
+/** Alle settings-Schlüssel der Mailtexte über alle Sprachen (für das Speichern im Admin). */
+export const MAIL_TEXT_SETTING_KEYS: readonly string[] = (["de", "en"] as const).flatMap((locale) =>
+  MAIL_TEXT_KEYS.map((key) => mailTextSettingKey(key, locale)),
+);
 export type MailTexts = Record<MailTextKey, string>;
 
 /** Platzhalter in den Mailtexten, wie bei den Follow-up-Regeln mit doppelten Klammern. */
@@ -88,16 +98,15 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
 };
 
 /**
- * Wirksame Mailtexte: bei Deutsch der Admin-Text aus settings, sofern
- * nicht leer, sonst der Standardtext. Englisch immer Standard (siehe
- * Kopfkommentar).
+ * Wirksame Mailtexte einer Sprache: der Admin-Text aus settings, sofern
+ * nicht leer, sonst der Standardtext dieser Sprache.
  */
 export function resolveMailTexts(locale: Locale, settings: Partial<Record<string, string>> | null | undefined): MailTexts {
   const defaults = DEFAULT_MAIL_TEXTS[locale] ?? DEFAULT_MAIL_TEXTS.de;
-  if (locale !== "de" || !settings) return defaults;
+  if (!settings) return defaults;
   const out = { ...defaults };
   for (const key of MAIL_TEXT_KEYS) {
-    const value = settings[key];
+    const value = settings[mailTextSettingKey(key, locale)];
     if (typeof value === "string" && value.trim() !== "") out[key] = value.replace(/\r\n/g, "\n").trim();
   }
   return out;

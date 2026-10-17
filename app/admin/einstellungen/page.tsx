@@ -32,7 +32,7 @@ export default async function AdminSettingsPage() {
       </Card>
 
       <Card title={admin.settings.mailTexts.title}>
-        <MailTextsForm values={resolveMailTexts("de", settings)} />
+        <MailTextsForm values={{ de: resolveMailTexts("de", settings), en: resolveMailTexts("en", settings) }} />
       </Card>
 
       <Card title={admin.settings.overrides.title}>

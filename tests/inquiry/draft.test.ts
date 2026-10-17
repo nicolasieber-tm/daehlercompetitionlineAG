@@ -446,9 +446,14 @@ describe("buildDraft: Mailtexte aus dem Admin (lib/mail/texts.ts)", () => {
     expect(body).not.toContain("{{");
   });
 
-  it("englischer Entwurf ignoriert die deutschen Admin-Texte", () => {
-    const ctx = { ...m2Ctx(), settings: { ...SETTINGS, texts: { text_draft_intro: "Grüezi" } } };
-    const { body } = buildDraft(ctx, "en");
-    expect(body.startsWith("Dear Max Muster")).toBe(true);
+  it("englischer Entwurf nutzt die englischen Admin-Texte (Schlüssel «_en»), nie die deutschen", () => {
+    const ctx = {
+      ...m2Ctx(),
+      settings: { ...SETTINGS, texts: { text_draft_intro: "Grüezi", text_draft_intro_en: "Hello {{vorname}}, thanks for asking about your {{fahrzeug}}." } },
+    };
+    expect(buildDraft(ctx, "en").body.startsWith("Hello Max, thanks for asking about your BMW M2 (G87).")).toBe(true);
+    expect(buildDraft(ctx, "de").body.startsWith("Grüezi")).toBe(true);
+    const onlyGerman = { ...m2Ctx(), settings: { ...SETTINGS, texts: { text_draft_intro: "Grüezi" } } };
+    expect(buildDraft(onlyGerman, "en").body.startsWith("Dear Max Muster")).toBe(true);
   });
 });

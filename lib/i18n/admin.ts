@@ -262,11 +262,17 @@ export const admin = {
       title: "Mailtexte",
       intro:
         "Diese Texte rahmen die Mails an Ihre Kunden ein. Fahrzeug, Positionen, Preise, Vorher/Nachher und Richtsumme fügt das Tool automatisch dazwischen ein. Ein leeres Feld verwendet den Standardtext. Änderungen gelten für neue Anfragen und für «Entwurf neu erzeugen».",
+      languageLabel: "Sprache der Mailtexte",
+      languages: { de: "Deutsch", en: "Englisch" },
+      languageHint: {
+        de: "Für Anfragen, die auf Deutsch gestellt wurden.",
+        en: "Für Anfragen, die auf Englisch gestellt wurden (Sprachumschaltung im Flow). Positionen bleiben die Excel-Texte bzw. deren Übersetzungen.",
+      },
       placeholders: "Platzhalter, die das Tool ersetzt:",
       confirmationTitle: "Bestätigungsmail an den Kunden (automatisch nach dem Absenden)",
       draftTitle: "Antwortentwurf (bearbeiten Sie vor dem Senden in der Anfrage)",
       restoreDefault: "Standardtext wiederherstellen",
-      save: "Mailtexte speichern",
+      save: "Mailtexte speichern (beide Sprachen)",
       saved: "Mailtexte gespeichert.",
       fields: {
         text_confirmation_intro: {

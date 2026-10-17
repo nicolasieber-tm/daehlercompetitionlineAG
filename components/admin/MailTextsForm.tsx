@@ -3,21 +3,31 @@
 // Mailtexte bearbeiten (Einstellungen): Einleitung und Schluss der
 // Bestätigungsmail, Bausteine des Antwortentwurfs. Rückmeldung dÄHLer
 // 14.10.2026: der Kunde formuliert diese Texte selbst, Positionen, Preise
-// und Vorher/Nachher baut das Tool weiterhin. Siehe lib/mail/texts.ts.
+// und Vorher/Nachher baut das Tool weiterhin. Je Sprache eine Fassung,
+// umschaltbar (Wunsch 17.10.2026, englische Anfragen, Posten 4). Siehe
+// lib/mail/texts.ts.
 import { useState, useTransition } from "react";
 import { admin } from "@/lib/i18n/admin";
 import { Button } from "@/components/ui";
 import { saveSettingsAction } from "@/app/admin/actions/settings";
-import { DEFAULT_MAIL_TEXTS, MAIL_TEXT_KEYS, MAIL_TEXT_PLACEHOLDERS } from "@/lib/mail/texts";
+import { DEFAULT_MAIL_TEXTS, MAIL_TEXT_KEYS, MAIL_TEXT_PLACEHOLDERS, mailTextSettingKey } from "@/lib/mail/texts";
 import type { MailTextKey, MailTexts } from "@/lib/mail/texts";
+import type { Locale } from "@/lib/i18n/dictionaries";
+
+const LOCALES: Locale[] = ["de", "en"];
 import { FormField } from "./FormField";
 import { useToast } from "./Toast";
 
 const t = admin.settings.mailTexts;
 
-export function MailTextsForm({ values }: { values: MailTexts }) {
+export function MailTextsForm({ values }: { values: Record<Locale, MailTexts> }) {
   const { showToast } = useToast();
-  const [texts, setTexts] = useState<MailTexts>(values);
+  const [all, setAll] = useState<Record<Locale, MailTexts>>(values);
+  const [locale, setLocale] = useState<Locale>("de");
+  const texts = all[locale];
+  const defaults = DEFAULT_MAIL_TEXTS[locale];
+  const setTexts = (update: (prev: MailTexts) => MailTexts) =>
+    setAll((prev) => ({ ...prev, [locale]: update(prev[locale]) }));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -26,10 +36,14 @@ export function MailTextsForm({ values }: { values: MailTexts }) {
     setError(null);
     // Unveränderte Standardtexte nicht speichern (leer = Standard), damit
     // spätere Verbesserungen am Standardtext bei ihm ankommen.
+    // Beide Sprachen auf einmal, damit ein Wechsel des Umschalters vor dem
+    // Speichern nichts verliert.
     const payload: Record<string, string> = {};
-    for (const key of MAIL_TEXT_KEYS) {
-      const value = texts[key].trim();
-      payload[key] = value === DEFAULT_MAIL_TEXTS.de[key].trim() ? "" : value;
+    for (const loc of LOCALES) {
+      for (const key of MAIL_TEXT_KEYS) {
+        const value = all[loc][key].trim();
+        payload[mailTextSettingKey(key, loc)] = value === DEFAULT_MAIL_TEXTS[loc][key].trim() ? "" : value;
+      }
     }
     startTransition(async () => {
       const result = await saveSettingsAction(payload);
@@ -43,9 +57,9 @@ export function MailTextsForm({ values }: { values: MailTexts }) {
   }
 
   function field(key: MailTextKey, rows: number) {
-    const isDefault = texts[key].trim() === DEFAULT_MAIL_TEXTS.de[key].trim();
+    const isDefault = texts[key].trim() === defaults[key].trim();
     return (
-      <div key={key} className="flex flex-col gap-1">
+      <div key={`${locale}-${key}`} className="flex flex-col gap-1">
         <FormField
           as="textarea"
           label={t.fields[key].label}
@@ -60,7 +74,7 @@ export function MailTextsForm({ values }: { values: MailTexts }) {
         {!isDefault && (
           <button
             type="button"
-            onClick={() => setTexts((prev) => ({ ...prev, [key]: DEFAULT_MAIL_TEXTS.de[key] }))}
+            onClick={() => setTexts((prev) => ({ ...prev, [key]: defaults[key] }))}
             className="self-start text-xs text-muted underline hover:text-text"
           >
             {t.restoreDefault}
@@ -81,6 +95,27 @@ export function MailTextsForm({ values }: { values: MailTexts }) {
           </span>
         ))}
       </p>
+
+      <div className="flex flex-col gap-2">
+        <div role="tablist" aria-label={t.languageLabel} className="flex gap-2">
+          {LOCALES.map((loc) => (
+            <button
+              key={loc}
+              type="button"
+              role="tab"
+              aria-selected={locale === loc}
+              onClick={() => setLocale(loc)}
+              className={[
+                "rounded-[2px] border px-3 py-1.5 font-display text-xs font-semibold uppercase tracking-[0.08em]",
+                locale === loc ? "border-red bg-red text-white" : "border-line-alt text-muted hover:text-text",
+              ].join(" ")}
+            >
+              {t.languages[loc]}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted">{t.languageHint[locale]}</p>
+      </div>
 
       <div className="flex flex-col gap-5">
         <h3 className="font-display text-sm font-semibold uppercase tracking-[0.08em] text-text">{t.confirmationTitle}</h3>
