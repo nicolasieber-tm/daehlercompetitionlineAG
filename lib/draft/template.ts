@@ -199,7 +199,7 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
     fahrzeug: ctx.vehicleLabel,
     jahrgang: yearSuffix,
     nummer: ctx.number,
-    schwerpunkt: emphasisText(ctx.categories, ctx.followUpAnswers, locale),
+    schwerpunkt: emphasisText(ctx.categories, ctx.followUpAnswers, locale, texts),
   };
   const introParagraph = fillMailText(texts.text_draft_intro, vars);
 

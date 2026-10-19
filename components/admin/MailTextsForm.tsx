@@ -10,7 +10,7 @@ import { useState, useTransition } from "react";
 import { admin } from "@/lib/i18n/admin";
 import { Button } from "@/components/ui";
 import { saveSettingsAction } from "@/app/admin/actions/settings";
-import { DEFAULT_MAIL_TEXTS, MAIL_TEXT_KEYS, MAIL_TEXT_PLACEHOLDERS, mailTextSettingKey } from "@/lib/mail/texts";
+import { DEFAULT_MAIL_TEXTS, EMPHASIS_TEXT_KEYS, MAIL_TEXT_KEYS, MAIL_TEXT_PLACEHOLDERS, mailTextSettingKey } from "@/lib/mail/texts";
 import type { MailTextKey, MailTexts } from "@/lib/mail/texts";
 import type { Locale } from "@/lib/i18n/dictionaries";
 
@@ -134,6 +134,16 @@ export function MailTextsForm({ values }: { values: Record<Locale, MailTexts> })
         {field("text_draft_timing", 3)}
         {field("text_draft_closing", 5)}
       </div>
+
+      {/* Wunsch dÄHLer 19.10.2026: die Wendungen für {{schwerpunkt}} selbst
+          pflegen, eingeklappt, weil selten geändert. */}
+      <details className="flex flex-col gap-5 border border-line-alt px-4 py-3">
+        <summary className="cursor-pointer font-display text-sm font-semibold uppercase tracking-[0.08em] text-text">
+          {t.emphasisTitle}
+        </summary>
+        <p className="mt-3 text-sm text-muted">{t.emphasisIntro}</p>
+        <div className="mt-4 flex flex-col gap-4">{EMPHASIS_TEXT_KEYS.map((key) => field(key, 1))}</div>
+      </details>
 
       {error && (
         <p role="alert" className="text-sm text-red-bright">

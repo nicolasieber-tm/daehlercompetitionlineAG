@@ -72,6 +72,7 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
       ctx.inquiry.categories as FlowCategory[],
       ctx.inquiry.follow_up_answers as Record<string, string | null> | null,
       ctx.locale,
+      texts,
     ),
   };
   // Rückmeldung dÄHLer 19.10.2026: derselbe Charaktersatz wie im

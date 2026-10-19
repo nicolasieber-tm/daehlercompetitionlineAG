@@ -272,6 +272,9 @@ export const admin = {
       confirmationTitle: "Bestätigungsmail an den Kunden (automatisch nach dem Absenden)",
       draftTitle: "Antwortentwurf (bearbeiten Sie vor dem Senden in der Anfrage)",
       restoreDefault: "Standardtext wiederherstellen",
+      emphasisTitle: "Schwerpunkte (Platzhalter {{schwerpunkt}})",
+      emphasisIntro:
+        "Aus diesen Wendungen setzt das Tool {{schwerpunkt}} zusammen, je nach gewählten Bereichen und Antworten, höchstens drei, z.B. «spürbar mehr Leistung, eine kräftige Klangkulisse und ein markanter Auftritt». Bitte klein beginnen und im Nominativ schreiben (mit «ein/eine»), die Wendung steht oft mitten im Satz.",
       save: "Mailtexte speichern (beide Sprachen)",
       saved: "Mailtexte gespeichert.",
       fields: {
@@ -312,6 +315,17 @@ export const admin = {
           label: "Antwort: Schluss und Grüsse",
           help: "Danach folgt die Signatur (Name, Firma, Telefon aus den Einstellungen oben).",
         },
+        text_emph_motor: { label: "Motor gewählt", help: "" },
+        text_emph_auspuff_dezent: { label: "Auspuff, Antwort «Dezent, mit Klappe»", help: "" },
+        text_emph_auspuff_kraeftig: { label: "Auspuff, Antwort «Kräftig»", help: "" },
+        text_emph_auspuff_rennstrecke: { label: "Auspuff, Antwort «Rennstrecke»", help: "" },
+        text_emph_auspuff_default: { label: "Auspuff, ohne Antwort", help: "" },
+        text_emph_fahrwerk_pass: { label: "Fahrwerk, Antwort «Pass und Kurven»", help: "" },
+        text_emph_fahrwerk_track: { label: "Fahrwerk, Antwort «Trackdays»", help: "" },
+        text_emph_fahrwerk_default: { label: "Fahrwerk, Antwort «Alltag» oder ohne Antwort", help: "" },
+        text_emph_look: { label: "Räder oder Exterieur gewählt", help: "" },
+        text_emph_interieur: { label: "Interieur gewählt", help: "" },
+        text_emph_fallback: { label: "Nur «Komplettpaket, beraten Sie mich»", help: "" },
       },
     },
     overrides: {

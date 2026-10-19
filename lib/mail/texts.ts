@@ -22,7 +22,23 @@ export const MAIL_TEXT_KEYS = [
   "text_draft_items_intro",
   "text_draft_timing",
   "text_draft_closing",
+  // Wendungen für {{schwerpunkt}} (lib/mail/emphasis.ts), Wunsch dÄHLer
+  // 19.10.2026: im Admin pflegbar. Klein beginnend, Nominativ.
+  "text_emph_motor",
+  "text_emph_auspuff_dezent",
+  "text_emph_auspuff_kraeftig",
+  "text_emph_auspuff_rennstrecke",
+  "text_emph_auspuff_default",
+  "text_emph_fahrwerk_pass",
+  "text_emph_fahrwerk_track",
+  "text_emph_fahrwerk_default",
+  "text_emph_look",
+  "text_emph_interieur",
+  "text_emph_fallback",
 ] as const;
+
+/** Die Schwerpunkt-Wendungen unter den Mailtexten (eigener Abschnitt im Admin). */
+export const EMPHASIS_TEXT_KEYS = MAIL_TEXT_KEYS.filter((k) => k.startsWith("text_emph_"));
 
 export type MailTextKey = (typeof MAIL_TEXT_KEYS)[number];
 
@@ -78,6 +94,17 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
       "Bei Fragen oder zur weiteren Besprechung stehen wir Ihnen selbstverständlich gerne telefonisch oder per E-Mail zur Verfügung. " +
       "Wir freuen uns, Ihr Fahrzeug gemeinsam mit Ihnen sportlich und technisch sinnvoll weiterzuentwickeln.\n\n" +
       "Freundliche Grüsse",
+    text_emph_motor: "spürbar mehr Leistung",
+    text_emph_auspuff_dezent: "eine sonore, kultivierte Klangkulisse",
+    text_emph_auspuff_kraeftig: "eine kräftige Klangkulisse",
+    text_emph_auspuff_rennstrecke: "eine kompromisslose Klangkulisse",
+    text_emph_auspuff_default: "eine sportliche Klangkulisse",
+    text_emph_fahrwerk_pass: "ein präzises Handling in Kurven",
+    text_emph_fahrwerk_track: "ein rennstreckentaugliches Fahrwerk",
+    text_emph_fahrwerk_default: "ein präzises Fahrverhalten",
+    text_emph_look: "ein markanter Auftritt",
+    text_emph_interieur: "ein hochwertiges Interieur",
+    text_emph_fallback: "ein stimmiges Gesamtpaket",
   },
   en: {
     text_confirmation_intro:
@@ -105,6 +132,17 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
       "If you have any questions or would like to discuss the details, we are happy to help by phone or e-mail. " +
       "We look forward to developing your car together with you, sporty and technically sound.\n\n" +
       "Kind regards",
+    text_emph_motor: "noticeably more power",
+    text_emph_auspuff_dezent: "a refined, sonorous sound",
+    text_emph_auspuff_kraeftig: "a powerful sound",
+    text_emph_auspuff_rennstrecke: "an uncompromising sound",
+    text_emph_auspuff_default: "a sporty sound",
+    text_emph_fahrwerk_pass: "precise handling through corners",
+    text_emph_fahrwerk_track: "a track-ready suspension",
+    text_emph_fahrwerk_default: "precise handling",
+    text_emph_look: "a distinctive look",
+    text_emph_interieur: "a high-quality interior",
+    text_emph_fallback: "a well-balanced overall package",
   },
 };
 

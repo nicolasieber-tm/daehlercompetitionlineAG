@@ -473,3 +473,15 @@ describe("buildDraft: Charaktersatz mit Schwerpunkt", () => {
     expect(buildDraft(ctx, "de").body).toContain("Ein stimmiges Gesamtpaket in Kombination mit");
   });
 });
+
+describe("buildDraft: Schwerpunkt-Wendungen aus dem Admin", () => {
+  it("eigene Wendung ersetzt die Standardwendung, leeres Feld bleibt Standard", () => {
+    const ctx = {
+      ...m2Ctx(),
+      categories: ["motor", "auspuff"] as DraftContext["categories"],
+      followUpAnswers: { auspuff: "kraeftig" },
+      settings: { ...SETTINGS, texts: { text_emph_motor: "deutlich mehr Druck", text_emph_auspuff_kraeftig: "" } },
+    };
+    expect(buildDraft(ctx, "de").body).toContain("Deutlich mehr Druck und eine kräftige Klangkulisse in Kombination mit");
+  });
+});
