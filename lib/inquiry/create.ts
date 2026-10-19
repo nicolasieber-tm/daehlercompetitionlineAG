@@ -324,6 +324,7 @@ export async function createInquiry(
       vehicleLabel: vehicleLabel({ family, model, vehicleText: payload.vehicleText, line }),
       year: payload.year,
       character: payload.character as Character,
+      followUpAnswers: payload.followUpAnswers,
       categories: payload.categories,
       consulting: payload.consulting,
       timing: payload.timing as Timing,

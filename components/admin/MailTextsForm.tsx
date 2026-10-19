@@ -119,7 +119,8 @@ export function MailTextsForm({ values }: { values: Record<Locale, MailTexts> })
 
       <div className="flex flex-col gap-5">
         <h3 className="font-display text-sm font-semibold uppercase tracking-[0.08em] text-text">{t.confirmationTitle}</h3>
-        {field("text_confirmation_intro", 6)}
+        {field("text_confirmation_intro", 4)}
+        {field("text_confirmation_lead", 3)}
         {field("text_confirmation_closing", 6)}
       </div>
 

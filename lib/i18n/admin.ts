@@ -277,7 +277,11 @@ export const admin = {
       fields: {
         text_confirmation_intro: {
           label: "Bestätigung: Anrede und Einleitung",
-          help: "Steht vor der Übersicht mit Fahrzeug, Wunsch und Paket.",
+          help: "Danach folgt der Charaktersatz (siehe Antwortentwurf unten, gilt für beide Mails).",
+        },
+        text_confirmation_lead: {
+          label: "Bestätigung: Überleitung zur Übersicht",
+          help: "Steht direkt nach dem Charaktersatz, vor Fahrzeug, Wunsch und Paket.",
         },
         text_confirmation_closing: {
           label: "Bestätigung: Schluss und Grüsse",
@@ -287,9 +291,15 @@ export const admin = {
           label: "Antwort: Anrede und Dank",
           help: "{{jahrgang}} ergibt z.B. «, Jahrgang 2025» oder bleibt leer.",
         },
-        text_draft_character_dezent: { label: "Antwort: Satz bei Charakter «Dezent»", help: "" },
-        text_draft_character_sportlich: { label: "Antwort: Satz bei Charakter «Sportlich»", help: "" },
-        text_draft_character_maximum: { label: "Antwort: Satz bei Charakter «Maximum»", help: "" },
+        text_draft_character_dezent: {
+          label: "Satz bei Charakter «Dezent» (Bestätigung und Antwort)",
+          help: "{{schwerpunkt}} setzt das Tool aus den gewählten Bereichen und Antworten zusammen, z.B. «spürbar mehr Leistung und eine kräftige Klangkulisse».",
+        },
+        text_draft_character_sportlich: {
+          label: "Satz bei Charakter «Sportlich» (Bestätigung und Antwort)",
+          help: "{{schwerpunkt}} wie oben. Steht er am Satzanfang, wird er automatisch gross geschrieben.",
+        },
+        text_draft_character_maximum: { label: "Satz bei Charakter «Maximum» (Bestätigung und Antwort)", help: "{{schwerpunkt}} wie oben." },
         text_draft_items_intro: {
           label: "Antwort: Überleitung zu den Positionen",
           help: "Danach folgen die Positionen, nach Bereich gruppiert.",

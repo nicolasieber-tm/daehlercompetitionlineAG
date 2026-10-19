@@ -75,7 +75,7 @@ function m2Ctx(): DraftContext {
 // (lib/mail/texts.ts), Positionen nach Bereich gruppiert mit Strichen.
 const INTRO_DE = "Vielen Dank für Ihre Anfrage und Ihr Interesse an unseren dÄHLer Performance-Komponenten für Ihren";
 const LEAD_DE =
-  "Eine sportliche Abstimmung in Kombination mit uneingeschränkter Alltagstauglichkeit entspricht genau unserem Anspruch. Gerne prüfen wir die passende Lösung für Ihr Fahrzeug und unterbreiten Ihnen dazu folgendes Angebot:";
+  "Spürbar mehr Leistung, eine sportliche Klangkulisse und ein präzises Fahrverhalten in Kombination mit uneingeschränkter Alltagstauglichkeit entspricht genau unserem Anspruch. Gerne prüfen wir die passende Lösung für Ihr Fahrzeug und unterbreiten Ihnen dazu folgendes Angebot:";
 const TIMING_DE =
   "Für die kommenden Wochen verfügen wir noch über mögliche Werkstatttermine. Gerne reservieren wir Ihnen einen passenden Termin, sobald Sie uns Ihr Einverständnis geben und die gewünschte Ausführung feststeht.";
 const CLOSING_DE = [
@@ -101,7 +101,7 @@ const M2_BODY_DE = [
 const M2_BODY_EN = [
   "Dear Max Muster",
   "Thank you for your enquiry and your interest in dÄHLer performance components for your BMW M2 (G87), model year 2025.",
-  "A sporty set-up combined with full everyday usability is exactly what we stand for. We will be glad to check the right solution for your car and are pleased to offer you the following:",
+  "Noticeably more power, a sporty sound and precise handling combined with full everyday usability is exactly what we stand for. We will be glad to check the right solution for your car and are pleased to offer you the following:",
   [
     ["Engine", "- Stage 1 (620 PS / 740 Nm, M6 & A8-Getriebe), from CHF 4'180"].join("\n"),
     ["Exhaust", "- Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, from CHF 5'260"].join("\n"),
@@ -137,7 +137,7 @@ function wiesmannCtx(): DraftContext {
 const WIESMANN_BODY_DE = [
   "Guten Tag Peter Beispiel",
   `${INTRO_DE} Wiesmann.`,
-  "Spürbar mehr Fahrfreude bei einem dezenten Auftritt entspricht genau unserem Anspruch. Gerne prüfen wir die passende Lösung für Ihr Fahrzeug und unterbreiten Ihnen dazu folgendes Angebot:",
+  "Spürbar mehr Leistung und ein markanter Auftritt, dezent und stilsicher umgesetzt, entspricht genau unserem Anspruch. Gerne prüfen wir die passende Lösung für Ihr Fahrzeug und unterbreiten Ihnen dazu folgendes Angebot:",
   ["- Motor", "- Exterieur"].join("\n"),
   "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung der gewünschten Ausführung, inklusive Montage, exklusive MFK. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
   TIMING_DE,
@@ -455,5 +455,21 @@ describe("buildDraft: Mailtexte aus dem Admin (lib/mail/texts.ts)", () => {
     expect(buildDraft(ctx, "de").body.startsWith("Grüezi")).toBe(true);
     const onlyGerman = { ...m2Ctx(), settings: { ...SETTINGS, texts: { text_draft_intro: "Grüezi" } } };
     expect(buildDraft(onlyGerman, "en").body.startsWith("Dear Max Muster")).toBe(true);
+  });
+});
+
+// --- Rückmeldung dÄHLer 19.10.2026: {{schwerpunkt}} aus Bereichen und Folgefragen
+describe("buildDraft: Charaktersatz mit Schwerpunkt", () => {
+  it("Auspuff «Kräftig», sportlich: wie in Christophs Beispielmail", () => {
+    const ctx = { ...m2Ctx(), categories: ["auspuff"] as DraftContext["categories"], followUpAnswers: { auspuff: "kraeftig" }, items: [KOMPLETTANLAGE], estimatedTotal: 5260 };
+    const { body } = buildDraft(ctx, "de");
+    expect(body).toContain(
+      "Eine kräftige Klangkulisse in Kombination mit uneingeschränkter Alltagstauglichkeit entspricht genau unserem Anspruch. Gerne prüfen wir die passende Lösung für Ihr Fahrzeug und unterbreiten Ihnen dazu folgendes Angebot:",
+    );
+  });
+
+  it("nur Komplettpaket ohne Bereiche: neutrale Wendung", () => {
+    const ctx = { ...m2Ctx(), categories: [] as DraftContext["categories"], consulting: true, items: [], estimatedTotal: null };
+    expect(buildDraft(ctx, "de").body).toContain("Ein stimmiges Gesamtpaket in Kombination mit");
   });
 });

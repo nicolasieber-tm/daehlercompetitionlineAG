@@ -13,6 +13,7 @@ import { categoryLabel, companyLine, itemLineText } from "@/lib/mail/render";
 import { displayItemFields, isStandaloneVmaxProduct, stageShortTitle } from "@/lib/catalog/product-display";
 import type { TranslationMap } from "@/lib/translations/resolve";
 import { fillMailText, resolveMailTexts } from "@/lib/mail/texts";
+import { capitalizeFirst, emphasisText } from "@/lib/mail/emphasis";
 import type { Character, FlowCategory, PriceStatus, Timing } from "@/lib/db/rows";
 
 export interface DraftItem {
@@ -74,6 +75,8 @@ export interface DraftContext {
    */
   character: Character | null;
   categories: FlowCategory[];
+  /** Antworten auf die Folgefragen je Kategorie, für {{schwerpunkt}} (lib/mail/emphasis.ts). */
+  followUpAnswers?: Partial<Record<string, string | null>> | null;
   consulting: boolean;
   /** null im Schnellweg, siehe character oben; buildDraft() verwendet dann einen neutralen Satz (draft.timingUnknown). */
   timing: Timing | null;
@@ -196,11 +199,12 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
     fahrzeug: ctx.vehicleLabel,
     jahrgang: yearSuffix,
     nummer: ctx.number,
+    schwerpunkt: emphasisText(ctx.categories, ctx.followUpAnswers, locale),
   };
   const introParagraph = fillMailText(texts.text_draft_intro, vars);
 
   // character ist im Schnellweg optional (null), dann entfällt der Satz.
-  const characterText = ctx.character ? fillMailText(texts[`text_draft_character_${ctx.character}`], vars) : "";
+  const characterText = ctx.character ? capitalizeFirst(fillMailText(texts[`text_draft_character_${ctx.character}`], vars)) : "";
   const itemsIntro = fillMailText(texts.text_draft_items_intro, vars);
 
   // Positionen, nach Bereich gruppiert («Motor», darunter je Produkt eine

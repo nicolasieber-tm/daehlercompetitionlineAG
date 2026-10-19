@@ -36,7 +36,7 @@ export async function saveSettingsAction(values: Record<string, string>): Promis
     ),
   ];
   if (unknown.length > 0) {
-    return { ok: false, error: `Unbekannte Platzhalter: ${unknown.join(", ")}. Erlaubt sind {{vorname}}, {{name}}, {{fahrzeug}}, {{jahrgang}}, {{nummer}}.` };
+    return { ok: false, error: `Unbekannte Platzhalter: ${unknown.join(", ")}. Erlaubt sind {{vorname}}, {{name}}, {{fahrzeug}}, {{jahrgang}}, {{nummer}}, {{schwerpunkt}}.` };
   }
   if (rows.length === 0) {
     return { ok: false, error: "Keine Werte zum Speichern übergeben." };

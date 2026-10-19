@@ -8,6 +8,8 @@ import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
 import { categoriesWithoutItems } from "@/lib/draft/template";
 import { fillMailText, resolveMailTexts } from "../texts";
+import { capitalizeFirst, emphasisText } from "../emphasis";
+import type { Character } from "@/lib/db/rows";
 import type { FlowCategory } from "@/lib/db/rows";
 import type { MailInquiryContext, MailInquiryItem } from "../types";
 import {
@@ -66,7 +68,17 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
     name: ctx.inquiry.last_name ?? "",
     fahrzeug: model,
     nummer: ctx.inquiry.number,
+    schwerpunkt: emphasisText(
+      ctx.inquiry.categories as FlowCategory[],
+      ctx.inquiry.follow_up_answers as Record<string, string | null> | null,
+      ctx.locale,
+    ),
   };
+  // Rückmeldung dÄHLer 19.10.2026: derselbe Charaktersatz wie im
+  // Antwortentwurf, gefolgt von der Überleitung zur Übersicht.
+  const character = ctx.inquiry.character as Character | null;
+  const characterText = character ? capitalizeFirst(fillMailText(texts[`text_draft_character_${character}`], vars)) : "";
+  const leadParagraph = [characterText, fillMailText(texts.text_confirmation_lead, vars)].filter(Boolean).join(" ");
   // Rückmeldung dÄHLer 14.10.2026 (Anfrage 2026-0016): gewählte Bereiche
   // ohne angetipptes Produkt erscheinen ausdrücklich, statt in der
   // Positionsliste einfach zu fehlen.
@@ -104,6 +116,7 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
   const blocks = [
     // Einleitung und Schluss pflegt der Kunde im Admin (lib/mail/texts.ts).
     ...paragraphs(fillMailText(texts.text_confirmation_intro, vars)),
+    paragraph(leadParagraph),
     definitionList([
       { label: dict.mail.confirmation.vehicleLabel, value: model },
       { label: dict.mail.confirmation.wishLabel, value: wish },

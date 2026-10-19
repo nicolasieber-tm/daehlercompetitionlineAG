@@ -508,6 +508,7 @@ export async function regenerateDraft(id: string): Promise<{ subject: string; bo
     // null (lib/inquiry/schema.ts verlangt beides), Fallback nur defensiv
     // gegen künftige Datenkorrekturen von Hand.
     character: (inquiry.character as Character | null) ?? "sportlich",
+    followUpAnswers: (inquiry.follow_up_answers as Record<string, string | null> | null) ?? {},
     categories: inquiry.categories as FlowCategory[],
     consulting: inquiry.consulting,
     timing: (inquiry.timing as Timing | null) ?? "flexible",
