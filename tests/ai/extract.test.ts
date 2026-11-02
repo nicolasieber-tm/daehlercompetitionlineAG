@@ -461,6 +461,16 @@ describe("toInquiryPayload", () => {
     expect(result.missing).toEqual([]);
   });
 
+  // Rückmeldung dÄHLer 28.10.2026: Anrede nur aus dem Text, nie geraten.
+  it("salutation aus der Extraction wird übernommen, fehlend ist null, Override gewinnt", async () => {
+    const withSalutation = completeExtraction({
+      contact: { salutation: "herr", first_name: "Anna", last_name: "Beispiel", city: "Belp", phone: null, email: "anna@example.com", channel: "email" },
+    });
+    expect((await toInquiryPayload(withSalutation)).payload?.salutation).toBe("herr");
+    expect((await toInquiryPayload(completeExtraction())).payload?.salutation).toBeNull();
+    expect((await toInquiryPayload(withSalutation, { salutation: null })).payload?.salutation).toBeNull();
+  });
+
   it("overrides überschreiben die aus der Extraction abgeleiteten Werte feldweise", async () => {
     const extraction = completeExtraction({
       contact: { first_name: "Anna", last_name: "Beispiel", city: "Belp", phone: "0791234567", email: null, channel: "phone" },

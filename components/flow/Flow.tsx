@@ -198,6 +198,7 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
       followUpAnswers: state.followUpAnswers,
       character: state.character,
       timing: state.timing,
+      salutation: state.salutation,
       firstName: state.contact.firstName.trim(),
       lastName: state.contact.lastName.trim(),
       city: state.contact.city.trim(),

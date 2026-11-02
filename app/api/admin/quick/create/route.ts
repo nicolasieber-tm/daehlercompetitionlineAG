@@ -57,6 +57,7 @@ const overridesSchema = z.object({
   selections: z.array(z.object({ productId: z.string().min(1) })).optional(),
   character: z.enum(["dezent", "sportlich", "maximum"]).nullable().optional(),
   timing: z.enum(["asap", "m1_2", "m3_6", "flexible"]).nullable().optional(),
+  salutation: z.enum(["herr", "frau"]).nullable().optional(),
   firstName: z.string().nullable().optional(),
   lastName: z.string().nullable().optional(),
   city: z.string().nullable().optional(),

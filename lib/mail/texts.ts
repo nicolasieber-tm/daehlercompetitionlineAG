@@ -16,10 +16,14 @@ export const MAIL_TEXT_KEYS = [
   "text_confirmation_lead",
   "text_confirmation_closing",
   "text_draft_intro",
+  "text_draft_model",
   "text_draft_character_dezent",
   "text_draft_character_sportlich",
   "text_draft_character_maximum",
   "text_draft_items_intro",
+  "text_draft_question_fahrwerk",
+  "text_draft_question_motor_auspuff",
+  "text_draft_question_generic",
   "text_draft_timing",
   "text_draft_closing",
   // Wendungen für {{schwerpunkt}} (lib/mail/emphasis.ts), Wunsch dÄHLer
@@ -57,7 +61,19 @@ export type MailTexts = Record<MailTextKey, string>;
 // {{schwerpunkt}}: aus Bereichen und Folgefragen zusammengesetzt, z.B.
 // «spürbar mehr Leistung und eine kräftige Klangkulisse», siehe
 // lib/mail/emphasis.ts (Rückmeldung dÄHLer 19.10.2026).
-export const MAIL_TEXT_PLACEHOLDERS = ["vorname", "name", "fahrzeug", "jahrgang", "nummer", "schwerpunkt"] as const;
+// {{anrede}} und {{modell}} (Rückmeldung dÄHLer 28.10.2026, Beispielmail):
+// «Herr Dähler» bzw. «Vorname Name» ohne Anrede (lib/mail/anrede.ts) und das
+// Fahrzeug ohne Baureihencode, «BMW M2» statt «BMW M2 (G87)».
+export const MAIL_TEXT_PLACEHOLDERS = [
+  "anrede",
+  "vorname",
+  "name",
+  "fahrzeug",
+  "modell",
+  "jahrgang",
+  "nummer",
+  "schwerpunkt",
+] as const;
 export type MailTextPlaceholder = (typeof MAIL_TEXT_PLACEHOLDERS)[number];
 
 // Rückmeldung dÄHLer 19.10.2026 («noch nicht attraktiv»): der Charaktersatz
@@ -67,7 +83,7 @@ export type MailTextPlaceholder = (typeof MAIL_TEXT_PLACEHOLDERS)[number];
 export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
   de: {
     text_confirmation_intro:
-      "Guten Tag {{vorname}} {{name}}\n\n" +
+      "Guten Tag {{anrede}}\n\n" +
       "Vielen Dank für Ihre Anfrage und Ihr Interesse an unseren dÄHLer Performance-Komponenten für Ihren {{fahrzeug}}.",
     text_confirmation_lead:
       "Gerne prüfen wir die passende Lösung für Ihr Fahrzeug. Nachfolgend finden Sie die Übersicht Ihres Wunschpakets, " +
@@ -75,25 +91,33 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
     text_confirmation_closing:
       "Bei Fragen stehen wir Ihnen selbstverständlich gerne telefonisch oder per E-Mail zur Verfügung. " +
       "Wir freuen uns, Ihr Fahrzeug gemeinsam mit Ihnen sportlich und technisch sinnvoll weiterzuentwickeln.\n\n" +
-      "Freundliche Grüsse\n\ndÄHLer Competition Line AG",
+      "Sportliche Grüsse aus Belp\n\ndÄHLer Competition Line AG",
     text_draft_intro:
-      "Guten Tag {{vorname}} {{name}}\n\n" +
-      "Vielen Dank für Ihre Anfrage und Ihr Interesse an unseren dÄHLer Performance-Komponenten für Ihren {{fahrzeug}}{{jahrgang}}.",
-    text_draft_character_dezent:
-      "{{schwerpunkt}}, dezent und stilsicher umgesetzt, entspricht genau unserem Anspruch.",
+      "Guten Tag {{anrede}}\n\n" +
+      "Vielen Dank für Ihre Anfrage und Ihr Interesse an einer individuellen Lösung von dÄHLer für Ihren {{fahrzeug}}{{jahrgang}}.",
+    text_draft_model: "Der {{modell}} verbindet pure Sportlichkeit mit beeindruckender Alltagstauglichkeit.",
+    text_draft_character_dezent: "{{schwerpunkt}}, dezent und stilsicher umgesetzt, genau hier setzen wir bei dÄHLer an.",
     text_draft_character_sportlich:
-      "{{schwerpunkt}} in Kombination mit uneingeschränkter Alltagstauglichkeit entspricht genau unserem Anspruch.",
+      "{{schwerpunkt}}, sportlich und präzise abgestimmt, genau hier setzen wir bei dÄHLer an.",
     text_draft_character_maximum:
-      "{{schwerpunkt}}, konsequent auf das Maximum ausgelegt und technisch sauber abgestimmt, entspricht genau unserem Anspruch.",
-    text_draft_items_intro:
-      "Gerne prüfen wir die passende Lösung für Ihr Fahrzeug und unterbreiten Ihnen dazu folgendes Angebot:",
+      "{{schwerpunkt}}, konsequent auf das Maximum ausgelegt und technisch sauber abgestimmt, genau hier setzen wir bei dÄHLer an.",
+    text_draft_items_intro: "Für Ihren {{modell}} bieten wir Ihnen Folgendes an:",
+    text_draft_question_fahrwerk:
+      "Damit wir Ihnen ein exakt auf Ihr Fahrzeug abgestimmtes Angebot erstellen können, bitten wir Sie noch um eine kurze Rückmeldung, " +
+      "ob Ihr {{modell}} mit dem adaptiven M-Fahrwerk ausgestattet ist. Anschliessend können wir die Details prüfen und Ihnen den definitiven Preis bestätigen.",
+    text_draft_question_motor_auspuff:
+      "Damit wir Ihnen ein exakt auf Ihr Fahrzeug abgestimmtes Angebot erstellen können, prüfen wir die gewünschte Kombination aus " +
+      "Software-Leistungssteigerung und Abgasanlage. Anschliessend bestätigen wir Ihnen gerne den definitiven Preis.",
+    text_draft_question_generic:
+      "Damit wir Ihnen ein exakt auf Ihr Fahrzeug abgestimmtes Angebot erstellen können, prüfen wir die gewünschte Ausführung. " +
+      "Anschliessend bestätigen wir Ihnen gerne den definitiven Preis.",
     text_draft_timing:
-      "Für die kommenden Wochen verfügen wir noch über mögliche Werkstatttermine. " +
-      "Gerne reservieren wir Ihnen einen passenden Termin, sobald Sie uns Ihr Einverständnis geben und die gewünschte Ausführung feststeht.",
+      "Gerne übernehmen wir die fachgerechte Montage bei uns in Belp. Für die kommenden Wochen können wir Ihnen bereits passende Werkstatttermine anbieten " +
+      "und reservieren Ihnen gerne einen Termin, sobald Sie sich für die Umsetzung entschieden haben.",
     text_draft_closing:
-      "Bei Fragen oder zur weiteren Besprechung stehen wir Ihnen selbstverständlich gerne telefonisch oder per E-Mail zur Verfügung. " +
-      "Wir freuen uns, Ihr Fahrzeug gemeinsam mit Ihnen sportlich und technisch sinnvoll weiterzuentwickeln.\n\n" +
-      "Freundliche Grüsse",
+      "Wenn Sie Fragen haben oder die Ausführung im Detail mit uns besprechen möchten, freuen wir uns auf Ihren Anruf oder Ihre kurze Rückmeldung per E-Mail.\n\n" +
+      "Wir würden uns freuen, Ihren {{modell}} gemeinsam mit Ihnen noch individueller zu gestalten.\n\n" +
+      "Sportliche Grüsse aus Belp",
     text_emph_motor: "spürbar mehr Leistung",
     text_emph_auspuff_dezent: "eine sonore, kultivierte Klangkulisse",
     text_emph_auspuff_kraeftig: "eine kräftige Klangkulisse",
@@ -108,7 +132,7 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
   },
   en: {
     text_confirmation_intro:
-      "Dear {{vorname}} {{name}}\n\n" +
+      "Dear {{anrede}}\n\n" +
       "Thank you for your enquiry and your interest in dÄHLer performance components for your {{fahrzeug}}.",
     text_confirmation_lead:
       "We will be glad to check the right solution for your car. Below you will find an overview of your package, " +
@@ -116,22 +140,32 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
     text_confirmation_closing:
       "If you have any questions, we are happy to help by phone or e-mail. " +
       "We look forward to developing your car together with you, sporty and technically sound.\n\n" +
-      "Kind regards\n\ndÄHLer Competition Line AG",
+      "Sporty greetings from Belp\n\ndÄHLer Competition Line AG",
     text_draft_intro:
-      "Dear {{vorname}} {{name}}\n\n" +
-      "Thank you for your enquiry and your interest in dÄHLer performance components for your {{fahrzeug}}{{jahrgang}}.",
-    text_draft_character_dezent: "{{schwerpunkt}}, discreetly and stylishly executed, is exactly what we stand for.",
-    text_draft_character_sportlich: "{{schwerpunkt}} combined with full everyday usability is exactly what we stand for.",
+      "Dear {{anrede}}\n\n" +
+      "Thank you for your enquiry and your interest in an individual dÄHLer solution for your {{fahrzeug}}{{jahrgang}}.",
+    text_draft_model: "The {{modell}} combines pure sportiness with impressive everyday usability.",
+    text_draft_character_dezent: "{{schwerpunkt}}, discreetly and stylishly executed, is exactly where we at dÄHLer come in.",
+    text_draft_character_sportlich: "{{schwerpunkt}}, sporty and precisely set up, is exactly where we at dÄHLer come in.",
     text_draft_character_maximum:
-      "{{schwerpunkt}}, consistently designed for the maximum and technically well matched, is exactly what we stand for.",
-    text_draft_items_intro: "We will be glad to check the right solution for your car and are pleased to offer you the following:",
+      "{{schwerpunkt}}, consistently designed for the maximum and technically well matched, is exactly where we at dÄHLer come in.",
+    text_draft_items_intro: "For your {{modell}} we can offer you the following:",
+    text_draft_question_fahrwerk:
+      "So that we can prepare an offer that is precisely matched to your car, we would ask you for a brief reply on whether your {{modell}} " +
+      "is equipped with the adaptive M suspension. We can then check the details and confirm the final price to you.",
+    text_draft_question_motor_auspuff:
+      "So that we can prepare an offer that is precisely matched to your car, we will check the desired combination of software power increase " +
+      "and exhaust system. We will then be glad to confirm the final price to you.",
+    text_draft_question_generic:
+      "So that we can prepare an offer that is precisely matched to your car, we will check the desired configuration. " +
+      "We will then be glad to confirm the final price to you.",
     text_draft_timing:
-      "We still have workshop slots available in the coming weeks. " +
-      "We will be happy to reserve a suitable date for you as soon as you give us the go-ahead and the desired configuration is settled.",
+      "We would be happy to carry out the professional fitting at our workshop in Belp. We can already offer you suitable workshop dates for the coming weeks " +
+      "and will be glad to reserve a date for you as soon as you have decided to go ahead.",
     text_draft_closing:
-      "If you have any questions or would like to discuss the details, we are happy to help by phone or e-mail. " +
-      "We look forward to developing your car together with you, sporty and technically sound.\n\n" +
-      "Kind regards",
+      "If you have any questions or would like to discuss the details with us, we look forward to your call or a brief reply by e-mail.\n\n" +
+      "We would be delighted to make your {{modell}} even more individual together with you.\n\n" +
+      "Sporty greetings from Belp",
     text_emph_motor: "noticeably more power",
     text_emph_auspuff_dezent: "a refined, sonorous sound",
     text_emph_auspuff_kraeftig: "a powerful sound",

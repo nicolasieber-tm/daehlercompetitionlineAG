@@ -319,6 +319,7 @@ export async function createInquiry(
 
     const draftCtx: DraftContext = {
       number,
+      salutation: payload.salutation,
       firstName: payload.firstName,
       lastName: payload.lastName,
       vehicleLabel: vehicleLabel({ family, model, vehicleText: payload.vehicleText, line }),
@@ -350,14 +351,14 @@ export async function createInquiry(
       insert into inquiries (
         number, status, source, locale, family_id, model_id, vehicle_text, year, been_here, gearbox,
         series_ps, line, body_style, drive, categories, consulting, selections, follow_up_answers, character, timing,
-        first_name, last_name, city, phone, email, channel, message, estimated_total, checks,
+        salutation, first_name, last_name, city, phone, email, channel, message, estimated_total, checks,
         draft_subject, draft_reply, share_token, translations
       ) values (
         ${number}, 'neu', ${opts.source}, ${payload.locale}, ${payload.familyId}, ${payload.modelId},
         ${payload.vehicleText}, ${payload.year}, ${payload.beenHere}, ${payload.gearbox},
         ${payload.seriesPs}, ${line}, ${bodyStyle}, ${drive}, ${payload.categories}, ${payload.consulting}, ${sql.json(selectionsJson)},
         ${sql.json(payload.followUpAnswers)}, ${payload.character}, ${payload.timing},
-        ${payload.firstName}, ${payload.lastName}, ${payload.city}, ${payload.phone}, ${payload.email},
+        ${payload.salutation}, ${payload.firstName}, ${payload.lastName}, ${payload.city}, ${payload.phone}, ${payload.email},
         ${payload.channel}, ${payload.message || null}, ${estimatedTotal}, ${sql.json(JSON.parse(JSON.stringify(checks)))},
         ${draft.subject}, ${draft.body}, ${shareToken},
         ${translationsJson ? sql.json(translationsJson) : null}

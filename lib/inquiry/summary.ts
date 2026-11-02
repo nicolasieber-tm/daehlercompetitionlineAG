@@ -17,6 +17,7 @@
 // Dictionary").
 import { de } from "@/lib/i18n/de";
 import { admin } from "@/lib/i18n/admin";
+import { fullNameWithSalutation } from "@/lib/mail/anrede";
 import { chfFrom, formatDate, inquiryNumberLabel } from "@/lib/i18n/format";
 import { categoryLabel, itemLineText, optionLabel, vehicleLabel } from "@/lib/mail/render";
 import { vehicleInternalLine } from "@/lib/catalog/vehicle-label";
@@ -118,7 +119,7 @@ export function goalText(ctx: MailInquiryContext): string {
 export function buildSummaryText(ctx: MailInquiryContext): string {
   const { inquiry } = ctx;
   const vehicle = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: inquiry.vehicle_text, line: inquiry.line });
-  const name = [inquiry.first_name, inquiry.last_name].filter(Boolean).join(" ");
+  const name = fullNameWithSalutation(inquiry.salutation, inquiry.first_name, inquiry.last_name);
 
   const received = `${formatDate(new Date(inquiry.created_at), LOCALE)} · ${
     inquiry.source === "quick" ? t.viaQuick : t.viaWeb

@@ -278,6 +278,11 @@ export const en: Dictionary = {
         pick: "Select {category}",
       },
       label: "And who are you?",
+      salutationLabel: "Title (optional)",
+      salutations: [
+        { id: "herr", label: "Mr" },
+        { id: "frau", label: "Ms" },
+      ],
       firstName: "First name",
       lastName: "Last name",
       city: "Town (optional)",
@@ -440,13 +445,14 @@ export const en: Dictionary = {
     itemsFallback: "We will put together a package based on your wish.",
     performanceLine:
       "With {stage} your {model} reaches {detail}, WLTP tested and with a Swiss approval certificate. The one year warranty extension to the factory warranty is included.",
-    priceLine:
-      "Indicative price for the complete package: {price}, including fitting, excluding roadworthiness test. The final price will be confirmed after checking {clarification}. This way we make sure that all components are perfectly matched.",
-    priceLineOnRequest:
-      "We will let you know the indicative price after a short check of {clarification}, including fitting, excluding roadworthiness test. This way we make sure that all components are perfectly matched.",
-    clarificationFahrwerk: "your standard suspension (adaptive M suspension or not)",
-    clarificationMotorAuspuff: "the desired combination of software tuning and exhaust system",
-    clarificationGeneric: "the desired configuration",
+    // See de.ts: the price line only states facts, the follow-up question is
+    // part of the mail texts in the admin (text_draft_question_*).
+    priceLine: "Indicative price for the complete package: {price}, including fitting, excluding roadworthiness test.",
+    priceLineOnRequest: "We will let you know the indicative price after a short check, including fitting, excluding roadworthiness test.",
+    recommendation: "Our recommendation: {name}",
+    recommendationPrice: "Price: from {price}, including fitting, excluding roadworthiness test",
+    recommendationPriceInPreparation: "Price: in preparation",
+    recommendationPriceOnRequest: "Price: on request",
     // No hardcoded text: name comes from settings.signature_name, {company}
     // from settings.mail_from_name plus optional settings.company_address
     // (only when set) and phone from settings.signature_phone, see

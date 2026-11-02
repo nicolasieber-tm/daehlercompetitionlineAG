@@ -5,6 +5,7 @@
 // die kommen ausschliesslich aus lib/inquiry/create.ts, nie vom Client
 // (siehe CLAUDE.md, Abschnitt "Arbeitsweise": "Preise nie von Hand ...").
 import { z } from "zod";
+import { SALUTATION_VALUES } from "@/lib/mail/anrede";
 
 const CHARACTER_VALUES = ["dezent", "sportlich", "maximum"] as const;
 const TIMING_VALUES = ["asap", "m1_2", "m3_6", "flexible"] as const;
@@ -114,6 +115,13 @@ export const InquiryPayloadObjectSchema = z.object({
   // Maximallängen (Prüfung Phase B, Punkt 5): ohne Obergrenze könnte ein
   // manipulierter Request (der Client-Flow selbst begrenzt die Felder nicht)
   // beliebig lange Werte in Mails, Antwortentwurf und DB-Spalten schreiben.
+  // Rückmeldung dÄHLer 28.10.2026: optionale Anrede (Herr/Frau) für «Guten
+  // Tag Herr Dähler». Fehlt sie (oder ist leer), bleibt es bei «Vorname Name».
+  salutation: z
+    .enum(SALUTATION_VALUES)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
   firstName: z.string().trim().min(1, "Vorname ist ein Pflichtfeld.").max(80),
   lastName: z.string().trim().min(1, "Name ist ein Pflichtfeld.").max(80),
   // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE", Punkt 2):

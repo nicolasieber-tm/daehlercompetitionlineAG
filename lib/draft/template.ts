@@ -8,8 +8,10 @@ import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { de } from "@/lib/i18n/de";
 import { en } from "@/lib/i18n/en";
-import { chfFrom } from "@/lib/i18n/format";
-import { categoryLabel, companyLine, itemLineText } from "@/lib/mail/render";
+import { chf, chfFrom } from "@/lib/i18n/format";
+import { categoryLabel, companyLine, itemLineText, stripConsistsOf } from "@/lib/mail/render";
+import { anredeText, modellLabel } from "@/lib/mail/anrede";
+import { formatWheelDimensionLine } from "@/lib/catalog/wheel-dimensions";
 import { displayItemFields, isStandaloneVmaxProduct, stageShortTitle } from "@/lib/catalog/product-display";
 import type { TranslationMap } from "@/lib/translations/resolve";
 import { fillMailText, resolveMailTexts } from "@/lib/mail/texts";
@@ -48,6 +50,8 @@ export interface DraftSettings {
 
 export interface DraftContext {
   number: string;
+  /** Optionale Anrede (herr | frau) für {{anrede}}, null/fehlend = «Vorname Name» (lib/mail/anrede.ts). */
+  salutation?: string | null;
   firstName: string;
   lastName: string;
   /**
@@ -115,13 +119,56 @@ function stageLabel(name: string, locale: Locale): string {
   return stageShortTitle(name, locale);
 }
 
-type ClarificationKey = "clarificationFahrwerk" | "clarificationMotorAuspuff" | "clarificationGeneric";
+type QuestionKey = "text_draft_question_fahrwerk" | "text_draft_question_motor_auspuff" | "text_draft_question_generic";
 
-/** Reihenfolge wie draft() in docs/vorschau.html: Fahrwerk zuerst, dann Motor+Auspuff, sonst generisch. */
-function clarificationKey(categories: readonly FlowCategory[]): ClarificationKey {
-  if (categories.includes("fahrwerk")) return "clarificationFahrwerk";
-  if (categories.includes("motor") && categories.includes("auspuff")) return "clarificationMotorAuspuff";
-  return "clarificationGeneric";
+/**
+ * Rückfrage vor dem definitiven Preis (Rückmeldung dÄHLer 28.10.2026): Fahrwerk
+ * oder Räder zuerst (adaptives M-Fahrwerk), dann Motor und Auspuff, sonst
+ * allgemein. Die Texte pflegt der Kunde im Admin (lib/mail/texts.ts).
+ */
+function questionKey(categories: readonly FlowCategory[]): QuestionKey {
+  if (categories.includes("fahrwerk") || categories.includes("raeder")) return "text_draft_question_fahrwerk";
+  if (categories.includes("motor") && categories.includes("auspuff")) return "text_draft_question_motor_auspuff";
+  return "text_draft_question_generic";
+}
+
+/**
+ * Räder-Dimensionen als Achszeilen (lib/catalog/wheel-dimensions.ts), nur bei
+ * Räder-Positionen und nur, wenn mindestens eine Excel-Zeile strikt dem Muster
+ * entspricht. Nicht passende Zeilen bleiben wörtlich (Excel-Text), sonst null
+ * und die Position wird wie bisher dargestellt.
+ */
+function wheelDimensionLines(item: DraftItem, locale: Locale): string[] | null {
+  if (item.category !== "raeder" || !item.description) return null;
+  const lines = item.description
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const formatted = lines.map((line) => formatWheelDimensionLine(line, locale));
+  if (!formatted.some((line) => line !== null)) return null;
+  return lines.map((line, i) => formatted[i] ?? line);
+}
+
+function displayFor(item: DraftItem, locale: Locale, translations?: TranslationMap | null) {
+  // Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 1): ein
+  // eigenständiges V/max-Produkt "... ohne Leistungssteigerung" trägt zwar
+  // variant_group "leistung" (Exklusivität, siehe variant-groups.ts), ist
+  // aber keine Stufe - ohne die Ausnahme landete hier trotzdem der
+  // Stufen-Titel ("Leistungssteigerung mit V/max-Aufhebung") im
+  // Antwortentwurf statt des tatsächlichen Produktnamens.
+  const isStage =
+    item.category === "motor" && item.variantGroup === "leistung" && !isStandaloneVmaxProduct(item.name);
+  return displayItemFields(
+    {
+      name: item.name,
+      description: item.description,
+      isStage,
+      psTo: item.psTo,
+      nmTo: item.nmTo,
+    },
+    locale,
+    translations,
+  );
 }
 
 /**
@@ -136,36 +183,44 @@ function clarificationKey(categories: readonly FlowCategory[]): ClarificationKey
  * description-Werte, dieselbe Vorlage draft.itemLine wie zuvor.
  */
 function buildItemLine(item: DraftItem, locale: Locale, translations?: TranslationMap | null): string {
-  // Korrektur 15.09.2026 (Prüfung Modul Parser, Befund 1): ein
-  // eigenständiges V/max-Produkt "... ohne Leistungssteigerung" trägt zwar
-  // variant_group "leistung" (Exklusivität, siehe variant-groups.ts), ist
-  // aber keine Stufe - ohne die Ausnahme landete hier trotzdem der
-  // Stufen-Titel ("Leistungssteigerung mit V/max-Aufhebung") im
-  // Antwortentwurf statt des tatsächlichen Produktnamens.
-  const isStage =
-    item.category === "motor" && item.variantGroup === "leistung" && !isStandaloneVmaxProduct(item.name);
-  const display = displayItemFields(
-    {
-      name: item.name,
-      description: item.description,
-      isStage,
-      psTo: item.psTo,
-      nmTo: item.nmTo,
-    },
-    locale,
-    translations,
-  );
-  return itemLineText(
+  const display = displayFor(item, locale, translations);
+  // Räder mit erkennbaren Dimensionszeilen: Achsen als eingerückte
+  // Unterzeilen statt in Klammern (Rückmeldung dÄHLer 28.10.2026).
+  const wheel = wheelDimensionLines(item, locale);
+  const head = itemLineText(
     {
       category: item.category,
-      name: display.name,
-      description: display.description,
+      name: wheel ? stripConsistsOf(display.name) : display.name,
+      description: wheel ? null : display.description,
       price_total: item.priceTotal,
       price_status: item.priceStatus,
     },
     locale,
     { grouped: true },
   );
+  return wheel ? [head, ...wheel.map((line) => `  ${line}`)].join("\n") : head;
+}
+
+/**
+ * Empfehlungsform bei genau einer Position (Rückmeldung dÄHLer 28.10.2026,
+ * Beispielmail «Unsere Empfehlung: CDC2 FORGED Schmiederadsatz»): Name,
+ * Detailzeilen (bei Rädern die Achsen) und eine Preiszeile.
+ */
+function buildRecommendation(item: DraftItem, locale: Locale, translations?: TranslationMap | null): string {
+  const d = getDictionary(locale).draft;
+  const display = displayFor(item, locale, translations);
+  const wheel = wheelDimensionLines(item, locale);
+  const details =
+    wheel ??
+    (display.description ?? "")
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+  let price: string;
+  if (item.priceStatus === "priced" && item.priceTotal != null) price = tf(d.recommendationPrice, { price: chf(item.priceTotal) });
+  else if (item.priceStatus === "in_preparation") price = d.recommendationPriceInPreparation;
+  else price = d.recommendationPriceOnRequest;
+  return [tf(d.recommendation, { name: stripConsistsOf(display.name) }), ...details, price].join("\n");
 }
 
 /**
@@ -181,8 +236,27 @@ export function categoriesWithoutItems(
   return categories.filter((c) => !items.some((item) => item.category === c));
 }
 
+/** Ein Absatz des Antwortentwurfs; `generated` = vom Tool gebaut (Positionen, Leistung, Richtpreis), sonst ein Mailtext aus dem Admin. */
+export interface DraftParagraph {
+  text: string;
+  generated: boolean;
+}
+
 /** Antwortentwurf: Betreff und vollständiger Text, Absätze mit Leerzeile getrennt. */
 export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string; body: string } {
+  const { subject, paragraphs } = buildDraftParagraphs(ctx, locale);
+  return { subject, body: paragraphs.map((p) => p.text).join("\n\n") };
+}
+
+/**
+ * Dieselben Absätze wie buildDraft(), einzeln und mit Kennzeichnung, ob sie
+ * das Tool baut oder aus den Mailtexten stammen. Für die Live-Vorschau im
+ * Admin (components/admin/MailTextsEditor.tsx), die so die echte Logik nutzt.
+ */
+export function buildDraftParagraphs(
+  ctx: DraftContext,
+  locale: Locale,
+): { subject: string; paragraphs: DraftParagraph[] } {
   const dict = getDictionary(locale);
   const d = dict.draft;
   // Rückmeldung dÄHLer 14.10.2026: Einleitung, Charaktersatz, Überleitung
@@ -194,9 +268,11 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
 
   const yearSuffix = ctx.year && !isOlderYear(ctx.year) ? tf(d.yearSuffix, { year: ctx.year }) : "";
   const vars = {
+    anrede: anredeText(ctx.salutation, ctx.firstName, ctx.lastName, locale),
     vorname: ctx.firstName,
     name: ctx.lastName,
     fahrzeug: ctx.vehicleLabel,
+    modell: modellLabel(ctx.vehicleLabel),
     jahrgang: yearSuffix,
     nummer: ctx.number,
     schwerpunkt: emphasisText(ctx.categories, ctx.followUpAnswers, locale, texts),
@@ -205,13 +281,22 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
 
   // character ist im Schnellweg optional (null), dann entfällt der Satz.
   const characterText = ctx.character ? capitalizeFirst(fillMailText(texts[`text_draft_character_${ctx.character}`], vars)) : "";
+  const modelText = fillMailText(texts.text_draft_model, vars);
   const itemsIntro = fillMailText(texts.text_draft_items_intro, vars);
 
   // Positionen, nach Bereich gruppiert («Motor», darunter je Produkt eine
   // Zeile mit Strich), Wunsch von dÄHLer 14.10.2026 (übersichtlicher mit
   // Aufzählung). Kurzablauf ohne Preisliste: nur die gewünschten Bereiche.
+  // Genau eine Position über alle Kategorien (ohne Kategorien ohne Produkt,
+  // ohne Komplettpaket): Empfehlungsform, dann entfällt die Gesamtpaket-Preiszeile.
+  const singleItem =
+    ctx.hasPricelist && !ctx.consulting && ctx.items.length === 1 && categoriesWithoutItems(ctx.categories, ctx.items).length === 0
+      ? ctx.items[0]
+      : null;
   let itemsBlock: string;
-  if (!ctx.hasPricelist) {
+  if (singleItem) {
+    itemsBlock = buildRecommendation(singleItem, locale, ctx.translations);
+  } else if (!ctx.hasPricelist) {
     const wishLines = ctx.categories.map((c) => `- ${categoryLabel(c, locale)}`);
     if (ctx.consulting) wishLines.push(`- ${dict.steps.done.package.adviceLine}`);
     itemsBlock = wishLines.length > 0 ? wishLines.join("\n") : d.itemsFallback;
@@ -230,7 +315,7 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
     if (ctx.consulting) blocks.push(`${dict.steps.done.package.adviceLine}\n- ${d.categoryAdvice}`);
     itemsBlock = blocks.join("\n\n");
   }
-  const leadParagraph = [characterText, itemsIntro].filter(Boolean).join(" ");
+  const leadParagraph = [modelText, characterText].filter(Boolean).join(" ");
 
   // Leistungs-Satz: nur bei gewählter Motor-Leistungsstufe (variant_group
   // 'leistung') mit bekanntem Zielwert (ps_to).
@@ -246,12 +331,15 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
       })
     : null;
 
-  // Richtpreis mit Vorbehalt, der Klärungs-Nebensatz je nach Kategorien.
-  const clarification = d[clarificationKey(ctx.categories)];
-  const priceParagraph =
-    ctx.estimatedTotal != null
-      ? tf(d.priceLine, { price: chfFrom(ctx.estimatedTotal, locale), clarification })
-      : tf(d.priceLineOnRequest, { clarification });
+  // Richtpreis mit Vorbehalt als reine Faktenzeile (nur im Mehrfall), danach
+  // die Rückfrage aus den Mailtexten. Bei genau einer Position steht der
+  // Preis bereits in der Empfehlung.
+  const priceParagraph = singleItem
+    ? null
+    : ctx.estimatedTotal != null
+      ? tf(d.priceLine, { price: chfFrom(ctx.estimatedTotal, locale) })
+      : d.priceLineOnRequest;
+  const questionParagraph = fillMailText(texts[questionKey(ctx.categories)], vars);
 
   // Terminsatz: ein Text für alle Zeiträume (Wunsch dÄHLer 14.10.2026, die
   // bisherigen Zeitraum-Varianten waren zu konkret), im Admin anpassbar.
@@ -270,15 +358,21 @@ export function buildDraft(ctx: DraftContext, locale: Locale): { subject: string
   });
   const closingParagraph = `${fillMailText(texts.text_draft_closing, vars)}\n${signature}`;
 
-  const paragraphs = [
-    introParagraph,
-    leadParagraph,
-    itemsBlock,
-    performanceParagraph,
-    priceParagraph,
-    timingParagraph,
-    closingParagraph,
-  ].filter((p): p is string => !!p && p.trim() !== "");
+  const paragraphs: DraftParagraph[] = (
+    [
+      [introParagraph, false],
+      [leadParagraph, false],
+      [itemsIntro, false],
+      [itemsBlock, true],
+      [performanceParagraph, true],
+      [priceParagraph, true],
+      [questionParagraph, false],
+      [timingParagraph, false],
+      [closingParagraph, false],
+    ] as [string | null, boolean][]
+  )
+    .filter((entry): entry is [string, boolean] => !!entry[0] && entry[0].trim() !== "")
+    .map(([text, generated]) => ({ text, generated }));
 
-  return { subject, body: paragraphs.join("\n\n") };
+  return { subject, paragraphs };
 }

@@ -1,5 +1,6 @@
 import { admin } from "@/lib/i18n/admin";
 import { de } from "@/lib/i18n/de";
+import { fullNameWithSalutation } from "@/lib/mail/anrede";
 import { optionLabel } from "@/lib/mail/render";
 import type { MailInquiryContext } from "@/lib/mail/types";
 import { Card } from "./Card";
@@ -7,7 +8,8 @@ import { Card } from "./Card";
 /** Kunde: mailto/tel-Links (Aufgabenstellung), Kanal, Neu-/Bestandskunde. */
 export function CustomerCard({ ctx }: { ctx: MailInquiryContext }) {
   const { inquiry } = ctx;
-  const name = [inquiry.first_name, inquiry.last_name].filter(Boolean).join(" ");
+  // Anzeige mit Anrede, «Herr Christoph Dähler» (Rückmeldung dÄHLer 28.10.2026).
+  const name = fullNameWithSalutation(inquiry.salutation, inquiry.first_name, inquiry.last_name);
   const channel = optionLabel(de.steps.contact.channels, inquiry.channel);
 
   return (

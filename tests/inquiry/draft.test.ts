@@ -71,48 +71,59 @@ function m2Ctx(): DraftContext {
   };
 }
 
-// Rückmeldung dÄHLer 14.10.2026: Standardtexte nach seiner Beispielmail
+// Rückmeldung dÄHLer 28.10.2026: Standardtexte nach seiner Beispielmail
 // (lib/mail/texts.ts), Positionen nach Bereich gruppiert mit Strichen.
-const INTRO_DE = "Vielen Dank für Ihre Anfrage und Ihr Interesse an unseren dÄHLer Performance-Komponenten für Ihren";
-const LEAD_DE =
-  "Spürbar mehr Leistung, eine sportliche Klangkulisse und ein präzises Fahrverhalten in Kombination mit uneingeschränkter Alltagstauglichkeit entspricht genau unserem Anspruch. Gerne prüfen wir die passende Lösung für Ihr Fahrzeug und unterbreiten Ihnen dazu folgendes Angebot:";
+const INTRO_DE = "Vielen Dank für Ihre Anfrage und Ihr Interesse an einer individuellen Lösung von dÄHLer für Ihren";
+const MODEL_DE = "Der BMW M2 verbindet pure Sportlichkeit mit beeindruckender Alltagstauglichkeit.";
+const LEAD_DE = `${MODEL_DE} Spürbar mehr Leistung, eine sportliche Klangkulisse und ein präzises Fahrverhalten, sportlich und präzise abgestimmt, genau hier setzen wir bei dÄHLer an.`;
+const ITEMS_INTRO_DE = "Für Ihren BMW M2 bieten wir Ihnen Folgendes an:";
+const QUESTION_FAHRWERK_DE =
+  "Damit wir Ihnen ein exakt auf Ihr Fahrzeug abgestimmtes Angebot erstellen können, bitten wir Sie noch um eine kurze Rückmeldung, ob Ihr BMW M2 mit dem adaptiven M-Fahrwerk ausgestattet ist. Anschliessend können wir die Details prüfen und Ihnen den definitiven Preis bestätigen.";
+const QUESTION_GENERIC_DE =
+  "Damit wir Ihnen ein exakt auf Ihr Fahrzeug abgestimmtes Angebot erstellen können, prüfen wir die gewünschte Ausführung. Anschliessend bestätigen wir Ihnen gerne den definitiven Preis.";
 const TIMING_DE =
-  "Für die kommenden Wochen verfügen wir noch über mögliche Werkstatttermine. Gerne reservieren wir Ihnen einen passenden Termin, sobald Sie uns Ihr Einverständnis geben und die gewünschte Ausführung feststeht.";
+  "Gerne übernehmen wir die fachgerechte Montage bei uns in Belp. Für die kommenden Wochen können wir Ihnen bereits passende Werkstatttermine anbieten und reservieren Ihnen gerne einen Termin, sobald Sie sich für die Umsetzung entschieden haben.";
 const CLOSING_DE = [
-  "Bei Fragen oder zur weiteren Besprechung stehen wir Ihnen selbstverständlich gerne telefonisch oder per E-Mail zur Verfügung. Wir freuen uns, Ihr Fahrzeug gemeinsam mit Ihnen sportlich und technisch sinnvoll weiterzuentwickeln.",
-  ["Freundliche Grüsse", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
+  "Wenn Sie Fragen haben oder die Ausführung im Detail mit uns besprechen möchten, freuen wir uns auf Ihren Anruf oder Ihre kurze Rückmeldung per E-Mail.",
+  "Wir würden uns freuen, Ihren BMW M2 gemeinsam mit Ihnen noch individueller zu gestalten.",
+  ["Sportliche Grüsse aus Belp", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
 ].join("\n\n");
 
 const M2_BODY_DE = [
   "Guten Tag Max Muster",
   `${INTRO_DE} BMW M2 (G87), Jahrgang 2025.`,
   LEAD_DE,
+  ITEMS_INTRO_DE,
   [
     ["Motor", "- Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180"].join("\n"),
     ["Auspuff", "- Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, ab CHF 5'260"].join("\n"),
     ["Fahrwerk", "- Sportfedernsatz für M2 / VA -20mm/ HA -14mm, ab CHF 1'630"].join("\n"),
   ].join("\n\n"),
   "Mit Stufe 1 kommt Ihr BMW M2 (G87) auf 620 PS / 740 Nm, WLTP-geprüft und mit CH-Gutachten. Die Ergänzungsgarantie zur Werksgarantie ist für ein Jahr inbegriffen.",
-  "Richtpreis für das Gesamtpaket: ab CHF 11'070, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung Ihres Serienfahrwerks (adaptives M-Fahrwerk ja oder nein) bestätigt. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
+  "Richtpreis für das Gesamtpaket: ab CHF 11'070, inklusive Montage, exklusive MFK.",
+  QUESTION_FAHRWERK_DE,
   TIMING_DE,
   CLOSING_DE,
 ].join("\n\n");
 
 const M2_BODY_EN = [
   "Dear Max Muster",
-  "Thank you for your enquiry and your interest in dÄHLer performance components for your BMW M2 (G87), model year 2025.",
-  "Noticeably more power, a sporty sound and precise handling combined with full everyday usability is exactly what we stand for. We will be glad to check the right solution for your car and are pleased to offer you the following:",
+  "Thank you for your enquiry and your interest in an individual dÄHLer solution for your BMW M2 (G87), model year 2025.",
+  "The BMW M2 combines pure sportiness with impressive everyday usability. Noticeably more power, a sporty sound and precise handling, sporty and precisely set up, is exactly where we at dÄHLer come in.",
+  "For your BMW M2 we can offer you the following:",
   [
     ["Engine", "- Stage 1 (620 PS / 740 Nm, M6 & A8-Getriebe), from CHF 4'180"].join("\n"),
     ["Exhaust", "- Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, from CHF 5'260"].join("\n"),
     ["Suspension", "- Sportfedernsatz für M2 / VA -20mm/ HA -14mm, from CHF 1'630"].join("\n"),
   ].join("\n\n"),
   "With Stage 1 your BMW M2 (G87) reaches 620 PS / 740 Nm, WLTP tested and with a Swiss approval certificate. The one year warranty extension to the factory warranty is included.",
-  "Indicative price for the complete package: from CHF 11'070, including fitting, excluding roadworthiness test. The final price will be confirmed after checking your standard suspension (adaptive M suspension or not). This way we make sure that all components are perfectly matched.",
-  "We still have workshop slots available in the coming weeks. We will be happy to reserve a suitable date for you as soon as you give us the go-ahead and the desired configuration is settled.",
+  "Indicative price for the complete package: from CHF 11'070, including fitting, excluding roadworthiness test.",
+  "So that we can prepare an offer that is precisely matched to your car, we would ask you for a brief reply on whether your BMW M2 is equipped with the adaptive M suspension. We can then check the details and confirm the final price to you.",
+  "We would be happy to carry out the professional fitting at our workshop in Belp. We can already offer you suitable workshop dates for the coming weeks and will be glad to reserve a date for you as soon as you have decided to go ahead.",
   [
-    "If you have any questions or would like to discuss the details, we are happy to help by phone or e-mail. We look forward to developing your car together with you, sporty and technically sound.",
-    ["Kind regards", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
+    "If you have any questions or would like to discuss the details with us, we look forward to your call or a brief reply by e-mail.",
+    "We would be delighted to make your BMW M2 even more individual together with you.",
+    ["Sporty greetings from Belp", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
   ].join("\n\n"),
 ].join("\n\n");
 
@@ -137,18 +148,21 @@ function wiesmannCtx(): DraftContext {
 const WIESMANN_BODY_DE = [
   "Guten Tag Peter Beispiel",
   `${INTRO_DE} Wiesmann.`,
-  "Spürbar mehr Leistung und ein markanter Auftritt, dezent und stilsicher umgesetzt, entspricht genau unserem Anspruch. Gerne prüfen wir die passende Lösung für Ihr Fahrzeug und unterbreiten Ihnen dazu folgendes Angebot:",
+  "Der Wiesmann verbindet pure Sportlichkeit mit beeindruckender Alltagstauglichkeit. Spürbar mehr Leistung und ein markanter Auftritt, dezent und stilsicher umgesetzt, genau hier setzen wir bei dÄHLer an.",
+  "Für Ihren Wiesmann bieten wir Ihnen Folgendes an:",
   ["- Motor", "- Exterieur"].join("\n"),
-  "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung der gewünschten Ausführung, inklusive Montage, exklusive MFK. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
+  "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Montage, exklusive MFK.",
+  QUESTION_GENERIC_DE,
   TIMING_DE,
-  CLOSING_DE,
+  CLOSING_DE.replace("BMW M2", "Wiesmann"),
 ].join("\n\n");
 
 /** Jede Zeile grammatisch prüfen: keine doppelten Leerzeichen, kein
  * unersetzter Platzhalter, keine Gedankenstriche, endet mit der Signatur. */
 function assertClean(body: string, phone: string): void {
   for (const line of body.split("\n")) {
-    expect(line, `Zeile ohne doppelte Leerzeichen: "${line}"`).not.toMatch(/ {2,}/);
+    // Führende Einrückung (Achszeilen eines Radsatzes) ist gewollt.
+    expect(line.trimStart(), `Zeile ohne doppelte Leerzeichen: "${line}"`).not.toMatch(/ {2,}/);
   }
   expect(body, "kein unersetzter Platzhalter").not.toMatch(/\{[a-zA-Z]/);
   expect(body, "keine Gedankenstriche").not.toMatch(/[‒–—―]/);
@@ -322,8 +336,9 @@ describe("buildDraft: Positionszeile mit mehrzeiliger Beschreibung (Befund #2 de
   it("Radsatz-Beschreibung ohne Zeilenumbruch in der Positionszeile, kein Doppelpunkt vor der Klammer", () => {
     const ctx = { ...m2Ctx(), items: [RADSATZ], estimatedTotal: 7100 };
     const { body } = buildDraft(ctx, "de");
+    // Rückmeldung dÄHLer 28.10.2026: Achsen als eingerückte Unterzeilen, kein «bestehend aus».
     expect(body).toContain(
-      'Räder\n- CDC1 FORGED Radsatz geschmiedet bestehend aus (10 x 20" mit 275/30 20, 10 x 20" mit 285/30 20), ab CHF 7\'100',
+      "Räder\n- CDC1 FORGED Radsatz geschmiedet, ab CHF 7'100\n  10 × 20 Zoll mit Bereifung 275/30 R20\n  10 × 20 Zoll mit Bereifung 285/30 R20",
     );
     assertClean(body, SETTINGS.signaturePhone);
   });
@@ -440,9 +455,9 @@ describe("buildDraft: Mailtexte aus dem Admin (lib/mail/texts.ts)", () => {
   });
 
   it("unbekannter Platzhalter wird geleert, nie roh an den Kunden", () => {
-    const ctx = { ...m2Ctx(), settings: { ...SETTINGS, texts: { text_draft_intro: "Guten Tag {{anrede}} {{name}}" } } };
+    const ctx = { ...m2Ctx(), settings: { ...SETTINGS, texts: { text_draft_intro: "Guten Tag {{anrede}} {{name}} {{tippfehler}}" } } };
     const { body } = buildDraft(ctx, "de");
-    expect(body.startsWith("Guten Tag Muster")).toBe(true);
+    expect(body.startsWith("Guten Tag Max Muster Muster")).toBe(true);
     expect(body).not.toContain("{{");
   });
 
@@ -464,13 +479,13 @@ describe("buildDraft: Charaktersatz mit Schwerpunkt", () => {
     const ctx = { ...m2Ctx(), categories: ["auspuff"] as DraftContext["categories"], followUpAnswers: { auspuff: "kraeftig" }, items: [KOMPLETTANLAGE], estimatedTotal: 5260 };
     const { body } = buildDraft(ctx, "de");
     expect(body).toContain(
-      "Eine kräftige Klangkulisse in Kombination mit uneingeschränkter Alltagstauglichkeit entspricht genau unserem Anspruch. Gerne prüfen wir die passende Lösung für Ihr Fahrzeug und unterbreiten Ihnen dazu folgendes Angebot:",
+      `${MODEL_DE} Eine kräftige Klangkulisse, sportlich und präzise abgestimmt, genau hier setzen wir bei dÄHLer an.\n\n${ITEMS_INTRO_DE}`,
     );
   });
 
   it("nur Komplettpaket ohne Bereiche: neutrale Wendung", () => {
     const ctx = { ...m2Ctx(), categories: [] as DraftContext["categories"], consulting: true, items: [], estimatedTotal: null };
-    expect(buildDraft(ctx, "de").body).toContain("Ein stimmiges Gesamtpaket in Kombination mit");
+    expect(buildDraft(ctx, "de").body).toContain("Ein stimmiges Gesamtpaket, sportlich und präzise abgestimmt");
   });
 });
 
@@ -482,6 +497,114 @@ describe("buildDraft: Schwerpunkt-Wendungen aus dem Admin", () => {
       followUpAnswers: { auspuff: "kraeftig" },
       settings: { ...SETTINGS, texts: { text_emph_motor: "deutlich mehr Druck", text_emph_auspuff_kraeftig: "" } },
     };
-    expect(buildDraft(ctx, "de").body).toContain("Deutlich mehr Druck und eine kräftige Klangkulisse in Kombination mit");
+    expect(buildDraft(ctx, "de").body).toContain("Deutlich mehr Druck und eine kräftige Klangkulisse, sportlich und präzise abgestimmt");
+  });
+});
+
+// --- Rückmeldung dÄHLer 28.10.2026: Anrede, {{modell}}, Empfehlungsform, Achszeilen
+const CDC2: DraftItem = {
+  category: "raeder",
+  name: "CDC2 FORGED Schmiederadsatz bestehend aus:",
+  description: '9 x 20" mit 255/30 20 VA\n10 x 20" mit 275/30 20 HA',
+  priceTotal: 7300,
+  priceStatus: "priced",
+  psTo: null,
+  nmTo: null,
+  variantGroup: null,
+};
+
+function raederCtx(overrides: Partial<DraftContext> = {}): DraftContext {
+  return { ...m2Ctx(), categories: ["raeder"], items: [CDC2], estimatedTotal: 7300, ...overrides };
+}
+
+describe("buildDraft: Anrede und {{modell}}", () => {
+  it("mit Anrede Herr: «Guten Tag Herr Muster»", () => {
+    const { body } = buildDraft(raederCtx({ salutation: "herr" }), "de");
+    expect(body.startsWith("Guten Tag Herr Muster\n\n")).toBe(true);
+    expect(buildDraft(raederCtx({ salutation: "frau" }), "de").body.startsWith("Guten Tag Frau Muster\n\n")).toBe(true);
+    expect(buildDraft(raederCtx({ salutation: "herr" }), "en").body.startsWith("Dear Mr Muster\n\n")).toBe(true);
+    expect(buildDraft(raederCtx({ salutation: "frau" }), "en").body.startsWith("Dear Ms Muster\n\n")).toBe(true);
+  });
+
+  it("ohne Anrede: «Vorname Name» wie bisher, nie aus dem Vornamen abgeleitet", () => {
+    expect(buildDraft(raederCtx(), "de").body.startsWith("Guten Tag Max Muster\n\n")).toBe(true);
+    expect(buildDraft(raederCtx({ salutation: null }), "de").body.startsWith("Guten Tag Max Muster\n\n")).toBe(true);
+  });
+
+  it("{{modell}} ohne Baureihencode, {{fahrzeug}} unverändert", () => {
+    const { body } = buildDraft(raederCtx(), "de");
+    expect(body).toContain("Ihren BMW M2 (G87), Jahrgang 2025.");
+    expect(body).toContain("Der BMW M2 verbindet");
+    expect(body).toContain("Für Ihren BMW M2 bieten wir");
+    expect(body).not.toContain("BMW M2 (G87) verbindet");
+  });
+});
+
+describe("buildDraft: genau eine Position, Empfehlungsform mit Achszeilen", () => {
+  it("de: Empfehlung, Achszeilen, Preiszeile, keine Gesamtpaket-Zeile, Fahrwerk-Rückfrage bei Rädern", () => {
+    const { body } = buildDraft(raederCtx(), "de");
+    expect(body).toContain(
+      [
+        "Unsere Empfehlung: CDC2 FORGED Schmiederadsatz",
+        "Vorderachse: 9 × 20 Zoll mit Bereifung 255/30 R20",
+        "Hinterachse: 10 × 20 Zoll mit Bereifung 275/30 R20",
+        "Preis: ab CHF 7'300, inklusive Montage, exklusive MFK",
+      ].join("\n"),
+    );
+    expect(body).not.toContain("Richtpreis für das Gesamtpaket");
+    expect(body).not.toContain("bestehend aus");
+    expect(body).toContain(`\n\n${QUESTION_FAHRWERK_DE}\n\n${TIMING_DE}`);
+    assertClean(body, SETTINGS.signaturePhone);
+  });
+
+  it("en: Front axle / Rear axle", () => {
+    const { body } = buildDraft(raederCtx(), "en");
+    expect(body).toContain(
+      [
+        "Our recommendation: CDC2 FORGED Schmiederadsatz",
+        "Front axle: 9 × 20 inch with 255/30 R20 tyres",
+        "Rear axle: 10 × 20 inch with 275/30 R20 tyres",
+        "Price: from CHF 7'300, including fitting, excluding roadworthiness test",
+      ].join("\n"),
+    );
+  });
+
+  it("Freiform der Excel bleibt wörtlich, nichts ergänzt", () => {
+    const item = { ...CDC2, description: "11 x 23 mit VA 285/ 35 23, HA 325/30 23 in Wunschfarbe lackiert" };
+    const { body } = buildDraft(raederCtx({ items: [item] }), "de");
+    expect(body).toContain(
+      "Unsere Empfehlung: CDC2 FORGED Schmiederadsatz\n11 x 23 mit VA 285/ 35 23, HA 325/30 23 in Wunschfarbe lackiert\nPreis: ab CHF 7'300",
+    );
+  });
+
+  it("auf Anfrage und in Vorbereitung: Preiszeile ohne Betrag", () => {
+    const onRequest = buildDraft(raederCtx({ items: [{ ...CDC2, priceTotal: null, priceStatus: "on_request" }], estimatedTotal: null }), "de").body;
+    expect(onRequest).toContain("\nPreis: auf Anfrage\n");
+    const prep = buildDraft(raederCtx({ items: [{ ...CDC2, priceTotal: null, priceStatus: "in_preparation" }], estimatedTotal: null }), "de").body;
+    expect(prep).toContain("\nPreis: in Vorbereitung\n");
+  });
+
+  it("Stufe 1 allein: Empfehlung mit Leistungssatz, allgemeine Rückfrage", () => {
+    const ctx = { ...m2Ctx(), categories: ["motor"] as DraftContext["categories"], items: [STUFE_1], estimatedTotal: 4180 };
+    const { body } = buildDraft(ctx, "de");
+    expect(body).toContain("Unsere Empfehlung: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe)\nPreis: ab CHF 4'180, inklusive Montage, exklusive MFK");
+    expect(body).toContain(QUESTION_GENERIC_DE);
+  });
+
+  it("Kategorie ohne Produkt oder Komplettpaket: keine Empfehlungsform", () => {
+    const withGap = buildDraft(raederCtx({ categories: ["raeder", "motor"] }), "de").body;
+    expect(withGap).not.toContain("Unsere Empfehlung");
+    expect(withGap).toContain("Richtpreis für das Gesamtpaket: ab CHF 7'300");
+    const consulting = buildDraft(raederCtx({ consulting: true }), "de").body;
+    expect(consulting).not.toContain("Unsere Empfehlung");
+  });
+});
+
+describe("buildDraft: Rückfrage nach Auswahl", () => {
+  it("Motor und Auspuff ohne Fahrwerk/Räder: Kombination prüfen", () => {
+    const ctx = { ...m2Ctx(), categories: ["motor", "auspuff"] as DraftContext["categories"], items: [STUFE_1, KOMPLETTANLAGE], estimatedTotal: 9440 };
+    const { body } = buildDraft(ctx, "de");
+    expect(body).toContain("prüfen wir die gewünschte Kombination aus Software-Leistungssteigerung und Abgasanlage");
+    expect(body).not.toContain("adaptiven M-Fahrwerk");
   });
 });

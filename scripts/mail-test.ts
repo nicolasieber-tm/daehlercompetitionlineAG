@@ -57,6 +57,7 @@ const ctx: MailInquiryContext = {
     email: "fixture-kunde@example.com",
     estimated_total: 8360,
     family_id: "00000000-0000-0000-0000-000000000001",
+    salutation: null,
     first_name: "Nadia",
     follow_up_answers: { motor: "beides", auspuff: "kraeftig" },
     gearbox: null,

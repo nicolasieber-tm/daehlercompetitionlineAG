@@ -12,6 +12,7 @@
 import { de } from "@/lib/i18n/de";
 import { tf } from "@/lib/i18n/dictionaries";
 import { admin } from "@/lib/i18n/admin";
+import { fullNameWithSalutation } from "@/lib/mail/anrede";
 import { formatDate, inquiryNumberLabel } from "@/lib/i18n/format";
 import { goalText } from "@/lib/inquiry/summary";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
@@ -138,7 +139,7 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
   const received =
     `${formatDate(new Date(inquiry.created_at), LOCALE)} · ` +
     (inquiry.source === "quick" ? t.viaQuick : t.viaWeb);
-  const customer = [name, inquiry.city].filter(Boolean).join(", ") +
+  const customer = [fullNameWithSalutation(inquiry.salutation, inquiry.first_name, inquiry.last_name), inquiry.city].filter(Boolean).join(", ") +
     [inquiry.phone, inquiry.email].filter(Boolean).map((v) => ` · ${v}`).join("");
   const channel = optionLabel(de.steps.contact.channels, inquiry.channel);
   const contactVia = [channel, inquiry.been_here ? t.existingCustomer : t.newCustomer]

@@ -50,7 +50,13 @@ export function escapeHtml(value: string): string {
 }
 
 function nl2br(value: string): string {
-  return escapeHtml(value).replace(/\n/g, "<br>");
+  // Führende Leerzeichen einer Zeile (eingerückte Unterzeilen, z.B. die
+  // Achsen eines Radsatzes im Antwortentwurf) bleiben als geschützte
+  // Leerzeichen erhalten, sonst fasst HTML sie zusammen.
+  return escapeHtml(value)
+    .split("\n")
+    .map((line) => line.replace(/^ +/, (spaces) => "&nbsp;".repeat(spaces.length)))
+    .join("<br>");
 }
 
 // --- Kategorie- und Fahrzeug-Hilfen -----------------------------------------
@@ -168,6 +174,19 @@ interface ItemLineParts {
   descriptionLines: string[];
   /** Fertig formatierter Preis-Suffix (", ab CHF 4'180" / ", in Vorbereitung" / ", auf Anfrage" / ""). */
   price: string;
+}
+
+/**
+ * Entfernt ein abschliessendes «bestehend aus:» (Radsätze der Excel,
+ * «CDC1 FORGED Radsatz geschmiedet bestehend aus:») und einen verbleibenden
+ * Doppelpunkt am Namensende. Für Darstellungen, in denen die Achsen als
+ * eigene Zeilen folgen (Rückmeldung dÄHLer 28.10.2026).
+ */
+export function stripConsistsOf(name: string): string {
+  return name
+    .replace(/\s*bestehend aus\s*:?\s*$/i, "")
+    .replace(/:\s*$/, "")
+    .trim();
 }
 
 function itemLineParts(item: MailInquiryItem, locale: Locale): ItemLineParts {

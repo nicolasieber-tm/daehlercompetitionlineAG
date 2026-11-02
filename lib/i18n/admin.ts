@@ -13,6 +13,7 @@ export const admin = {
     models: "Modelle",
     followups: "Follow-ups",
     quick: "Schnellweg",
+    mailTexts: "Mailtexte",
     settings: "Einstellungen",
     translations: "Übersetzungen",
     logout: "Abmelden",
@@ -257,76 +258,11 @@ export const admin = {
       signature_phone: { label: "Signatur, Telefon", help: "Telefonnummer in der Signatur." },
       company_address: { label: "Firmenadresse", help: "Firmenzeile in Signatur und Mail-Fusszeile." },
     },
-    // Rückmeldung dÄHLer 14.10.2026, siehe lib/mail/texts.ts.
-    mailTexts: {
+    // Die Mailtexte haben seit 28.10.2026 eine eigene Seite (admin.mailTexts).
+    mailTextsHint: {
       title: "Mailtexte",
-      intro:
-        "Diese Texte rahmen die Mails an Ihre Kunden ein. Fahrzeug, Positionen, Preise, Vorher/Nachher und Richtsumme fügt das Tool automatisch dazwischen ein. Ein leeres Feld verwendet den Standardtext. Änderungen gelten für neue Anfragen und für «Entwurf neu erzeugen».",
-      languageLabel: "Sprache der Mailtexte",
-      languages: { de: "Deutsch", en: "Englisch" },
-      languageHint: {
-        de: "Für Anfragen, die auf Deutsch gestellt wurden.",
-        en: "Für Anfragen, die auf Englisch gestellt wurden (Sprachumschaltung im Flow). Positionen bleiben die Excel-Texte bzw. deren Übersetzungen.",
-      },
-      placeholders: "Platzhalter, die das Tool ersetzt:",
-      confirmationTitle: "Bestätigungsmail an den Kunden (automatisch nach dem Absenden)",
-      draftTitle: "Antwortentwurf (bearbeiten Sie vor dem Senden in der Anfrage)",
-      restoreDefault: "Standardtext wiederherstellen",
-      emphasisTitle: "Schwerpunkte (Platzhalter {{schwerpunkt}})",
-      emphasisIntro:
-        "Aus diesen Wendungen setzt das Tool {{schwerpunkt}} zusammen, je nach gewählten Bereichen und Antworten, höchstens drei, z.B. «spürbar mehr Leistung, eine kräftige Klangkulisse und ein markanter Auftritt». Bitte klein beginnen und im Nominativ schreiben (mit «ein/eine»), die Wendung steht oft mitten im Satz.",
-      save: "Mailtexte speichern (beide Sprachen)",
-      saved: "Mailtexte gespeichert.",
-      fields: {
-        text_confirmation_intro: {
-          label: "Bestätigung: Anrede und Einleitung",
-          help: "Danach folgt der Charaktersatz (siehe Antwortentwurf unten, gilt für beide Mails).",
-        },
-        text_confirmation_lead: {
-          label: "Bestätigung: Überleitung zur Übersicht",
-          help: "Steht direkt nach dem Charaktersatz, vor Fahrzeug, Wunsch und Paket.",
-        },
-        text_confirmation_closing: {
-          label: "Bestätigung: Schluss und Grüsse",
-          help: "Steht nach dem Paket und den nächsten Schritten.",
-        },
-        text_draft_intro: {
-          label: "Antwort: Anrede und Dank",
-          help: "{{jahrgang}} ergibt z.B. «, Jahrgang 2025» oder bleibt leer.",
-        },
-        text_draft_character_dezent: {
-          label: "Satz bei Charakter «Dezent» (Bestätigung und Antwort)",
-          help: "{{schwerpunkt}} setzt das Tool aus den gewählten Bereichen und Antworten zusammen, z.B. «spürbar mehr Leistung und eine kräftige Klangkulisse».",
-        },
-        text_draft_character_sportlich: {
-          label: "Satz bei Charakter «Sportlich» (Bestätigung und Antwort)",
-          help: "{{schwerpunkt}} wie oben. Steht er am Satzanfang, wird er automatisch gross geschrieben.",
-        },
-        text_draft_character_maximum: { label: "Satz bei Charakter «Maximum» (Bestätigung und Antwort)", help: "{{schwerpunkt}} wie oben." },
-        text_draft_items_intro: {
-          label: "Antwort: Überleitung zu den Positionen",
-          help: "Danach folgen die Positionen, nach Bereich gruppiert.",
-        },
-        text_draft_timing: {
-          label: "Antwort: Termin",
-          help: "Steht nach Leistungsangabe und Richtpreis.",
-        },
-        text_draft_closing: {
-          label: "Antwort: Schluss und Grüsse",
-          help: "Danach folgt die Signatur (Name, Firma, Telefon aus den Einstellungen oben).",
-        },
-        text_emph_motor: { label: "Motor gewählt", help: "" },
-        text_emph_auspuff_dezent: { label: "Auspuff, Antwort «Dezent, mit Klappe»", help: "" },
-        text_emph_auspuff_kraeftig: { label: "Auspuff, Antwort «Kräftig»", help: "" },
-        text_emph_auspuff_rennstrecke: { label: "Auspuff, Antwort «Rennstrecke»", help: "" },
-        text_emph_auspuff_default: { label: "Auspuff, ohne Antwort", help: "" },
-        text_emph_fahrwerk_pass: { label: "Fahrwerk, Antwort «Pass und Kurven»", help: "" },
-        text_emph_fahrwerk_track: { label: "Fahrwerk, Antwort «Trackdays»", help: "" },
-        text_emph_fahrwerk_default: { label: "Fahrwerk, Antwort «Alltag» oder ohne Antwort", help: "" },
-        text_emph_look: { label: "Räder oder Exterieur gewählt", help: "" },
-        text_emph_interieur: { label: "Interieur gewählt", help: "" },
-        text_emph_fallback: { label: "Nur «Komplettpaket, beraten Sie mich»", help: "" },
-      },
+      text: "Einleitung, Charaktersätze, Rückfragen, Termin und Schluss der Mails an Ihre Kunden bearbeiten Sie auf der eigenen Seite «Mailtexte», mit Live-Vorschau.",
+      link: "Zu den Mailtexten",
     },
     overrides: {
       title: "Testmodus (Umgebungsvariablen)",
@@ -336,6 +272,143 @@ export const admin = {
       resendFromActive: "RESEND_FROM_OVERRIDE aktiv: Absenderadresse überschrieben auf {value}.",
       resendFromInactive: "RESEND_FROM_OVERRIDE nicht gesetzt.",
     },
+  },
+  // Seite «Mailtexte» (Rückmeldung dÄHLer 14.10.2026, eigene Seite mit
+  // Live-Vorschau seit 28.10.2026), siehe lib/mail/texts.ts und
+  // components/admin/MailTextsEditor.tsx.
+  mailTexts: {
+    title: "Mailtexte",
+    subtitle: "Die Texte, die Ihre Mails an Kunden einrahmen, mit Live-Vorschau.",
+    intro:
+      "Diese Texte rahmen die Mails an Ihre Kunden ein. Fahrzeug, Positionen, Preise, Vorher/Nachher und Richtsumme fügt das Tool automatisch dazwischen ein (in der Vorschau grau hinterlegt). Ein leeres Feld verwendet den Standardtext. Änderungen gelten für neue Anfragen und für «Entwurf neu erzeugen».",
+    languageLabel: "Sprache der Mailtexte",
+    languages: { de: "Deutsch", en: "Englisch" },
+    languageHint: {
+      de: "Für Anfragen, die auf Deutsch gestellt wurden.",
+      en: "Für Anfragen, die auf Englisch gestellt wurden (Sprachumschaltung im Flow). Positionen bleiben die Excel-Texte bzw. deren Übersetzungen.",
+    },
+    sections: {
+      draft: "Antwortentwurf",
+      confirmation: "Bestätigungsmail",
+      emphasis: "Schwerpunkt-Wendungen",
+    },
+    sectionsLabel: "Bereich",
+    draftIntro: "Der Antwortentwurf, den Sie in der Anfrage bearbeiten und senden. Die Felder stehen in der Reihenfolge der Mail.",
+    confirmationIntro:
+      "Die Bestätigung, die der Kunde automatisch nach dem Absenden erhält. Der Charaktersatz (Antwortentwurf, Feld 3) steht auch hier, direkt vor der Überleitung.",
+    placeholders: {
+      title: "Platzhalter",
+      hint: "Ein Klick fügt den Platzhalter an der Cursorposition des zuletzt angeklickten Felds ein.",
+      noField: "Klicken Sie zuerst in ein Textfeld.",
+      explanations: {
+        anrede: "Herr Dähler (bzw. Frau Muster). Ohne Angabe des Kunden: Vorname Name",
+        vorname: "Vorname des Kunden, z.B. Max",
+        name: "Nachname des Kunden, z.B. Muster",
+        fahrzeug: "Fahrzeug mit Baureihencode, z.B. BMW M2 (G87)",
+        modell: "Fahrzeug ohne Baureihencode, z.B. BMW M2",
+        jahrgang: "Baujahr, z.B. «, Jahrgang 2025», oder leer",
+        nummer: "Anfragenummer, z.B. 2026-0912",
+        schwerpunkt: "Wendungen aus den gewählten Bereichen, z.B. «spürbar mehr Leistung und eine kräftige Klangkulisse»",
+      } as Record<string, string>,
+    },
+    restoreDefault: "Standardtext wiederherstellen",
+    toolBlock: {
+      positions: "Hier fügt das Tool die Positionen mit Preisen ein, dazu bei Motor den Leistungssatz und bei mehreren Positionen die Richtpreiszeile.",
+      overview: "Hier fügt das Tool Fahrzeug, Wunsch, Vorher/Nachher, Positionen, Richtsumme, Link und nächste Schritte ein.",
+    },
+    preview: {
+      title: "Vorschau",
+      subjectLabel: "Betreff",
+      scenarioLabel: "Beispielanfrage",
+      scenarios: {
+        single: "Ein Produkt: Räder BMW M2 (G87), Herr",
+        multi: "Mehrere Bereiche: Motor Stufe 1 + Auspuff, sportlich",
+        noSalutation: "Ohne Anrede",
+      },
+      legendText: "Ihr Mailtext",
+      legendGenerated: "Vom Tool erzeugt",
+      note: "Die Vorschau nutzt dieselbe Logik wie der Versand, mit erfundenen Beispieldaten. Die Beispielprodukte sind nur Platzhalter.",
+      signatureNote: "Signatur aus den Einstellungen.",
+    },
+    emphasis: {
+      intro:
+        "Diese Wendungen setzt das Tool für {{schwerpunkt}} ein, je nachdem, was der Kunde gewählt hat. Mehrere Wendungen werden mit «und» verbunden, höchstens drei. Beispiel: Wählt der Kunde Motor und Auspuff (Kräftig), steht im Charaktersatz «Spürbar mehr Leistung und eine kräftige Klangkulisse, sportlich und präzise abgestimmt, …». Bitte klein beginnen und im Nominativ schreiben (mit «ein/eine»), die Wendung steht oft mitten im Satz.",
+      colWhen: "Wenn der Kunde wählt",
+      colPhrase: "Wendung",
+      rows: {
+        text_emph_motor: "Motor",
+        text_emph_auspuff_dezent: "Auspuff, Lautstärke {auspuff.dezent}",
+        text_emph_auspuff_kraeftig: "Auspuff, Lautstärke {auspuff.kraeftig}",
+        text_emph_auspuff_rennstrecke: "Auspuff, Lautstärke {auspuff.rennstrecke}",
+        text_emph_auspuff_default: "Auspuff, ohne Angabe zur Lautstärke",
+        text_emph_fahrwerk_pass: "Fahrwerk, Einsatz {fahrwerk.pass}",
+        text_emph_fahrwerk_track: "Fahrwerk, Einsatz {fahrwerk.track}",
+        text_emph_fahrwerk_default: "Fahrwerk, Einsatz {fahrwerk.alltag} oder ohne Angabe",
+        text_emph_look: "Räder oder Exterieur",
+        text_emph_interieur: "Interieur",
+        text_emph_fallback: "nichts davon (nur «Komplettpaket, beraten Sie mich»)",
+      } as Record<string, string>,
+    },
+    save: "Mailtexte speichern (beide Sprachen)",
+    saved: "Mailtexte gespeichert.",
+    fields: {
+      text_draft_intro: {
+        label: "1. Begrüssung und Einleitung",
+        help: "Beginnt mit «Guten Tag {{anrede}}». {{jahrgang}} ergibt z.B. «, Jahrgang 2025» oder bleibt leer.",
+      },
+      text_draft_model: {
+        label: "2. Satz zum Fahrzeug",
+        help: "Steht im selben Absatz wie der Charaktersatz, direkt davor. Mit {{modell}} ohne Baureihencode.",
+      },
+      text_draft_character_dezent: {
+        label: "3. Charaktersatz bei «Dezent»",
+        help: "Je nach Wahl des Kunden im Schritt Charakter, gilt für beide Mails. {{schwerpunkt}} setzt das Tool aus den gewählten Bereichen zusammen (Reiter «Schwerpunkt-Wendungen»). Am Satzanfang wird er automatisch gross geschrieben.",
+      },
+      text_draft_character_sportlich: {
+        label: "3. Charaktersatz bei «Sportlich»",
+        help: "Wie oben.",
+      },
+      text_draft_character_maximum: {
+        label: "3. Charaktersatz bei «Maximum»",
+        help: "Wie oben.",
+      },
+      text_draft_items_intro: {
+        label: "4. Überleitung zu den Positionen",
+        help: "Eigener Absatz, danach folgen die Positionen.",
+      },
+      text_draft_question_fahrwerk: {
+        label: "5a. Rückfrage bei Fahrwerk oder Räder",
+        help: "Steht nach den Positionen und dem Richtpreis, wenn der Kunde Fahrwerk oder Räder gewählt hat.",
+      },
+      text_draft_question_motor_auspuff: {
+        label: "5b. Rückfrage bei Motor und Auspuff",
+        help: "Wenn der Kunde Motor und Auspuff gewählt hat (und nicht Fahrwerk oder Räder).",
+      },
+      text_draft_question_generic: {
+        label: "5c. Rückfrage in allen anderen Fällen",
+        help: "Alle übrigen Auswahlen.",
+      },
+      text_draft_timing: {
+        label: "6. Werkstatttermin",
+        help: "Ein Text für alle Zeiträume.",
+      },
+      text_draft_closing: {
+        label: "7. Schluss und Grüsse",
+        help: "Danach folgt die Signatur (Name, Firma, Telefon aus den Einstellungen).",
+      },
+      text_confirmation_intro: {
+        label: "1. Begrüssung und Einleitung",
+        help: "Danach folgen der Charaktersatz und die Überleitung.",
+      },
+      text_confirmation_lead: {
+        label: "2. Überleitung zur Übersicht",
+        help: "Steht direkt nach dem Charaktersatz, vor Fahrzeug, Wunsch und Paket.",
+      },
+      text_confirmation_closing: {
+        label: "3. Schluss und Grüsse",
+        help: "Steht nach dem Paket und den nächsten Schritten.",
+      },
+    } as Record<string, { label: string; help: string }>,
   },
   confirm: {
     yes: "Ja",
@@ -670,6 +743,11 @@ export const admin = {
         flexible: "Flexibel",
       } as const,
       contactTitle: "Kontakt",
+      // Rückmeldung dÄHLer 28.10.2026: nur übernommen, wenn im Text ausdrücklich
+      // «Herr»/«Frau» steht, nie aus dem Vornamen abgeleitet.
+      salutation: "Anrede",
+      salutationNone: "Keine Angabe",
+      salutations: { herr: "Herr", frau: "Frau" } as const,
       firstName: "Vorname",
       lastName: "Name",
       city: "Ort",
@@ -718,6 +796,8 @@ export const admin = {
         followUpAnswers: "Rückfragen",
         character: "Charakter",
         timing: "Termin",
+        // Optional im Schema (Rückmeldung dÄHLer 28.10.2026), zod meldet es nie als fehlend.
+        salutation: "Anrede",
         firstName: "Vorname",
         lastName: "Name",
         city: "Ort",

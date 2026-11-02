@@ -64,6 +64,7 @@ export function AdminShell({
     { href: "/admin/uebersetzungen", label: admin.nav.translations },
     { href: "/admin/follow-ups", label: admin.nav.followups },
     { href: "/admin/schnellweg", label: admin.nav.quick },
+    { href: "/admin/mailtexte", label: admin.nav.mailTexts },
     { href: "/admin/einstellungen", label: admin.nav.settings },
   ];
 

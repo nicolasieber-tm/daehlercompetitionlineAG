@@ -19,6 +19,7 @@ import { hasVmaxLift, isStageProduct } from "@/lib/catalog/product-display";
 import { variantsConflict } from "@/lib/catalog/variant-groups";
 import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import type { VehicleLabelFamily, VehicleLabelModel } from "@/lib/catalog/vehicle-label";
+import type { Salutation } from "@/lib/mail/anrede";
 import type { BodyStyle, Brand, Channel, Character, Drive, FlowCategory, InquiryGearbox, Timing } from "@/lib/db/rows";
 
 export type StepId = "car" | "wish" | `cat:${FlowCategory}` | "character" | "contact" | "done";
@@ -97,6 +98,8 @@ export interface FlowState {
   // Schritt 5: Termin und Kontakt
   timing: Timing;
   channel: Channel;
+  /** Optionale Anrede (Rückmeldung dÄHLer 28.10.2026), nichts vorausgewählt. */
+  salutation: Salutation | null;
   contact: ContactFields;
   privacyAccepted: boolean;
   contactTouched: Partial<Record<keyof ContactFields | "privacy", boolean>>;
@@ -143,6 +146,7 @@ export function initialFlowState(): FlowState {
 
     timing: "asap",
     channel: "phone",
+    salutation: null,
     contact: { firstName: "", lastName: "", city: "", phone: "", email: "" },
     privacyAccepted: false,
     contactTouched: {},
@@ -319,6 +323,7 @@ export type FlowAction =
   | { type: "SET_MESSAGE"; message: string }
   | { type: "SET_TIMING"; timing: Timing }
   | { type: "SET_CHANNEL"; channel: Channel }
+  | { type: "SET_SALUTATION"; salutation: Salutation }
   | { type: "SET_CONTACT_FIELD"; field: keyof ContactFields; value: string }
   | { type: "TOUCH_CONTACT_FIELD"; field: keyof ContactFields | "privacy" }
   | { type: "SET_PRIVACY"; value: boolean }
@@ -548,6 +553,9 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
     case "SET_TIMING":
       return { ...state, timing: action.timing };
 
+    case "SET_SALUTATION":
+      // Erneutes Antippen hebt die Auswahl wieder auf (optional, nichts vorausgewählt).
+      return { ...state, salutation: state.salutation === action.salutation ? null : action.salutation };
     case "SET_CHANNEL":
       return { ...state, channel: action.channel };
 

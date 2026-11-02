@@ -33,6 +33,7 @@ function baseInquiry(overrides: Partial<Inquiry> = {}): Inquiry {
     email: "kunde@example.com",
     estimated_total: 8360,
     family_id: "22222222-2222-2222-2222-222222222222",
+    salutation: null,
     first_name: "Nadia",
     follow_up_answers: { motor: "beides", auspuff: "kraeftig" },
     gearbox: null,

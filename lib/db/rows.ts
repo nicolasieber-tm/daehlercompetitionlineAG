@@ -164,6 +164,8 @@ export interface Inquiry {
   follow_up_answers: Json;
   character: string | null;
   timing: string | null;
+  /** Optionale Anrede (herr | frau), siehe db/migrations/0009_inquiries_salutation.sql. */
+  salutation: string | null;
   first_name: string | null;
   last_name: string | null;
   city: string | null;

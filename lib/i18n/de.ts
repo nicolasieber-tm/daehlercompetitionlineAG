@@ -316,6 +316,12 @@ export const de = {
         pick: "{category} auswählen",
       },
       label: "Und wer sind Sie?",
+      // Rückmeldung dÄHLer 28.10.2026: optionale Anrede, nichts vorausgewählt.
+      salutationLabel: "Anrede (optional)",
+      salutations: [
+        { id: "herr", label: "Herr" },
+        { id: "frau", label: "Frau" },
+      ],
       firstName: "Vorname",
       lastName: "Name",
       // Rückmeldung zweiter Klicktest (CLAUDE.md Abschnitt "AUFGABE",
@@ -520,16 +526,16 @@ export const de = {
     itemsFallback: "Wir stellen Ihnen ein Paket nach Ihrem Wunsch zusammen.",
     performanceLine:
       "Mit {stage} kommt Ihr {model} auf {detail}, WLTP-geprüft und mit CH-Gutachten. Die Ergänzungsgarantie zur Werksgarantie ist für ein Jahr inbegriffen.",
-    // Rückmeldung dÄHLer 14.10.2026 (Beispielmail): «inklusive Montage,
-    // exklusive MFK», definitiver Preis nach Prüfung, mit Begründung.
-    // {clarification} ist ein Genitiv-Anschluss an «nach Prüfung».
-    priceLine:
-      "Richtpreis für das Gesamtpaket: {price}, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung {clarification} bestätigt. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
-    priceLineOnRequest:
-      "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung {clarification}, inklusive Montage, exklusive MFK. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
-    clarificationFahrwerk: "Ihres Serienfahrwerks (adaptives M-Fahrwerk ja oder nein)",
-    clarificationMotorAuspuff: "der gewünschten Kombination aus Software-Leistungssteigerung und Abgasanlage",
-    clarificationGeneric: "der gewünschten Ausführung",
+    // Rückmeldung dÄHLer 28.10.2026 (Beispielmail): die Preiszeile nennt nur
+    // noch Fakten, die Rückfrage steht in den Mailtexten im Admin
+    // (text_draft_question_*, lib/mail/texts.ts).
+    priceLine: "Richtpreis für das Gesamtpaket: {price}, inklusive Montage, exklusive MFK.",
+    priceLineOnRequest: "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Montage, exklusive MFK.",
+    // Genau eine Position: Empfehlungsform statt Bereichsliste.
+    recommendation: "Unsere Empfehlung: {name}",
+    recommendationPrice: "Preis: ab {price}, inklusive Montage, exklusive MFK",
+    recommendationPriceInPreparation: "Preis: in Vorbereitung",
+    recommendationPriceOnRequest: "Preis: auf Anfrage",
     // Kein fest verdrahteter Text: Name kommt aus settings.signature_name,
     // {company} aus settings.mail_from_name plus optional settings.
     // company_address (nur wenn gesetzt) und Telefon aus settings.

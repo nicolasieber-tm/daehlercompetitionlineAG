@@ -22,7 +22,7 @@ export async function saveSettingsAction(values: Record<string, string>): Promis
   await requireAdmin();
 
   // Mailtexte (lib/mail/texts.ts, Rückmeldung dÄHLer 14.10.2026) laufen
-  // über dieselbe Tabelle, eigenes Formular (components/admin/MailTextsForm.tsx).
+  // über dieselbe Tabelle, eigene Seite (components/admin/MailTextsEditor.tsx).
   const allowedKeys: readonly string[] = [...SETTINGS_KEYS, ...MAIL_TEXT_SETTING_KEYS];
   const rows = allowedKeys.filter((key) => values[key] !== undefined).map((key) => ({
     key,
@@ -36,7 +36,7 @@ export async function saveSettingsAction(values: Record<string, string>): Promis
     ),
   ];
   if (unknown.length > 0) {
-    return { ok: false, error: `Unbekannte Platzhalter: ${unknown.join(", ")}. Erlaubt sind {{vorname}}, {{name}}, {{fahrzeug}}, {{jahrgang}}, {{nummer}}, {{schwerpunkt}}.` };
+    return { ok: false, error: `Unbekannte Platzhalter: ${unknown.join(", ")}. Erlaubt sind {{anrede}}, {{vorname}}, {{name}}, {{fahrzeug}}, {{modell}}, {{jahrgang}}, {{nummer}}, {{schwerpunkt}}.` };
   }
   if (rows.length === 0) {
     return { ok: false, error: "Keine Werte zum Speichern übergeben." };
@@ -53,5 +53,6 @@ export async function saveSettingsAction(values: Record<string, string>): Promis
 
   revalidateTag("settings");
   revalidatePath("/admin/einstellungen");
+  revalidatePath("/admin/mailtexte");
   return { ok: true };
 }

@@ -37,6 +37,7 @@ import {
   withInquiryPayloadRefinements,
   type InquiryPayload,
 } from "@/lib/inquiry/schema";
+import type { Salutation } from "@/lib/mail/anrede";
 import type { BodyStyle, Character, Channel, Drive, FlowCategory, Locale, Timing } from "@/lib/db/rows";
 import type { Extraction } from "./extract";
 
@@ -135,6 +136,7 @@ export interface QuickOverrides {
   selections?: { productId: string }[];
   character?: Character | null;
   timing?: Timing | null;
+  salutation?: Salutation | null;
   firstName?: string | null;
   lastName?: string | null;
   city?: string | null;
@@ -161,6 +163,7 @@ interface DraftFields {
   selections: { productId: string }[];
   character: Character | null;
   timing: Timing | null;
+  salutation: Salutation | null;
   firstName: string | null;
   lastName: string | null;
   city: string | null;
@@ -191,6 +194,7 @@ function buildDraft(extraction: Extraction, overrides?: QuickOverrides): DraftFi
       .map((s) => ({ productId: s.product_id as string })),
     character: extraction.character,
     timing: extraction.timing,
+    salutation: extraction.contact.salutation ?? null,
     firstName: extraction.contact.first_name,
     lastName: extraction.contact.last_name,
     city: extraction.contact.city,
@@ -311,6 +315,7 @@ export async function toInquiryPayload(
     followUpAnswers: {},
     character: draft.character,
     timing: draft.timing,
+    salutation: draft.salutation,
     firstName: draft.firstName ?? "",
     lastName: draft.lastName ?? "",
     city: draft.city ?? "",

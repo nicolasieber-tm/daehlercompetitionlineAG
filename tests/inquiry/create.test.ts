@@ -105,6 +105,7 @@ function basePayload(overrides: Partial<InquiryPayload> = {}): InquiryPayload {
     followUpAnswers: { motor: "beides" },
     character: "sportlich",
     timing: "m1_2",
+    salutation: null,
     firstName: "Max",
     lastName: `Testkunde-${randomUUID().slice(0, 8)}`,
     city: "Thun",
@@ -126,6 +127,24 @@ afterAll(async () => {
   }
   // inquiry_counters bleibt bewusst unangetastet (siehe Aufgabenstellung:
   // "inquiry_counters nicht zurücksetzen").
+});
+
+describe("createInquiry: Anrede (Rückmeldung dÄHLer 28.10.2026)", () => {
+  it("speichert die Anrede und begrüsst im Antwortentwurf mit «Herr Nachname»", async () => {
+    const result = await createInquiry(basePayload({ salutation: "herr", lastName: "Dähler" }), { source: "web", sendCustomerMail: false });
+    createdInquiryIds.push(result.id);
+    const [row] = await sql<{ salutation: string | null }[]>`select salutation from inquiries where id = ${result.id}`;
+    expect(row.salutation).toBe("herr");
+    expect(result.draft.body.startsWith("Guten Tag Herr Dähler")).toBe(true);
+  });
+
+  it("ohne Anrede bleibt es bei Vorname Name", async () => {
+    const result = await createInquiry(basePayload({ lastName: "Dähler" }), { source: "web", sendCustomerMail: false });
+    createdInquiryIds.push(result.id);
+    const [row] = await sql<{ salutation: string | null }[]>`select salutation from inquiries where id = ${result.id}`;
+    expect(row.salutation).toBeNull();
+    expect(result.draft.body.startsWith("Guten Tag Max Dähler")).toBe(true);
+  });
 });
 
 describe("createInquiry: M2 G87 / M2 mit 3 Produkten (echter Katalog)", () => {

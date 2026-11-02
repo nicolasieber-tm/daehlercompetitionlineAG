@@ -30,6 +30,7 @@ Regeln, unbedingt einhalten:
 - vehicle.drive: nennt der Kunde den Antrieb (xDrive/Allrad oder Heckantrieb/sDrive), wörtlich übernehmen, sonst null.
 - product_id ausschliesslich aus der mitgelieferten Produktliste übernehmen (exakte ID-Zeichenkette), nie selbst bilden oder raten.
 - Sind Sie sich bei einer Zuordnung nicht sicher, setzen Sie eine niedrige confidence (unter 0.7) statt zu raten. Ist eine Zuordnung gar nicht möglich, lassen Sie das Feld null und vermerken es in open_questions.
+- contact.salutation nur setzen, wenn im Text ausdrücklich "Herr"/"Frau" (bzw. "Mr"/"Ms") vor dem Namen oder in der Anrede steht ("herr" oder "frau"). Niemals aus dem Vornamen ableiten oder raten, sonst null.
 - categories nur setzen, wenn im Text tatsächlich eine dieser Wunsch-Kategorien vorkommt: motor, auspuff, fahrwerk, raeder, exterieur, interieur.
 - consulting=true nur, wenn der Kunde erkennbar ein Komplettpaket bzw. eine Beratung ohne konkrete Produktwahl wünscht.
 - language: die tatsächliche Sprache des Ausgangstexts (de oder en), unabhängig von der Sprache dieser Anweisung.
@@ -37,7 +38,7 @@ Regeln, unbedingt einhalten:
 
 Tonalität von dÄHLer zur Einordnung (Sie-Form, sachlich, technisch präzise, herzlich), zwei kurze Beispiele aus einem Antwortentwurf:
 
-"Vielen Dank für Ihre Anfrage und Ihr Interesse an unseren dÄHLer Performance-Komponenten für Ihren BMW M2 (G87), Jahrgang 2024. Eine sportliche Abstimmung in Kombination mit uneingeschränkter Alltagstauglichkeit entspricht genau unserem Anspruch."
+"Vielen Dank für Ihre Anfrage und Ihr Interesse an unseren dÄHLer Performance-Komponenten für Ihren BMW M2 (G87), Jahrgang 2024. Eine sportliche Abstimmung in Kombination mit voller Alltagstauglichkeit, genau hier setzen wir bei dÄHLer an."
 
 "Richtpreis für das Gesamtpaket: ab CHF 4'180, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung der Details bestätigt."`;
 
@@ -140,8 +141,14 @@ const RECORD_INQUIRY_TOOL: Anthropic.Tool = {
       contact: {
         type: "object",
         additionalProperties: false,
-        required: ["first_name", "last_name", "city", "phone", "email", "channel"],
+        required: ["salutation", "first_name", "last_name", "city", "phone", "email", "channel"],
         properties: {
+          // Rückmeldung dÄHLer 28.10.2026: nur wenn «Herr»/«Frau»/«Mr»/«Ms»
+          // ausdrücklich im Text steht, nie aus dem Vornamen abgeleitet.
+          salutation: nullableString(
+            "Anrede des Kunden, nur wenn im Text ausdrücklich «Herr»/«Frau» (bzw. «Mr»/«Ms») steht, sonst null. Niemals aus dem Vornamen ableiten oder raten.",
+            ["herr", "frau"],
+          ),
           first_name: nullableString(),
           last_name: nullableString(),
           city: nullableString(),
@@ -218,6 +225,8 @@ const selectionSchema = z.object({
 });
 
 const contactSchema = z.object({
+  // Optional, robust gegen Tool-Antworten ohne dieses Feld (fehlt = null).
+  salutation: z.enum(["herr", "frau"]).nullable().optional(),
   first_name: z.string().nullable(),
   last_name: z.string().nullable(),
   city: z.string().nullable(),
@@ -384,6 +393,7 @@ async function callPickFamily(
 // ---------------------------------------------------------------------------
 
 const CHARACTER_VALUES = ["dezent", "sportlich", "maximum"] as const;
+const SALUTATION_VALUES = ["herr", "frau"] as const;
 const TIMING_VALUES = ["asap", "m1_2", "m3_6", "flexible"] as const;
 const CHANNEL_VALUES = ["phone", "email", "whatsapp"] as const;
 
@@ -427,6 +437,7 @@ function sanitizeRawExtraction(raw: unknown): { data: Record<string, unknown>; n
   const character = sanitizeEnum(obj.character, CHARACTER_VALUES, notes, "character");
   const timing = sanitizeEnum(obj.timing, TIMING_VALUES, notes, "timing");
   const channel = sanitizeEnum(contact.channel, CHANNEL_VALUES, notes, "contact.channel");
+  const salutation = sanitizeEnum(contact.salutation, SALUTATION_VALUES, notes, "contact.salutation");
 
   let language = obj.language;
   if (language !== "de" && language !== "en") {
@@ -435,7 +446,7 @@ function sanitizeRawExtraction(raw: unknown): { data: Record<string, unknown>; n
   }
 
   return {
-    data: { ...obj, categories, character, timing, contact: { ...contact, channel }, language },
+    data: { ...obj, categories, character, timing, contact: { ...contact, salutation, channel }, language },
     notes,
   };
 }

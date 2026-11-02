@@ -398,3 +398,18 @@ describe("flowReducer PICK_PRODUCT: Exklusivgruppen mit Achslogik", () => {
     expect(state.selections.fahrwerk?.map((p) => p.id)).toEqual(["pads-va"]);
   });
 });
+
+// Rückmeldung dÄHLer 28.10.2026: optionale Anrede, nichts vorausgewählt,
+// erneutes Antippen hebt sie auf.
+describe("flowReducer SET_SALUTATION", () => {
+  it("startet ohne Auswahl, setzt, wechselt und hebt bei erneutem Antippen auf", () => {
+    let state = initialFlowState();
+    expect(state.salutation).toBeNull();
+    state = flowReducer(state, { type: "SET_SALUTATION", salutation: "herr" });
+    expect(state.salutation).toBe("herr");
+    state = flowReducer(state, { type: "SET_SALUTATION", salutation: "frau" });
+    expect(state.salutation).toBe("frau");
+    state = flowReducer(state, { type: "SET_SALUTATION", salutation: "frau" });
+    expect(state.salutation).toBeNull();
+  });
+});

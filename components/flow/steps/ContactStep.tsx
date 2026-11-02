@@ -7,6 +7,7 @@ import type { Dispatch } from "react";
 import { Chip, Field, Question, StepLabel } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
+import type { Salutation } from "@/lib/mail/anrede";
 import type { Channel, FlowCategory, Timing } from "@/lib/db/rows";
 import type { ContactFields, FlowAction, FlowState } from "../state";
 import { vehicleDisplayName } from "../vehicleLabel";
@@ -131,6 +132,19 @@ export function ContactStep({
 
       <div className="mt-8 mb-2.5 font-display text-xs font-semibold uppercase tracking-[0.14em] text-red-bright">
         {t.steps.contact.label}
+      </div>
+      {/* Rückmeldung dÄHLer 28.10.2026: optionale Anrede für «Guten Tag Herr Dähler»,
+          nichts vorausgewählt, erneutes Antippen hebt die Auswahl auf. */}
+      <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label={t.steps.contact.salutationLabel}>
+        {t.steps.contact.salutations.map((option) => (
+          <Chip
+            key={option.id}
+            active={state.salutation === option.id}
+            onClick={() => dispatch({ type: "SET_SALUTATION", salutation: option.id as Salutation })}
+          >
+            {option.label}
+          </Chip>
+        ))}
       </div>
       <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
         {field("firstName", t.steps.contact.firstName)}

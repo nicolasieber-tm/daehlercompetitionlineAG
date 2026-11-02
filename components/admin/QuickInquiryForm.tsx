@@ -48,6 +48,7 @@ interface ExtractionResponse {
   character: Character | null;
   timing: Timing | null;
   contact: {
+    salutation?: "herr" | "frau" | null;
     first_name: string | null;
     last_name: string | null;
     city: string | null;
@@ -110,6 +111,7 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
   const [consulting, setConsulting] = useState(false);
   const [character, setCharacter] = useState<Character | null>(null);
   const [timing, setTiming] = useState<Timing | null>(null);
+  const [salutation, setSalutation] = useState<"herr" | "frau" | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [city, setCity] = useState("");
@@ -200,6 +202,7 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
     setConsulting(data.consulting);
     setCharacter(data.character);
     setTiming(data.timing);
+    setSalutation(data.contact.salutation ?? null);
     setFirstName(data.contact.first_name ?? "");
     setLastName(data.contact.last_name ?? "");
     setCity(data.contact.city ?? "");
@@ -263,6 +266,7 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
               selections: selectedProductIds.map((productId) => ({ productId })),
               character,
               timing,
+              salutation,
               firstName: firstName.trim() || null,
               lastName: lastName.trim() || null,
               city: city.trim() || null,
@@ -540,6 +544,15 @@ export function QuickInquiryForm({ families }: { families: CatalogFamily[] }) {
               <div>
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">{tf2.contactTitle}</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <FormField
+                    label={tf2.salutation}
+                    as="select"
+                    inputProps={{ value: salutation ?? "", onChange: (e) => setSalutation((e.target.value || null) as "herr" | "frau" | null) }}
+                  >
+                    <option value="">{tf2.salutationNone}</option>
+                    <option value="herr">{tf2.salutations.herr}</option>
+                    <option value="frau">{tf2.salutations.frau}</option>
+                  </FormField>
                   <FormField label={tf2.firstName} inputProps={{ value: firstName, onChange: (e) => setFirstName(e.target.value) }} />
                   <FormField label={tf2.lastName} inputProps={{ value: lastName, onChange: (e) => setLastName(e.target.value) }} />
                   <FormField label={tf2.city} inputProps={{ value: city, onChange: (e) => setCity(e.target.value) }} />

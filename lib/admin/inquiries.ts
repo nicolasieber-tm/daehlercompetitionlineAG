@@ -500,6 +500,7 @@ export async function regenerateDraft(id: string): Promise<{ subject: string; bo
 
   const draftCtx: DraftContext = {
     number: inquiry.number,
+    salutation: inquiry.salutation,
     firstName: inquiry.first_name ?? "",
     lastName: inquiry.last_name ?? "",
     vehicleLabel: vehicleLabel({ family, model, vehicleText: inquiry.vehicle_text, line: inquiry.line }),

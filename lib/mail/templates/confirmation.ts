@@ -9,6 +9,7 @@ import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
 import { categoriesWithoutItems } from "@/lib/draft/template";
 import { fillMailText, resolveMailTexts } from "../texts";
 import { capitalizeFirst, emphasisText } from "../emphasis";
+import { anredeText, modellLabel } from "../anrede";
 import type { Character } from "@/lib/db/rows";
 import type { FlowCategory } from "@/lib/db/rows";
 import type { MailInquiryContext, MailInquiryItem } from "../types";
@@ -59,14 +60,20 @@ function customerItems(
   });
 }
 
-export function buildConfirmation(ctx: MailInquiryContext): { subject: string; html: string; text: string } {
-  const dict = getDictionary(ctx.locale);
+/**
+ * Die Mailtexte aus dem Admin, gefüllt (Anrede/Einleitung, Charaktersatz mit
+ * Überleitung, Schluss). Eigene Funktion, damit die Live-Vorschau im Admin
+ * die tatsächlich verwendeten Textabsätze erkennen kann.
+ */
+export function confirmationTextParts(ctx: MailInquiryContext): { intro: string; lead: string; closing: string } {
   const model = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: ctx.inquiry.vehicle_text, line: ctx.inquiry.line });
   const texts = resolveMailTexts(ctx.locale, ctx.texts);
   const vars = {
+    anrede: anredeText(ctx.inquiry.salutation, ctx.inquiry.first_name, ctx.inquiry.last_name, ctx.locale),
     vorname: ctx.inquiry.first_name ?? "",
     name: ctx.inquiry.last_name ?? "",
     fahrzeug: model,
+    modell: modellLabel(model),
     nummer: ctx.inquiry.number,
     schwerpunkt: emphasisText(
       ctx.inquiry.categories as FlowCategory[],
@@ -79,7 +86,17 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
   // Antwortentwurf, gefolgt von der Überleitung zur Übersicht.
   const character = ctx.inquiry.character as Character | null;
   const characterText = character ? capitalizeFirst(fillMailText(texts[`text_draft_character_${character}`], vars)) : "";
-  const leadParagraph = [characterText, fillMailText(texts.text_confirmation_lead, vars)].filter(Boolean).join(" ");
+  return {
+    intro: fillMailText(texts.text_confirmation_intro, vars),
+    lead: [characterText, fillMailText(texts.text_confirmation_lead, vars)].filter(Boolean).join(" "),
+    closing: fillMailText(texts.text_confirmation_closing, vars),
+  };
+}
+
+export function buildConfirmation(ctx: MailInquiryContext): { subject: string; html: string; text: string } {
+  const dict = getDictionary(ctx.locale);
+  const model = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: ctx.inquiry.vehicle_text, line: ctx.inquiry.line });
+  const textParts = confirmationTextParts(ctx);
   // Rückmeldung dÄHLer 14.10.2026 (Anfrage 2026-0016): gewählte Bereiche
   // ohne angetipptes Produkt erscheinen ausdrücklich, statt in der
   // Positionsliste einfach zu fehlen.
@@ -116,8 +133,8 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
 
   const blocks = [
     // Einleitung und Schluss pflegt der Kunde im Admin (lib/mail/texts.ts).
-    ...paragraphs(fillMailText(texts.text_confirmation_intro, vars)),
-    paragraph(leadParagraph),
+    ...paragraphs(textParts.intro),
+    paragraph(textParts.lead),
     definitionList([
       { label: dict.mail.confirmation.vehicleLabel, value: model },
       { label: dict.mail.confirmation.wishLabel, value: wish },
@@ -146,7 +163,7 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
       { label: dict.steps.done.next.day1.title, value: dict.steps.done.next.day1.text },
       { label: dict.steps.done.next.then.title, value: dict.steps.done.next.then.text },
     ]),
-    ...paragraphs(fillMailText(texts.text_confirmation_closing, vars)),
+    ...paragraphs(textParts.closing),
   ];
 
   const { html, text } = renderMail({ title: subject, blocks });

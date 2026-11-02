@@ -196,3 +196,21 @@ describe("InquiryPayloadSchema: line", () => {
     expect(parsed.success).toBe(false);
   });
 });
+
+// Rückmeldung dÄHLer 28.10.2026: optionale Anrede.
+describe("InquiryPayloadSchema: salutation", () => {
+  it("ohne Angabe oder null: null", () => {
+    const a = InquiryPayloadSchema.safeParse(basePayload());
+    expect(a.success && a.data.salutation).toBeNull();
+    const b = InquiryPayloadSchema.safeParse(basePayload({ salutation: null }));
+    expect(b.success && b.data.salutation).toBeNull();
+  });
+
+  it("herr und frau gültig, alles andere abgelehnt", () => {
+    for (const value of ["herr", "frau"]) {
+      const r = InquiryPayloadSchema.safeParse(basePayload({ salutation: value }));
+      expect(r.success && r.data.salutation).toBe(value);
+    }
+    expect(InquiryPayloadSchema.safeParse(basePayload({ salutation: "divers" })).success).toBe(false);
+  });
+});

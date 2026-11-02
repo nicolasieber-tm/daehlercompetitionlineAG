@@ -133,6 +133,7 @@ describe("Sprachneutrale IDs bei Auswahlwerten", () => {
         "steps.category.followUp.raeder.options",
         "steps.character.options",
         "steps.contact.channels",
+        "steps.contact.salutations",
         "steps.timing.options",
       ].sort(),
     );
@@ -178,54 +179,27 @@ describe("Sprachneutrale IDs bei Auswahlwerten", () => {
   });
 });
 
-// draft.priceLine: {clarification} ist ein Genitiv-Anschluss an «nach Prüfung»
-// (Rückmeldung dÄHLer 14.10.2026, vorher ein vollständiger Nebensatz)
-// (docs/architektur.md, Befund "priceLine"), die drei Varianten müssen zu
-// grammatisch vollständigen Sätzen zusammengebaut werden. Der Test baut die
-// Zusammensetzung nach, wie sie lib/draft/template.ts später vornehmen wird
-// (tf() mit price + clarification).
-describe("draft.priceLine: Satzbau mit clarification", () => {
-  it("baut alle drei deutschen Varianten zu vollständigen Sätzen zusammen", () => {
-    const price = "ab CHF 4'180";
-
-    expect(tf(de.draft.priceLine, { price, clarification: de.draft.clarificationFahrwerk })).toBe(
-      "Richtpreis für das Gesamtpaket: ab CHF 4'180, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung Ihres Serienfahrwerks (adaptives M-Fahrwerk ja oder nein) bestätigt. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
+// draft.priceLine: nur noch Fakten (Rückmeldung dÄHLer 28.10.2026), die
+// Rückfrage steht in den Mailtexten (text_draft_question_*).
+describe("draft.priceLine: reine Faktenzeile", () => {
+  it("deutsch", () => {
+    expect(tf(de.draft.priceLine, { price: "ab CHF 4'180" })).toBe(
+      "Richtpreis für das Gesamtpaket: ab CHF 4'180, inklusive Montage, exklusive MFK.",
     );
-    expect(
-      tf(de.draft.priceLine, { price, clarification: de.draft.clarificationMotorAuspuff }),
-    ).toBe(
-      "Richtpreis für das Gesamtpaket: ab CHF 4'180, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung der gewünschten Kombination aus Software-Leistungssteigerung und Abgasanlage bestätigt. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
-    );
-    expect(tf(de.draft.priceLine, { price, clarification: de.draft.clarificationGeneric })).toBe(
-      "Richtpreis für das Gesamtpaket: ab CHF 4'180, inklusive Montage, exklusive MFK. Der definitive Preis wird nach Prüfung der gewünschten Ausführung bestätigt. So stellen wir sicher, dass sämtliche Komponenten optimal aufeinander abgestimmt sind.",
+    expect(de.draft.priceLineOnRequest).toBe(
+      "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Montage, exklusive MFK.",
     );
   });
 
-  it("baut alle drei englischen Varianten zu vollständigen Sätzen zusammen", () => {
-    const price = "from CHF 4'180";
-
-    expect(tf(en.draft.priceLine, { price, clarification: en.draft.clarificationFahrwerk })).toBe(
-      "Indicative price for the complete package: from CHF 4'180, including fitting, excluding roadworthiness test. The final price will be confirmed after checking your standard suspension (adaptive M suspension or not). This way we make sure that all components are perfectly matched.",
-    );
-    expect(
-      tf(en.draft.priceLine, { price, clarification: en.draft.clarificationMotorAuspuff }),
-    ).toBe(
-      "Indicative price for the complete package: from CHF 4'180, including fitting, excluding roadworthiness test. The final price will be confirmed after checking the desired combination of software tuning and exhaust system. This way we make sure that all components are perfectly matched.",
-    );
-    expect(tf(en.draft.priceLine, { price, clarification: en.draft.clarificationGeneric })).toBe(
-      "Indicative price for the complete package: from CHF 4'180, including fitting, excluding roadworthiness test. The final price will be confirmed after checking the desired configuration. This way we make sure that all components are perfectly matched.",
+  it("englisch", () => {
+    expect(tf(en.draft.priceLine, { price: "from CHF 4'180" })).toBe(
+      "Indicative price for the complete package: from CHF 4'180, including fitting, excluding roadworthiness test.",
     );
   });
 
-  it("keine der drei Varianten enthält ein doppeltes Subjekt ('wir wir' / 'we we')", () => {
-    for (const clarification of [
-      de.draft.clarificationFahrwerk,
-      de.draft.clarificationMotorAuspuff,
-      de.draft.clarificationGeneric,
-    ]) {
-      const sentence = tf(de.draft.priceLine, { price: "ab CHF 100", clarification });
-      expect(sentence).not.toMatch(/\bwir wir\b/i);
-    }
+  it("Empfehlungsform: Preiszeile ohne Gedankenstrich", () => {
+    expect(tf(de.draft.recommendationPrice, { price: chf(7300) })).toBe("Preis: ab CHF 7'300, inklusive Montage, exklusive MFK");
+    expect(tf(de.draft.recommendation, { name: "CDC2 FORGED" })).toBe("Unsere Empfehlung: CDC2 FORGED");
   });
 });
 
