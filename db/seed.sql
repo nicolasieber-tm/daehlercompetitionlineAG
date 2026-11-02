@@ -38,7 +38,7 @@ values (
   'Nachfrage 14 Tage nach Antwort',
   14,
   'Ihre Anfrage bei dÄHLer, Nr. {{nummer}}',
-  'Guten Tag {{vorname}} {{name}}' || chr(10) || chr(10) ||
+  'Guten Tag {{anrede}}' || chr(10) || chr(10) ||
   'Vor einigen Tagen haben wir Ihnen zu Ihrem {{fahrzeug}} ein Angebot zukommen lassen. ' ||
   'Gerne möchten wir nachfragen, ob sich bei Ihnen inzwischen Fragen ergeben haben oder ob wir ' ||
   'für Sie einen Termin vereinbaren dürfen.' || chr(10) || chr(10) ||

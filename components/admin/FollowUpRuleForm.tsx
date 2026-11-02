@@ -1,7 +1,7 @@
 "use client";
 
 // Formular «Regel anlegen/bearbeiten» (Posten 6): Betreff/Text mit
-// Platzhaltern {{vorname}} {{name}} {{fahrzeug}} {{nummer}}, Vorschau mit
+// Platzhaltern {{anrede}} {{vorname}} {{name}} {{fahrzeug}} {{nummer}}, Vorschau mit
 // Beispielwerten, Validierung über renderTemplate() (lib/followups/
 // placeholders.ts) - unbekannte Platzhalter blockieren das Speichern.
 import { useMemo, useState, useTransition } from "react";
@@ -17,6 +17,7 @@ import { useToast } from "./Toast";
 const t = admin.followups.form;
 
 const EXAMPLE_VARS = {
+  anrede: "Herr Muster",
   vorname: "Max",
   name: "Muster",
   fahrzeug: "BMW M2 G87, M2",

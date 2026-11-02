@@ -52,6 +52,7 @@ interface DueFollowUpRow {
   inquiry_status: string | null;
   inquiry_answer_received_at: string | null;
   inquiry_first_name: string | null;
+  inquiry_salutation: string | null;
   inquiry_last_name: string | null;
   inquiry_email: string | null;
   inquiry_locale: string | null;
@@ -206,6 +207,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
       i.number as inquiry_number, i.status as inquiry_status,
       i.answer_received_at as inquiry_answer_received_at,
       i.first_name as inquiry_first_name, i.last_name as inquiry_last_name,
+      i.salutation as inquiry_salutation,
       i.email as inquiry_email, i.locale as inquiry_locale, i.vehicle_text as inquiry_vehicle_text,
       i.line as inquiry_line,
       mf.brand as family_brand, mf.name as family_name, mf.codes as family_codes,
@@ -250,6 +252,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
             status: row.inquiry_status,
             answer_received_at: row.inquiry_answer_received_at,
             first_name: row.inquiry_first_name,
+            salutation: row.inquiry_salutation,
             last_name: row.inquiry_last_name,
             email: row.inquiry_email,
             locale: row.inquiry_locale,
@@ -395,6 +398,7 @@ export async function runDueFollowUps(today: Date = new Date()): Promise<RunDueF
         inquiry: {
           id: inquiry.id,
           first_name: inquiry.first_name,
+          salutation: inquiry.salutation,
           last_name: inquiry.last_name,
           number: inquiry.number,
           email: inquiry.email,

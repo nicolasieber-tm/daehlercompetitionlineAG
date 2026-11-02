@@ -885,3 +885,26 @@ describe("beforeAfterTable in den Kundenmails", () => {
     expect(baIdx).toBeGreaterThan(packageIdx);
   });
 });
+
+// {{anrede}} in Follow-up-Regeln (Wunsch 02.11.2026), wie bei den Mailtexten.
+describe("buildFollowUp: {{anrede}}", () => {
+  const withAnrede = (locale: Locale, salutation: string | null): MailFollowUpContext => {
+    const ctx = makeFollowUpContext(locale);
+    return {
+      ...ctx,
+      inquiry: { ...ctx.inquiry, salutation },
+      rule: { ...ctx.rule, body: "Guten Tag {{anrede}}\n\nWir freuen uns auf Ihre Rückmeldung." },
+    };
+  };
+
+  it("mit Anrede: «Guten Tag Frau Muster» (en «Ms Muster»)", () => {
+    expect(buildFollowUp(withAnrede("de", "frau")).text).toContain("Guten Tag Frau Muster");
+    expect(buildFollowUp(withAnrede("en", "frau")).text).toContain("Ms Muster");
+  });
+
+  it("ohne Anrede: Vorname Name wie bisher", () => {
+    const result = buildFollowUp(withAnrede("de", null));
+    expect(result.text).toContain("Guten Tag Nadia Muster");
+    expect(result.text).not.toContain("{{");
+  });
+});

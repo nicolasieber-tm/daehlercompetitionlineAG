@@ -14,8 +14,9 @@
 //   zusätzlich geleert (nie roh "{{...}}" an den Kunden) und als Warnung
 //   geloggt, siehe dortiger Kommentar.
 
-/** Die vier laut CLAUDE.md/docs/architektur.md unterstützten Platzhalter. */
-export const KNOWN_FOLLOW_UP_PLACEHOLDERS = ["vorname", "name", "fahrzeug", "nummer"] as const;
+/** Die laut CLAUDE.md/docs/architektur.md unterstützten Platzhalter. */
+// {{anrede}} seit 02.11.2026, wie bei den Mailtexten (lib/mail/anrede.ts).
+export const KNOWN_FOLLOW_UP_PLACEHOLDERS = ["anrede", "vorname", "name", "fahrzeug", "nummer"] as const;
 
 export type KnownFollowUpPlaceholder = (typeof KNOWN_FOLLOW_UP_PLACEHOLDERS)[number];
 

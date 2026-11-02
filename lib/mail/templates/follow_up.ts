@@ -8,6 +8,7 @@ import { renderTemplate } from "@/lib/followups/placeholders";
 import type { KnownFollowUpPlaceholder } from "@/lib/followups/placeholders";
 import type { MailFollowUpContext } from "../types";
 import { companyLine, paragraphs, renderMail } from "../render";
+import { anredeText } from "../anrede";
 
 /**
  * Ersetzt die vier bekannten Platzhalter über renderTemplate()
@@ -48,6 +49,7 @@ function fillTemplate(
 export function buildFollowUp(ctx: MailFollowUpContext): { subject: string; html: string; text: string } {
   const dict = getDictionary(ctx.locale);
   const vars: Partial<Record<KnownFollowUpPlaceholder, string>> = {
+    anrede: anredeText(ctx.inquiry.salutation, ctx.inquiry.first_name, ctx.inquiry.last_name, ctx.locale),
     vorname: ctx.inquiry.first_name ?? "",
     name: ctx.inquiry.last_name ?? "",
     fahrzeug: ctx.vehicleLabel,

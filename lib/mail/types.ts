@@ -78,7 +78,7 @@ export interface MailInquiryContext {
  * Eigener Kontext für follow_up: anders als bei den vier Vorlagen oben kommt
  * der Text hier nicht aus lib/draft (Antwortentwurf), sondern aus der
  * konfigurierten Regel (follow_up_rules.subject/body, Platzhalter
- * {{vorname}}, {{name}}, {{fahrzeug}}, {{nummer}}) plus der Signatur aus
+ * {{anrede}}, {{vorname}}, {{name}}, {{fahrzeug}}, {{nummer}}) plus der Signatur aus
  * settings, siehe docs/architektur.md, Abschnitt "Follow-ups" und CLAUDE.md,
  * Abschnitt "Follow-ups (Posten 6)". Absichtlich kein MailInquiryContext:
  * lib/followups (noch nicht gebaut) kennt zum Zeitpunkt des Versands weder
@@ -86,7 +86,7 @@ export interface MailInquiryContext {
  * nur Regel, Anfrage-Stammdaten und Signatur.
  */
 export interface MailFollowUpContext {
-  inquiry: Pick<Inquiry, "id" | "first_name" | "last_name" | "number" | "email">;
+  inquiry: Pick<Inquiry, "id" | "first_name" | "last_name" | "number" | "email"> & { salutation?: string | null };
   /** Anzeige-Text fürs Fahrzeug für den Platzhalter {{fahrzeug}}, z.B. "BMW M3 Touring" oder inquiries.vehicle_text. */
   vehicleLabel: string;
   rule: { subject: string; body: string };

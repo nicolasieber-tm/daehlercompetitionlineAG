@@ -601,7 +601,7 @@ export const admin = {
       body: "Text",
       sort: "Sortierung",
       active: "Aktiv",
-      placeholdersHint: "Platzhalter: {{vorname}}, {{name}}, {{fahrzeug}}, {{nummer}}",
+      placeholdersHint: "Platzhalter: {{anrede}} (Herr Muster, ohne Angabe Vorname Name), {{vorname}}, {{name}}, {{fahrzeug}}, {{nummer}}",
       unknownPlaceholder: "Unbekannter Platzhalter: {placeholder}",
       previewTitle: "Vorschau mit Beispielwerten",
       previewSubject: "Betreff",

@@ -36,3 +36,11 @@ describe("renderTemplate", () => {
     expect(result.unknownPlaceholders).toEqual([]);
   });
 });
+
+describe("renderTemplate: {{anrede}}", () => {
+  it("ist ein bekannter Platzhalter (seit 02.11.2026)", () => {
+    const result = renderTemplate("Guten Tag {{anrede}}", { anrede: "Herr Muster" });
+    expect(result.text).toBe("Guten Tag Herr Muster");
+    expect(result.unknownPlaceholders).toEqual([]);
+  });
+});
