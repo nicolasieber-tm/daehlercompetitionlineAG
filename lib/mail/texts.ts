@@ -20,6 +20,8 @@ export const MAIL_TEXT_KEYS = [
   "text_draft_character_dezent",
   "text_draft_character_sportlich",
   "text_draft_character_maximum",
+  // Wunsch 02.11.2026: Satz, wenn kein Charakter gewählt ist (Schnellweg, Freitext ohne Hinweis).
+  "text_draft_character_none",
   "text_draft_items_intro",
   "text_draft_question_fahrwerk",
   "text_draft_question_motor_auspuff",
@@ -101,6 +103,7 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
       "{{schwerpunkt}}, sportlich und präzise abgestimmt, genau hier setzen wir bei dÄHLer an.",
     text_draft_character_maximum:
       "{{schwerpunkt}}, konsequent auf das Maximum ausgelegt und technisch sauber abgestimmt, genau hier setzen wir bei dÄHLer an.",
+    text_draft_character_none: "{{schwerpunkt}}, technisch sauber umgesetzt, genau hier setzen wir bei dÄHLer an.",
     text_draft_items_intro: "Für Ihren {{modell}} bieten wir Ihnen Folgendes an:",
     text_draft_question_fahrwerk:
       "Damit wir Ihnen ein exakt auf Ihr Fahrzeug abgestimmtes Angebot erstellen können, bitten wir Sie noch um eine kurze Rückmeldung, " +
@@ -149,6 +152,7 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
     text_draft_character_sportlich: "{{schwerpunkt}}, sporty and precisely set up, is exactly where we at dÄHLer come in.",
     text_draft_character_maximum:
       "{{schwerpunkt}}, consistently designed for the maximum and technically well matched, is exactly where we at dÄHLer come in.",
+    text_draft_character_none: "{{schwerpunkt}}, technically well executed, is exactly where we at dÄHLer come in.",
     text_draft_items_intro: "For your {{modell}} we can offer you the following:",
     text_draft_question_fahrwerk:
       "So that we can prepare an offer that is precisely matched to your car, we would ask you for a brief reply on whether your {{modell}} " +

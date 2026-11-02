@@ -324,6 +324,7 @@ export const admin = {
         single: "Ein Produkt: Räder BMW M2 (G87), Herr",
         multi: "Mehrere Bereiche: Motor Stufe 1 + Auspuff, sportlich",
         noSalutation: "Ohne Anrede",
+        noCharacter: "Schnellweg ohne Charakter",
       },
       legendText: "Ihr Mailtext",
       legendGenerated: "Vom Tool erzeugt",
@@ -371,6 +372,10 @@ export const admin = {
       text_draft_character_maximum: {
         label: "3. Charaktersatz bei «Maximum»",
         help: "Wie oben.",
+      },
+      text_draft_character_none: {
+        label: "3. Charaktersatz ohne Angabe",
+        help: "Wenn kein Charakter gewählt ist, z.B. bei einer Anfrage über den Schnellweg, wenn der Text keinen Hinweis enthält.",
       },
       text_draft_items_intro: {
         label: "4. Überleitung zu den Positionen",

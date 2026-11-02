@@ -350,10 +350,11 @@ describe("buildDraft: Positionszeile mit mehrzeiliger Beschreibung (Befund #2 de
 // lib/ai/to-payload.ts QuickInquiryPayloadSchema). buildDraft() muss dann
 // neutrale Sätze statt eines kaputten "undefined" liefern.
 describe("buildDraft: character/timing null (Schnellweg ohne erkannten Charakter/Termin)", () => {
-  it("character null: der Charakter-Satz entfällt, der Rest des Dank-Absatzes bleibt", () => {
+  it("character null: Charaktersatz «ohne Angabe» (Wunsch 02.11.2026), der Rest des Dank-Absatzes bleibt", () => {
     const ctx = { ...m2Ctx(), character: null };
     const { body } = buildDraft(ctx, "de");
     expect(body).toContain(`${INTRO_DE} BMW M2 (G87), Jahrgang 2025.`);
+    expect(body).toContain(", technisch sauber umgesetzt, genau hier setzen wir bei dÄHLer an.");
     expect(body).not.toContain("undefined");
     assertClean(body, SETTINGS.signaturePhone);
   });
@@ -606,5 +607,19 @@ describe("buildDraft: Rückfrage nach Auswahl", () => {
     const { body } = buildDraft(ctx, "de");
     expect(body).toContain("prüfen wir die gewünschte Kombination aus Software-Leistungssteigerung und Abgasanlage");
     expect(body).not.toContain("adaptiven M-Fahrwerk");
+  });
+});
+
+// Wunsch 02.11.2026: eigener, im Admin pflegbarer Satz ohne Charakter.
+describe("buildDraft: Charaktersatz ohne Angabe aus dem Admin", () => {
+  it("eigener Text für text_draft_character_none ersetzt den Standard", () => {
+    const ctx = {
+      ...m2Ctx(),
+      character: null,
+      settings: { ...m2Ctx().settings, texts: { text_draft_character_none: "{{schwerpunkt}}, ganz nach Ihrem Wunsch." } },
+    };
+    const { body } = buildDraft(ctx, "de");
+    expect(body).toMatch(/[A-ZÄÖÜ][^.]*, ganz nach Ihrem Wunsch\./);
+    expect(body).not.toContain("technisch sauber umgesetzt");
   });
 });

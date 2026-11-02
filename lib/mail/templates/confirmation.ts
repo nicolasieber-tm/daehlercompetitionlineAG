@@ -85,7 +85,7 @@ export function confirmationTextParts(ctx: MailInquiryContext): { intro: string;
   // Rückmeldung dÄHLer 19.10.2026: derselbe Charaktersatz wie im
   // Antwortentwurf, gefolgt von der Überleitung zur Übersicht.
   const character = ctx.inquiry.character as Character | null;
-  const characterText = character ? capitalizeFirst(fillMailText(texts[`text_draft_character_${character}`], vars)) : "";
+  const characterText = capitalizeFirst(fillMailText(texts[`text_draft_character_${character ?? "none"}`], vars));
   return {
     intro: fillMailText(texts.text_confirmation_intro, vars),
     lead: [characterText, fillMailText(texts.text_confirmation_lead, vars)].filter(Boolean).join(" "),

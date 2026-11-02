@@ -279,8 +279,8 @@ export function buildDraftParagraphs(
   };
   const introParagraph = fillMailText(texts.text_draft_intro, vars);
 
-  // character ist im Schnellweg optional (null), dann entfällt der Satz.
-  const characterText = ctx.character ? capitalizeFirst(fillMailText(texts[`text_draft_character_${ctx.character}`], vars)) : "";
+  // Ohne Charakter (Schnellweg) der eigene Satz text_draft_character_none, Wunsch 02.11.2026.
+  const characterText = capitalizeFirst(fillMailText(texts[`text_draft_character_${ctx.character ?? "none"}`], vars));
   const modelText = fillMailText(texts.text_draft_model, vars);
   const itemsIntro = fillMailText(texts.text_draft_items_intro, vars);
 

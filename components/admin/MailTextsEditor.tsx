@@ -34,6 +34,7 @@ const DRAFT_FIELDS: { key: MailTextKey; rows: number; toolAfter?: "positions" }[
   { key: "text_draft_character_dezent", rows: 2 },
   { key: "text_draft_character_sportlich", rows: 2 },
   { key: "text_draft_character_maximum", rows: 2 },
+  { key: "text_draft_character_none", rows: 2 },
   { key: "text_draft_items_intro", rows: 2, toolAfter: "positions" },
   { key: "text_draft_question_fahrwerk", rows: 4 },
   { key: "text_draft_question_motor_auspuff", rows: 3 },

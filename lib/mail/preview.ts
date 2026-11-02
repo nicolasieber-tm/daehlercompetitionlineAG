@@ -14,7 +14,7 @@ import type { MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
 import type { Inquiry } from "@/lib/db/rows";
 import type { Locale } from "@/lib/i18n/dictionaries";
 
-export const PREVIEW_SCENARIO_IDS = ["single", "multi", "noSalutation"] as const;
+export const PREVIEW_SCENARIO_IDS = ["single", "multi", "noSalutation", "noCharacter"] as const;
 export type PreviewScenarioId = (typeof PREVIEW_SCENARIO_IDS)[number];
 
 export interface PreviewSignature {
@@ -31,7 +31,7 @@ interface Scenario {
   lastName: string;
   vehicle: string;
   year: string;
-  character: "dezent" | "sportlich" | "maximum";
+  character: "dezent" | "sportlich" | "maximum" | null;
   categories: DraftContext["categories"];
   followUpAnswers: Record<string, string>;
   items: DraftItem[];
@@ -104,6 +104,19 @@ const SCENARIOS: Record<PreviewScenarioId, Scenario> = {
     character: "dezent",
     categories: ["auspuff"],
     followUpAnswers: { auspuff: "dezent" },
+    items: [KOMPLETTANLAGE],
+    timing: "flexible",
+  },
+  // Schnellweg ohne erkennbaren Charakter: text_draft_character_none (Wunsch 02.11.2026).
+  noCharacter: {
+    salutation: "herr",
+    firstName: "Max",
+    lastName: "Muster",
+    vehicle: "BMW M2 (G87)",
+    year: "2025",
+    character: null,
+    categories: ["auspuff"],
+    followUpAnswers: { auspuff: "kraeftig" },
     items: [KOMPLETTANLAGE],
     timing: "flexible",
   },
