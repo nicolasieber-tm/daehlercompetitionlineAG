@@ -50,6 +50,9 @@ export const de = {
     car: {
       label: "Ihr Fahrzeug",
       question: "Welches Fahrzeug fahren Sie?",
+      searchLabel: "Fahrzeug suchen",
+      searchPlaceholder: "Modell suchen, z.B. M5 Touring oder F20",
+      searchNoResults: "Kein passendes Modell gefunden. Wählen Sie unten Ihre Marke, dort finden Sie auch ältere und weitere Modelle.",
       yearLabel: "Baujahr",
       yearOlder: "älter",
       beenHereLabel: "Schon einmal bei uns gewesen?",

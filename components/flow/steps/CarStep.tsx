@@ -4,11 +4,13 @@
 // Chips (gruppiert nach Kraftstoff), Serienleistungs-Chips, Fahrzeugfoto,
 // Baujahr und "schon einmal bei uns gewesen". Siehe docs/vorschau.html
 // viewCar() und docs/architektur.md, Abschnitt "Kundenflow" Punkt 1.
-import type { Dispatch } from "react";
+import { useRef, useState } from "react";
+import type { Dispatch, KeyboardEvent } from "react";
 import { ChoiceLabel, Chip, Field, Question, StepLabel, Tile } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
 import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
+import { searchVehicles, type VehicleSearchHit } from "@/lib/catalog/vehicle-search";
 import type { Brand, Fuel } from "@/lib/db/rows";
 import type { FlowAction, FlowState } from "../state";
 import { YEAR_OPTIONS_BASE, allSelectedProducts, bodyStyleFromLine, effectiveSeriesPs } from "../state";
@@ -91,12 +93,104 @@ export function CarStep({
     return !hasSelections || window.confirm(t.steps.car.changeResetsSelection);
   }
 
+  // Rückmeldung 06.11.2026: Suche statt Scrollen durch alle Kacheln,
+  // Vorschläge schon beim Tippen (lib/catalog/vehicle-search.ts).
+  const [query, setQuery] = useState("");
+  const [activeHit, setActiveHit] = useState(0);
+  const modelSectionRef = useRef<HTMLDivElement>(null);
+  const hits = searchVehicles(families, query);
+  const hitsId = "vehicle-search-hits";
+
+  function pickHit(hit: VehicleSearchHit) {
+    const { family, model } = hit;
+    const familyChanges = state.familyId !== family.id;
+    const modelChanges = model !== null && state.modelId !== model.id;
+    if ((familyChanges || (modelChanges && state.modelId !== null)) && !confirmSelectionReset()) return;
+    dispatch({ type: "SET_BRAND", brand: family.brand });
+    if (familyChanges) dispatch({ type: "SELECT_FAMILY", familyId: family.id, hasPricelist: family.hasPricelist });
+    if (model && modelChanges) dispatch({ type: "SELECT_MODEL", modelId: model.id });
+    setQuery("");
+    setActiveHit(0);
+    requestAnimationFrame(() => modelSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
+
+  function onSearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown" && hits.length > 0) {
+      e.preventDefault();
+      setActiveHit((i) => (i + 1) % hits.length);
+    } else if (e.key === "ArrowUp" && hits.length > 0) {
+      e.preventDefault();
+      setActiveHit((i) => (i - 1 + hits.length) % hits.length);
+    } else if (e.key === "Enter" && hits[activeHit]) {
+      e.preventDefault();
+      pickHit(hits[activeHit]);
+    } else if (e.key === "Escape") {
+      setQuery("");
+    }
+  }
+
   return (
     <div>
       <StepLabel>{t.steps.car.label}</StepLabel>
       <Question>{t.steps.car.question}</Question>
 
-      <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label={t.steps.car.question}>
+      <div className="mt-6">
+        <input
+          type="search"
+          role="combobox"
+          aria-label={t.steps.car.searchLabel}
+          aria-expanded={hits.length > 0}
+          aria-controls={hitsId}
+          aria-activedescendant={hits.length > 0 ? `${hitsId}-${activeHit}` : undefined}
+          aria-autocomplete="list"
+          autoComplete="off"
+          enterKeyHint="search"
+          placeholder={t.steps.car.searchPlaceholder}
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setActiveHit(0);
+          }}
+          onKeyDown={onSearchKeyDown}
+          // Auf dem Handy deckt die Tastatur sonst die Vorschläge unter dem Feld ab.
+          onFocus={(e) => {
+            if (window.innerWidth < 768) e.currentTarget.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          className="w-full rounded-[2px] border border-line-alt bg-panel px-3 py-[11px] text-base text-text placeholder:text-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-bright focus-visible:outline-offset-2"
+        />
+        {query.trim() !== "" ? (
+          hits.length > 0 ? (
+            <ul id={hitsId} role="listbox" aria-label={t.steps.car.searchLabel} className="border border-t-0 border-line-alt bg-panel">
+              {hits.map((hit, i) => (
+                <li
+                  key={`${hit.family.id}-${hit.model?.id ?? ""}`}
+                  id={`${hitsId}-${i}`}
+                  role="option"
+                  aria-selected={i === activeHit}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pickHit(hit)}
+                  onMouseEnter={() => setActiveHit(i)}
+                  className={[
+                    "flex min-h-11 cursor-pointer items-baseline gap-2 border-t border-line px-3 py-2.5 first:border-t-0",
+                    i === activeHit ? "bg-panel-alt" : "",
+                  ].join(" ")}
+                >
+                  <span className="text-text">{hit.model ? hit.model.name : hit.family.name}</span>
+                  <span className="truncate text-sm text-muted">
+                    {hit.model ? `${hit.family.brand} ${hit.family.name}` : hit.family.brand}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="border border-t-0 border-line-alt bg-panel px-3 py-2.5 text-sm text-muted">
+              {t.steps.car.searchNoResults}
+            </p>
+          )
+        ) : null}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label={t.steps.car.question}>
         {brands.map((b) => (
           <Chip
             key={b}
@@ -125,7 +219,7 @@ export function CarStep({
       </div>
 
       {selectedFamily && selectedFamily.models.length > 0 ? (
-        <div className="mt-7">
+        <div ref={modelSectionRef} className="mt-7">
           <ChoiceLabel hint={state.modelId === null ? t.steps.car.modelRequired : undefined} missing={state.modelId === null}>
             {t.steps.car.modelQuestion}
           </ChoiceLabel>

@@ -54,6 +54,9 @@ export const en: Dictionary = {
     car: {
       label: "Your vehicle",
       question: "Which vehicle do you drive?",
+      searchLabel: "Search vehicle",
+      searchPlaceholder: "Search model, e.g. M5 Touring or F20",
+      searchNoResults: "No matching model found. Choose your brand below, older and other models are listed there too.",
       yearLabel: "Year",
       yearOlder: "older",
       beenHereLabel: "Have you been to us before?",
