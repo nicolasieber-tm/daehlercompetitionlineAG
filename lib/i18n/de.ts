@@ -344,7 +344,7 @@ export const de = {
 
     done: {
       ticketLabel: "Anfrage eingegangen · Nr. {number}",
-      title: "Vielen Dank, {first}. Das wird gut.",
+      title: "Vielen Dank, {name}. Das wird gut.",
       subtitle:
         "Ihr {model} ist bei uns notiert. Die Bestätigung mit dieser Übersicht ist unterwegs an {email}. Wir prüfen, was in der Kombination passt, und melden uns innert einem Arbeitstag per {channel}.",
       carShotCaption: "{model} · vorher / nachher",

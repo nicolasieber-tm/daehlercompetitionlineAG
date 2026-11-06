@@ -303,7 +303,7 @@ export const en: Dictionary = {
 
     done: {
       ticketLabel: "Request received · No. {number}",
-      title: "Thank you, {first}. This is going to be great.",
+      title: "Thank you, {name}. This is going to be great.",
       subtitle:
         "Your {model} has been noted. The confirmation with this overview is on its way to {email}. We will check what fits in this combination and get back to you within one working day by {channel}.",
       carShotCaption: "{model} · before / after",
