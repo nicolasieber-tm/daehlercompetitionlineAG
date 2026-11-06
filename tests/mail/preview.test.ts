@@ -14,7 +14,7 @@ describe("previewDraft", () => {
     expect(items?.generated).toBe(true);
     expect(items?.text).toContain("Vorderachse: 9 × 20 Zoll mit Bereifung 255/30 R20");
     expect(items?.text).toContain("Preis: ab CHF 7'300, inklusive Montage, exklusive MFK");
-    expect(paragraphs.filter((p) => !p.generated).length).toBeGreaterThanOrEqual(6);
+    expect(paragraphs.filter((p) => !p.generated).length).toBeGreaterThanOrEqual(5);
   });
 
   it("Mehrere Bereiche: Bereichsliste und Gesamtpreis", () => {

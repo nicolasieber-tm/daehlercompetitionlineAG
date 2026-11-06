@@ -162,7 +162,14 @@ export function DoneStep({
   return (
     <div>
       <StepLabel>{tf(t.steps.done.ticketLabel, { number: result.number })}</StepLabel>
-      <Question>{tf(t.steps.done.title, { first: state.contact.firstName })}</Question>
+      <Question>
+        {tf(t.steps.done.title, {
+          name: [state.contact.firstName, state.contact.lastName]
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .join(" "),
+        })}
+      </Question>
       <p className="mt-2 max-w-[58ch] text-muted">
         {tf(t.steps.done.subtitle, {
           model: vehicleLabel,

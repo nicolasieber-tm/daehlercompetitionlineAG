@@ -142,7 +142,7 @@ export default async function SharedInquiryPage({
           </h1>
           {inquiry.firstName ? (
             <p className="mt-2 max-w-[58ch] text-muted">
-              {tf(t.steps.done.title, { first: inquiry.firstName })}
+              {tf(t.steps.done.title, { name: inquiry.firstName })}
             </p>
           ) : null}
         </div>

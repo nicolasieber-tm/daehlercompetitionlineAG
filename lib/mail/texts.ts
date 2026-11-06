@@ -16,7 +16,8 @@ export const MAIL_TEXT_KEYS = [
   "text_confirmation_lead",
   "text_confirmation_closing",
   "text_draft_intro",
-  "text_draft_model",
+  // Charaktersätze: seit 06.11.2026 nur noch in der Bestätigungsmail, der
+  // Schlüssel bleibt wegen bereits gespeicherter Admin-Texte unverändert.
   "text_draft_character_dezent",
   "text_draft_character_sportlich",
   "text_draft_character_maximum",
@@ -96,8 +97,7 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
       "Sportliche Grüsse aus Belp\n\ndÄHLer Competition Line AG",
     text_draft_intro:
       "Guten Tag {{anrede}}\n\n" +
-      "Vielen Dank für Ihre Anfrage und Ihr Interesse an einer individuellen Lösung von dÄHLer für Ihren {{fahrzeug}}{{jahrgang}}.",
-    text_draft_model: "Der {{modell}} verbindet pure Sportlichkeit mit beeindruckender Alltagstauglichkeit.",
+      "Gerne kommen wir auf Ihre Anfrage Nr. {{nummer}} für Ihren {{fahrzeug}} zurück.",
     text_draft_character_dezent: "{{schwerpunkt}}, dezent und stilsicher umgesetzt, genau hier setzen wir bei dÄHLer an.",
     text_draft_character_sportlich:
       "{{schwerpunkt}}, sportlich und präzise abgestimmt, genau hier setzen wir bei dÄHLer an.",
@@ -118,7 +118,7 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
       "Gerne übernehmen wir die fachgerechte Montage bei uns in Belp. Für die kommenden Wochen können wir Ihnen bereits passende Werkstatttermine anbieten " +
       "und reservieren Ihnen gerne einen Termin, sobald Sie sich für die Umsetzung entschieden haben.",
     text_draft_closing:
-      "Wenn Sie Fragen haben oder die Ausführung im Detail mit uns besprechen möchten, freuen wir uns auf Ihren Anruf oder Ihre kurze Rückmeldung per E-Mail.\n\n" +
+      "Wenn Sie die Ausführung im Detail mit uns besprechen möchten, freuen wir uns auf Ihren Anruf oder Ihre kurze Rückmeldung per E-Mail.\n\n" +
       "Wir würden uns freuen, Ihren {{modell}} gemeinsam mit Ihnen noch individueller zu gestalten.\n\n" +
       "Sportliche Grüsse aus Belp",
     text_emph_motor: "spürbar mehr Leistung",
@@ -146,8 +146,7 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
       "Sporty greetings from Belp\n\ndÄHLer Competition Line AG",
     text_draft_intro:
       "Dear {{anrede}}\n\n" +
-      "Thank you for your enquiry and your interest in an individual dÄHLer solution for your {{fahrzeug}}{{jahrgang}}.",
-    text_draft_model: "The {{modell}} combines pure sportiness with impressive everyday usability.",
+      "Following up on your enquiry no. {{nummer}} for your {{fahrzeug}}, we are pleased to send you our offer.",
     text_draft_character_dezent: "{{schwerpunkt}}, discreetly and stylishly executed, is exactly where we at dÄHLer come in.",
     text_draft_character_sportlich: "{{schwerpunkt}}, sporty and precisely set up, is exactly where we at dÄHLer come in.",
     text_draft_character_maximum:
@@ -167,7 +166,7 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
       "We would be happy to carry out the professional fitting at our workshop in Belp. We can already offer you suitable workshop dates for the coming weeks " +
       "and will be glad to reserve a date for you as soon as you have decided to go ahead.",
     text_draft_closing:
-      "If you have any questions or would like to discuss the details with us, we look forward to your call or a brief reply by e-mail.\n\n" +
+      "If you would like to discuss the details with us, we look forward to your call or a brief reply by e-mail.\n\n" +
       "We would be delighted to make your {{modell}} even more individual together with you.\n\n" +
       "Sporty greetings from Belp",
     text_emph_motor: "noticeably more power",

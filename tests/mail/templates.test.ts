@@ -4,7 +4,7 @@
 // keine Gedankenstriche, Platzhalter vollständig ersetzt, Text-Variante ohne
 // HTML-Tags.
 import { describe, expect, it } from "vitest";
-import { buildConfirmation } from "@/lib/mail/templates/confirmation";
+import { buildConfirmation, confirmationTextParts } from "@/lib/mail/templates/confirmation";
 import { buildInbox } from "@/lib/mail/templates/inbox";
 import { buildReply } from "@/lib/mail/templates/reply";
 import { buildFollowUp } from "@/lib/mail/templates/follow_up";
@@ -906,5 +906,50 @@ describe("buildFollowUp: {{anrede}}", () => {
     const result = buildFollowUp(withAnrede("de", null));
     expect(result.text).toContain("Guten Tag Nadia Muster");
     expect(result.text).not.toContain("{{");
+  });
+});
+
+// --- Charaktersatz mit {{schwerpunkt}} (Rückmeldung dÄHLer 19.10.2026).
+// Seit 06.11.2026 nur noch in der Bestätigungsmail, der Antwortentwurf
+// wiederholt ihn nicht (tests/inquiry/draft.test.ts).
+describe("confirmationTextParts: Charaktersatz vor der Überleitung", () => {
+  const base = makeContext({ locale: "de", items: itemsWithPrices, withModel: true });
+  const withInquiry = (overrides: Partial<Inquiry>, texts?: Record<string, string>) => ({
+    ...base,
+    inquiry: { ...base.inquiry, ...overrides },
+    texts: texts ?? null,
+  });
+
+  it("Auspuff «Kräftig», sportlich: wie in Christophs Beispielmail", () => {
+    const { lead } = confirmationTextParts(
+      withInquiry({ categories: ["auspuff"], follow_up_answers: { auspuff: "kraeftig" }, character: "sportlich" }),
+    );
+    expect(lead.startsWith("Eine kräftige Klangkulisse, sportlich und präzise abgestimmt, genau hier setzen wir bei dÄHLer an. Gerne prüfen wir")).toBe(true);
+  });
+
+  it("nur Komplettpaket ohne Bereiche: neutrale Wendung", () => {
+    const { lead } = confirmationTextParts(withInquiry({ categories: [], consulting: true }));
+    expect(lead).toContain("Ein stimmiges Gesamtpaket, sportlich und präzise abgestimmt");
+  });
+
+  it("eigene Wendung aus dem Admin ersetzt die Standardwendung, leeres Feld bleibt Standard", () => {
+    const { lead } = confirmationTextParts(
+      withInquiry(
+        { categories: ["motor", "auspuff"], follow_up_answers: { auspuff: "kraeftig" } },
+        { text_emph_motor: "deutlich mehr Druck", text_emph_auspuff_kraeftig: "" },
+      ),
+    );
+    expect(lead).toContain("Deutlich mehr Druck und eine kräftige Klangkulisse, sportlich und präzise abgestimmt");
+  });
+
+  it("ohne Charakter (Schnellweg): Satz «ohne Angabe», eigener Admin-Text ersetzt ihn", () => {
+    expect(confirmationTextParts(withInquiry({ character: null })).lead).toContain(
+      ", technisch sauber umgesetzt, genau hier setzen wir bei dÄHLer an.",
+    );
+    const { lead } = confirmationTextParts(
+      withInquiry({ character: null }, { text_draft_character_none: "{{schwerpunkt}}, ganz nach Ihrem Wunsch." }),
+    );
+    expect(lead).toMatch(/^[A-ZÄÖÜ][^.]*, ganz nach Ihrem Wunsch\./);
+    expect(lead).not.toContain("technisch sauber umgesetzt");
   });
 });
