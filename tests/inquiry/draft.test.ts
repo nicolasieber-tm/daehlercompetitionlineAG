@@ -73,9 +73,9 @@ function m2Ctx(): DraftContext {
 
 // Rückmeldung dÄHLer 28.10.2026: Standardtexte nach seiner Beispielmail
 // (lib/mail/texts.ts), Positionen nach Bereich gruppiert mit Strichen.
-const INTRO_DE = "Vielen Dank für Ihre Anfrage und Ihr Interesse an einer individuellen Lösung von dÄHLer für Ihren";
-const MODEL_DE = "Der BMW M2 verbindet pure Sportlichkeit mit beeindruckender Alltagstauglichkeit.";
-const LEAD_DE = `${MODEL_DE} Spürbar mehr Leistung, eine sportliche Klangkulisse und ein präzises Fahrverhalten, sportlich und präzise abgestimmt, genau hier setzen wir bei dÄHLer an.`;
+// Entscheid 06.11.2026: Der Entwurf knüpft an die Bestätigungsmail an, ohne
+// Dank, Satz zum Fahrzeug und Charaktersatz zu wiederholen.
+const INTRO_DE = "Gerne kommen wir auf Ihre Anfrage Nr.";
 const ITEMS_INTRO_DE = "Für Ihren BMW M2 bieten wir Ihnen Folgendes an:";
 const QUESTION_FAHRWERK_DE =
   "Damit wir Ihnen ein exakt auf Ihr Fahrzeug abgestimmtes Angebot erstellen können, bitten wir Sie noch um eine kurze Rückmeldung, ob Ihr BMW M2 mit dem adaptiven M-Fahrwerk ausgestattet ist. Anschliessend können wir die Details prüfen und Ihnen den definitiven Preis bestätigen.";
@@ -84,15 +84,14 @@ const QUESTION_GENERIC_DE =
 const TIMING_DE =
   "Gerne übernehmen wir die fachgerechte Montage bei uns in Belp. Für die kommenden Wochen können wir Ihnen bereits passende Werkstatttermine anbieten und reservieren Ihnen gerne einen Termin, sobald Sie sich für die Umsetzung entschieden haben.";
 const CLOSING_DE = [
-  "Wenn Sie Fragen haben oder die Ausführung im Detail mit uns besprechen möchten, freuen wir uns auf Ihren Anruf oder Ihre kurze Rückmeldung per E-Mail.",
+  "Wenn Sie die Ausführung im Detail mit uns besprechen möchten, freuen wir uns auf Ihren Anruf oder Ihre kurze Rückmeldung per E-Mail.",
   "Wir würden uns freuen, Ihren BMW M2 gemeinsam mit Ihnen noch individueller zu gestalten.",
   ["Sportliche Grüsse aus Belp", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
 ].join("\n\n");
 
 const M2_BODY_DE = [
   "Guten Tag Max Muster",
-  `${INTRO_DE} BMW M2 (G87), Jahrgang 2025.`,
-  LEAD_DE,
+  `${INTRO_DE} 2026-0012 für Ihren BMW M2 (G87) zurück.`,
   ITEMS_INTRO_DE,
   [
     ["Motor", "- Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180"].join("\n"),
@@ -108,8 +107,7 @@ const M2_BODY_DE = [
 
 const M2_BODY_EN = [
   "Dear Max Muster",
-  "Thank you for your enquiry and your interest in an individual dÄHLer solution for your BMW M2 (G87), model year 2025.",
-  "The BMW M2 combines pure sportiness with impressive everyday usability. Noticeably more power, a sporty sound and precise handling, sporty and precisely set up, is exactly where we at dÄHLer come in.",
+  "Following up on your enquiry no. 2026-0012 for your BMW M2 (G87), we are pleased to send you our offer.",
   "For your BMW M2 we can offer you the following:",
   [
     ["Engine", "- Stage 1 (620 PS / 740 Nm, M6 & A8-Getriebe), from CHF 4'180"].join("\n"),
@@ -121,7 +119,7 @@ const M2_BODY_EN = [
   "So that we can prepare an offer that is precisely matched to your car, we would ask you for a brief reply on whether your BMW M2 is equipped with the adaptive M suspension. We can then check the details and confirm the final price to you.",
   "We would be happy to carry out the professional fitting at our workshop in Belp. We can already offer you suitable workshop dates for the coming weeks and will be glad to reserve a date for you as soon as you have decided to go ahead.",
   [
-    "If you have any questions or would like to discuss the details with us, we look forward to your call or a brief reply by e-mail.",
+    "If you would like to discuss the details with us, we look forward to your call or a brief reply by e-mail.",
     "We would be delighted to make your BMW M2 even more individual together with you.",
     ["Sporty greetings from Belp", "Christoph Dähler", "dÄHLer Competition Line AG, Belp · +41 31 819 88 77"].join("\n"),
   ].join("\n\n"),
@@ -147,8 +145,7 @@ function wiesmannCtx(): DraftContext {
 
 const WIESMANN_BODY_DE = [
   "Guten Tag Peter Beispiel",
-  `${INTRO_DE} Wiesmann.`,
-  "Der Wiesmann verbindet pure Sportlichkeit mit beeindruckender Alltagstauglichkeit. Spürbar mehr Leistung und ein markanter Auftritt, dezent und stilsicher umgesetzt, genau hier setzen wir bei dÄHLer an.",
+  `${INTRO_DE} 2026-0045 für Ihren Wiesmann zurück.`,
   "Für Ihren Wiesmann bieten wir Ihnen Folgendes an:",
   ["- Motor", "- Exterieur"].join("\n"),
   "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Montage, exklusive MFK.",
@@ -251,14 +248,14 @@ describe("buildDraft: Kurzablauf Platzhalterfamilie (docs/architektur.md, Abschn
   it("ohne vehicleText: Marke + Platzhalter-Familienname (einzig verfügbarer Anhaltspunkt)", () => {
     const { subject, body } = buildDraft(kurzablaufCtx(null), "de");
     expect(subject).toBe("Ihre Anfrage für den BMW Älteres Modell, Nr. 2026-0099");
-    expect(body).toContain(`${INTRO_DE} BMW Älteres Modell.`);
+    expect(body).toContain(`${INTRO_DE} 2026-0099 für Ihren BMW Älteres Modell zurück.`);
     assertClean(body, SETTINGS.signaturePhone);
   });
 
   it("mit vehicleText: Marke + vehicleText, der nichtssagende Platzhaltername bleibt weg (kein doppeltes Lesen, Kundenrückmeldung)", () => {
     const { subject, body } = buildDraft(kurzablaufCtx("320i Touring, Baujahr ca. 2011"), "de");
     expect(subject).toBe("Ihre Anfrage für den BMW 320i Touring, Baujahr ca. 2011, Nr. 2026-0099");
-    expect(body).toContain(`${INTRO_DE} BMW 320i Touring, Baujahr ca. 2011.`);
+    expect(body).toContain(`${INTRO_DE} 2026-0099 für Ihren BMW 320i Touring, Baujahr ca. 2011 zurück.`);
     assertClean(body, SETTINGS.signaturePhone);
   });
 });
@@ -350,11 +347,11 @@ describe("buildDraft: Positionszeile mit mehrzeiliger Beschreibung (Befund #2 de
 // lib/ai/to-payload.ts QuickInquiryPayloadSchema). buildDraft() muss dann
 // neutrale Sätze statt eines kaputten "undefined" liefern.
 describe("buildDraft: character/timing null (Schnellweg ohne erkannten Charakter/Termin)", () => {
-  it("character null: Charaktersatz «ohne Angabe» (Wunsch 02.11.2026), der Rest des Dank-Absatzes bleibt", () => {
+  it("character null: Einleitung unverändert, kein Charaktersatz (steht nur in der Bestätigung)", () => {
     const ctx = { ...m2Ctx(), character: null };
     const { body } = buildDraft(ctx, "de");
-    expect(body).toContain(`${INTRO_DE} BMW M2 (G87), Jahrgang 2025.`);
-    expect(body).toContain(", technisch sauber umgesetzt, genau hier setzen wir bei dÄHLer an.");
+    expect(body).toContain(`${INTRO_DE} 2026-0012 für Ihren BMW M2 (G87) zurück.`);
+    expect(body).not.toContain("genau hier setzen wir bei dÄHLer an");
     expect(body).not.toContain("undefined");
     assertClean(body, SETTINGS.signaturePhone);
   });
@@ -474,31 +471,20 @@ describe("buildDraft: Mailtexte aus dem Admin (lib/mail/texts.ts)", () => {
   });
 });
 
-// --- Rückmeldung dÄHLer 19.10.2026: {{schwerpunkt}} aus Bereichen und Folgefragen
-describe("buildDraft: Charaktersatz mit Schwerpunkt", () => {
-  it("Auspuff «Kräftig», sportlich: wie in Christophs Beispielmail", () => {
-    const ctx = { ...m2Ctx(), categories: ["auspuff"] as DraftContext["categories"], followUpAnswers: { auspuff: "kraeftig" }, items: [KOMPLETTANLAGE], estimatedTotal: 5260 };
-    const { body } = buildDraft(ctx, "de");
-    expect(body).toContain(
-      `${MODEL_DE} Eine kräftige Klangkulisse, sportlich und präzise abgestimmt, genau hier setzen wir bei dÄHLer an.\n\n${ITEMS_INTRO_DE}`,
-    );
-  });
-
-  it("nur Komplettpaket ohne Bereiche: neutrale Wendung", () => {
-    const ctx = { ...m2Ctx(), categories: [] as DraftContext["categories"], consulting: true, items: [], estimatedTotal: null };
-    expect(buildDraft(ctx, "de").body).toContain("Ein stimmiges Gesamtpaket, sportlich und präzise abgestimmt");
-  });
-});
-
-describe("buildDraft: Schwerpunkt-Wendungen aus dem Admin", () => {
-  it("eigene Wendung ersetzt die Standardwendung, leeres Feld bleibt Standard", () => {
-    const ctx = {
-      ...m2Ctx(),
-      categories: ["motor", "auspuff"] as DraftContext["categories"],
-      followUpAnswers: { auspuff: "kraeftig" },
-      settings: { ...SETTINGS, texts: { text_emph_motor: "deutlich mehr Druck", text_emph_auspuff_kraeftig: "" } },
-    };
-    expect(buildDraft(ctx, "de").body).toContain("Deutlich mehr Druck und eine kräftige Klangkulisse, sportlich und präzise abgestimmt");
+// --- Entscheid 06.11.2026: Charaktersatz und Satz zum Fahrzeug nur noch in
+// der Bestätigungsmail (Tests dort, tests/mail/templates.test.ts).
+describe("buildDraft: wiederholt die Bestätigungsmail nicht", () => {
+  it("kein Dank für die Anfrage, kein Satz zum Fahrzeug, kein Charaktersatz, in beiden Sprachen", () => {
+    for (const character of ["dezent", "sportlich", "maximum", null] as const) {
+      const de = buildDraft({ ...m2Ctx(), character }, "de").body;
+      expect(de).not.toContain("Vielen Dank für Ihre Anfrage");
+      expect(de).not.toContain("verbindet pure Sportlichkeit");
+      expect(de).not.toContain("genau hier setzen wir bei dÄHLer an");
+      const en = buildDraft({ ...m2Ctx(), character }, "en").body;
+      expect(en).not.toContain("Thank you for your enquiry");
+      expect(en).not.toContain("combines pure sportiness");
+      expect(en).not.toContain("is exactly where we at dÄHLer come in");
+    }
   });
 });
 
@@ -534,10 +520,9 @@ describe("buildDraft: Anrede und {{modell}}", () => {
 
   it("{{modell}} ohne Baureihencode, {{fahrzeug}} unverändert", () => {
     const { body } = buildDraft(raederCtx(), "de");
-    expect(body).toContain("Ihren BMW M2 (G87), Jahrgang 2025.");
-    expect(body).toContain("Der BMW M2 verbindet");
+    expect(body).toContain("für Ihren BMW M2 (G87) zurück.");
     expect(body).toContain("Für Ihren BMW M2 bieten wir");
-    expect(body).not.toContain("BMW M2 (G87) verbindet");
+    expect(body).not.toContain("Für Ihren BMW M2 (G87) bieten wir");
   });
 });
 
@@ -607,19 +592,5 @@ describe("buildDraft: Rückfrage nach Auswahl", () => {
     const { body } = buildDraft(ctx, "de");
     expect(body).toContain("prüfen wir die gewünschte Kombination aus Software-Leistungssteigerung und Abgasanlage");
     expect(body).not.toContain("adaptiven M-Fahrwerk");
-  });
-});
-
-// Wunsch 02.11.2026: eigener, im Admin pflegbarer Satz ohne Charakter.
-describe("buildDraft: Charaktersatz ohne Angabe aus dem Admin", () => {
-  it("eigener Text für text_draft_character_none ersetzt den Standard", () => {
-    const ctx = {
-      ...m2Ctx(),
-      character: null,
-      settings: { ...m2Ctx().settings, texts: { text_draft_character_none: "{{schwerpunkt}}, ganz nach Ihrem Wunsch." } },
-    };
-    const { body } = buildDraft(ctx, "de");
-    expect(body).toMatch(/[A-ZÄÖÜ][^.]*, ganz nach Ihrem Wunsch\./);
-    expect(body).not.toContain("technisch sauber umgesetzt");
   });
 });

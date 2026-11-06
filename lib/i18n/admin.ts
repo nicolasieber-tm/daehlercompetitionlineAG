@@ -295,7 +295,7 @@ export const admin = {
     sectionsLabel: "Bereich",
     draftIntro: "Der Antwortentwurf, den Sie in der Anfrage bearbeiten und senden. Die Felder stehen in der Reihenfolge der Mail.",
     confirmationIntro:
-      "Die Bestätigung, die der Kunde automatisch nach dem Absenden erhält. Der Charaktersatz (Antwortentwurf, Feld 3) steht auch hier, direkt vor der Überleitung.",
+      "Die Bestätigung, die der Kunde automatisch nach dem Absenden erhält. Der Antwortentwurf knüpft daran an und wiederholt Dank und Charaktersatz nicht.",
     placeholders: {
       title: "Platzhalter",
       hint: "Ein Klick fügt den Platzhalter an der Cursorposition des zuletzt angeklickten Felds ein.",
@@ -355,50 +355,46 @@ export const admin = {
     fields: {
       text_draft_intro: {
         label: "1. Begrüssung und Einleitung",
-        help: "Beginnt mit «Guten Tag {{anrede}}». {{jahrgang}} ergibt z.B. «, Jahrgang 2025» oder bleibt leer.",
-      },
-      text_draft_model: {
-        label: "2. Satz zum Fahrzeug",
-        help: "Steht im selben Absatz wie der Charaktersatz, direkt davor. Mit {{modell}} ohne Baureihencode.",
+        help: "Beginnt mit «Guten Tag {{anrede}}». Der Entwurf knüpft an die Bestätigungsmail an, Dank und Charaktersatz stehen bereits dort. {{jahrgang}} ergibt z.B. «, Jahrgang 2025» oder bleibt leer.",
       },
       text_draft_character_dezent: {
-        label: "3. Charaktersatz bei «Dezent»",
-        help: "Je nach Wahl des Kunden im Schritt Charakter, gilt für beide Mails. {{schwerpunkt}} setzt das Tool aus den gewählten Bereichen zusammen (Reiter «Schwerpunkt-Wendungen»). Am Satzanfang wird er automatisch gross geschrieben.",
+        label: "2. Charaktersatz bei «Dezent»",
+        help: "Je nach Wahl des Kunden im Schritt Charakter. {{schwerpunkt}} setzt das Tool aus den gewählten Bereichen zusammen (Reiter «Schwerpunkt-Wendungen»). Am Satzanfang wird er automatisch gross geschrieben.",
       },
       text_draft_character_sportlich: {
-        label: "3. Charaktersatz bei «Sportlich»",
+        label: "2. Charaktersatz bei «Sportlich»",
         help: "Wie oben.",
       },
       text_draft_character_maximum: {
-        label: "3. Charaktersatz bei «Maximum»",
+        label: "2. Charaktersatz bei «Maximum»",
         help: "Wie oben.",
       },
       text_draft_character_none: {
-        label: "3. Charaktersatz ohne Angabe",
+        label: "2. Charaktersatz ohne Angabe",
         help: "Wenn kein Charakter gewählt ist, z.B. bei einer Anfrage über den Schnellweg, wenn der Text keinen Hinweis enthält.",
       },
       text_draft_items_intro: {
-        label: "4. Überleitung zu den Positionen",
+        label: "2. Überleitung zu den Positionen",
         help: "Eigener Absatz, danach folgen die Positionen.",
       },
       text_draft_question_fahrwerk: {
-        label: "5a. Rückfrage bei Fahrwerk oder Räder",
+        label: "3a. Rückfrage bei Fahrwerk oder Räder",
         help: "Steht nach den Positionen und dem Richtpreis, wenn der Kunde Fahrwerk oder Räder gewählt hat.",
       },
       text_draft_question_motor_auspuff: {
-        label: "5b. Rückfrage bei Motor und Auspuff",
+        label: "3b. Rückfrage bei Motor und Auspuff",
         help: "Wenn der Kunde Motor und Auspuff gewählt hat (und nicht Fahrwerk oder Räder).",
       },
       text_draft_question_generic: {
-        label: "5c. Rückfrage in allen anderen Fällen",
+        label: "3c. Rückfrage in allen anderen Fällen",
         help: "Alle übrigen Auswahlen.",
       },
       text_draft_timing: {
-        label: "6. Werkstatttermin",
+        label: "4. Werkstatttermin",
         help: "Ein Text für alle Zeiträume.",
       },
       text_draft_closing: {
-        label: "7. Schluss und Grüsse",
+        label: "5. Schluss und Grüsse",
         help: "Danach folgt die Signatur (Name, Firma, Telefon aus den Einstellungen).",
       },
       text_confirmation_intro: {
@@ -406,11 +402,11 @@ export const admin = {
         help: "Danach folgen der Charaktersatz und die Überleitung.",
       },
       text_confirmation_lead: {
-        label: "2. Überleitung zur Übersicht",
+        label: "3. Überleitung zur Übersicht",
         help: "Steht direkt nach dem Charaktersatz, vor Fahrzeug, Wunsch und Paket.",
       },
       text_confirmation_closing: {
-        label: "3. Schluss und Grüsse",
+        label: "4. Schluss und Grüsse",
         help: "Steht nach dem Paket und den nächsten Schritten.",
       },
     } as Record<string, { label: string; help: string }>,

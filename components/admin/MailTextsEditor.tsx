@@ -30,11 +30,6 @@ const SECTIONS: Section[] = ["draft", "confirmation", "emphasis"];
 /** Felder je Bereich in der Reihenfolge, in der sie in der Mail stehen. `toolAfter`: Hinweis auf Tool-Inhalt danach. */
 const DRAFT_FIELDS: { key: MailTextKey; rows: number; toolAfter?: "positions" }[] = [
   { key: "text_draft_intro", rows: 4 },
-  { key: "text_draft_model", rows: 2 },
-  { key: "text_draft_character_dezent", rows: 2 },
-  { key: "text_draft_character_sportlich", rows: 2 },
-  { key: "text_draft_character_maximum", rows: 2 },
-  { key: "text_draft_character_none", rows: 2 },
   { key: "text_draft_items_intro", rows: 2, toolAfter: "positions" },
   { key: "text_draft_question_fahrwerk", rows: 4 },
   { key: "text_draft_question_motor_auspuff", rows: 3 },
@@ -44,6 +39,10 @@ const DRAFT_FIELDS: { key: MailTextKey; rows: number; toolAfter?: "positions" }[
 ];
 const CONFIRMATION_FIELDS: { key: MailTextKey; rows: number; toolAfter?: "overview" }[] = [
   { key: "text_confirmation_intro", rows: 4 },
+  { key: "text_draft_character_dezent", rows: 2 },
+  { key: "text_draft_character_sportlich", rows: 2 },
+  { key: "text_draft_character_maximum", rows: 2 },
+  { key: "text_draft_character_none", rows: 2 },
   { key: "text_confirmation_lead", rows: 3, toolAfter: "overview" },
   { key: "text_confirmation_closing", rows: 6 },
 ];

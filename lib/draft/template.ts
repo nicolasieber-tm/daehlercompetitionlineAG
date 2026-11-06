@@ -15,7 +15,7 @@ import { formatWheelDimensionLine } from "@/lib/catalog/wheel-dimensions";
 import { displayItemFields, isStandaloneVmaxProduct, stageShortTitle } from "@/lib/catalog/product-display";
 import type { TranslationMap } from "@/lib/translations/resolve";
 import { fillMailText, resolveMailTexts } from "@/lib/mail/texts";
-import { capitalizeFirst, emphasisText } from "@/lib/mail/emphasis";
+import { emphasisText } from "@/lib/mail/emphasis";
 import type { Character, FlowCategory, PriceStatus, Timing } from "@/lib/db/rows";
 
 export interface DraftItem {
@@ -259,8 +259,8 @@ export function buildDraftParagraphs(
 ): { subject: string; paragraphs: DraftParagraph[] } {
   const dict = getDictionary(locale);
   const d = dict.draft;
-  // Rückmeldung dÄHLer 14.10.2026: Einleitung, Charaktersatz, Überleitung
-  // zum Angebot, Terminsatz und Schluss pflegt der Kunde im Admin
+  // Rückmeldung dÄHLer 14.10.2026: Einleitung, Überleitung zum Angebot,
+  // Terminsatz und Schluss pflegt der Kunde im Admin
   // (lib/mail/texts.ts), Positionen, Leistung und Richtpreis baut das Tool.
   const texts = resolveMailTexts(locale, ctx.settings.texts);
 
@@ -277,11 +277,11 @@ export function buildDraftParagraphs(
     nummer: ctx.number,
     schwerpunkt: emphasisText(ctx.categories, ctx.followUpAnswers, locale, texts),
   };
+  // Entscheid 06.11.2026: Der Entwurf knüpft an die Bestätigungsmail an,
+  // statt sie zu wiederholen. Satz zum Fahrzeug und Charaktersatz stehen nur
+  // noch in der Bestätigung, der Entwurf geht von der Einleitung direkt zu
+  // den geprüften Positionen.
   const introParagraph = fillMailText(texts.text_draft_intro, vars);
-
-  // Ohne Charakter (Schnellweg) der eigene Satz text_draft_character_none, Wunsch 02.11.2026.
-  const characterText = capitalizeFirst(fillMailText(texts[`text_draft_character_${ctx.character ?? "none"}`], vars));
-  const modelText = fillMailText(texts.text_draft_model, vars);
   const itemsIntro = fillMailText(texts.text_draft_items_intro, vars);
 
   // Positionen, nach Bereich gruppiert («Motor», darunter je Produkt eine
@@ -315,8 +315,6 @@ export function buildDraftParagraphs(
     if (ctx.consulting) blocks.push(`${dict.steps.done.package.adviceLine}\n- ${d.categoryAdvice}`);
     itemsBlock = blocks.join("\n\n");
   }
-  const leadParagraph = [modelText, characterText].filter(Boolean).join(" ");
-
   // Leistungs-Satz: nur bei gewählter Motor-Leistungsstufe (variant_group
   // 'leistung') mit bekanntem Zielwert (ps_to).
   const stageItem = ctx.items.find(
@@ -361,7 +359,6 @@ export function buildDraftParagraphs(
   const paragraphs: DraftParagraph[] = (
     [
       [introParagraph, false],
-      [leadParagraph, false],
       [itemsIntro, false],
       [itemsBlock, true],
       [performanceParagraph, true],

@@ -82,8 +82,9 @@ export function confirmationTextParts(ctx: MailInquiryContext): { intro: string;
       texts,
     ),
   };
-  // Rückmeldung dÄHLer 19.10.2026: derselbe Charaktersatz wie im
-  // Antwortentwurf, gefolgt von der Überleitung zur Übersicht.
+  // Rückmeldung dÄHLer 19.10.2026: Charaktersatz, gefolgt von der
+  // Überleitung zur Übersicht. Seit 06.11.2026 nur hier, der Antwortentwurf
+  // knüpft an diese Mail an und wiederholt ihn nicht.
   const character = ctx.inquiry.character as Character | null;
   const characterText = capitalizeFirst(fillMailText(texts[`text_draft_character_${character ?? "none"}`], vars));
   return {
