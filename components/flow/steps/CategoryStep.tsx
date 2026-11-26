@@ -8,7 +8,7 @@
 import type { Dispatch } from "react";
 import { Button, ChoiceLabel, Tile } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
-import { chfFrom } from "@/lib/i18n/format";
+import { chfPrice, isFromPriceNote } from "@/lib/i18n/format";
 import { de } from "@/lib/i18n/de";
 import { isStageProduct, productDisplay, stageShortTitle } from "@/lib/catalog/product-display";
 import { translateText } from "@/lib/translations/resolve";
@@ -140,13 +140,13 @@ function buildSubsections(
 }
 
 function priceText(
-  product: Pick<CatalogProduct, "priceStatus" | "priceTotal">,
+  product: Pick<CatalogProduct, "priceStatus" | "priceTotal" | "priceNote">,
   t: ReturnType<typeof useT>["t"],
   tf: ReturnType<typeof useT>["tf"],
   locale: ReturnType<typeof useT>["locale"],
 ): string {
   if (product.priceStatus === "priced" && product.priceTotal != null) {
-    return tf(t.priceStatus.priced, { price: chfFrom(product.priceTotal, locale) });
+    return tf(t.priceStatus.priced, { price: chfPrice(product.priceTotal, locale, isFromPriceNote(product.priceNote)) });
   }
   if (product.priceStatus === "in_preparation") return t.priceStatus.in_preparation;
   return t.priceStatus.on_request;
@@ -209,8 +209,6 @@ export function CategoryStep({
   const psTarget = stageProduct?.psTo ?? seriesPs ?? 0;
   const animatedTarget = usePsCounter(psTarget);
 
-  const followUpDict = t.steps.category.followUp;
-  const followUp = category in followUpDict ? followUpDict[category as keyof typeof followUpDict] : undefined;
 
   const upsellTarget = UPSELL_TARGET[category];
   // t.steps.category.upsell ist nach der QUELL-Kategorie geschlüsselt (wie
@@ -497,33 +495,6 @@ export function CategoryStep({
         </div>
       ) : null}
 
-      {followUp ? (
-        <div className="mt-6">
-          <ChoiceLabel hint={t.steps.category.followUpHint}>{followUp.question}</ChoiceLabel>
-          <div className="flex flex-wrap gap-2">
-            {followUp.options.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={state.followUpAnswers[category] === option.id}
-                onClick={() => dispatch({ type: "SET_FOLLOW_UP", category, optionId: option.id })}
-                className={[
-                  // min-h-11 (44px) wie components/ui/Chip.tsx (Touch-Ziel,
-                  // Prüfung Minor-Befund).
-                  "inline-flex min-h-11 items-center justify-center rounded-full border px-4 py-2 font-display text-[15px] font-semibold uppercase tracking-[0.06em] transition-colors duration-150",
-                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-bright focus-visible:outline-offset-2",
-                  state.followUpAnswers[category] === option.id
-                    ? "border-red bg-red text-white"
-                    : "border-line-alt bg-transparent text-muted hover:border-muted hover:text-text",
-                ].join(" ")}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
       {needsTailpipes ? (
         <div className="mt-5 border border-line-alt border-l-4 border-l-warn bg-panel px-4 py-3 text-[14px] text-text-soft" role="status">
           {t.steps.category.tailpipeHint}
@@ -552,7 +523,7 @@ export function CategoryStep({
             <span className="text-[13px] text-muted">
               {upsellTexts.text}
               {upsellFirstPriced ? (
-                <em className="not-italic text-red-bright"> {displayTitle(upsellFirstPriced)} {tf(t.priceStatus.priced, { price: chfFrom(upsellFirstPriced.priceTotal!, locale) })}</em>
+                <em className="not-italic text-red-bright"> {displayTitle(upsellFirstPriced)} {priceText(upsellFirstPriced, t, tf, locale)}</em>
               ) : null}
             </span>
           </div>

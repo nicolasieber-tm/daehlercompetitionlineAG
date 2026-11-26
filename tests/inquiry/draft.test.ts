@@ -94,12 +94,12 @@ const M2_BODY_DE = [
   `${INTRO_DE} 2026-0012 für Ihren BMW M2 (G87) zurück.`,
   ITEMS_INTRO_DE,
   [
-    ["Motor", "- Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180"].join("\n"),
-    ["Auspuff", "- Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, ab CHF 5'260"].join("\n"),
-    ["Fahrwerk", "- Sportfedernsatz für M2 / VA -20mm/ HA -14mm, ab CHF 1'630"].join("\n"),
+    ["Motor", "- Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), CHF 4'180"].join("\n"),
+    ["Auspuff", "- Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, CHF 5'260"].join("\n"),
+    ["Fahrwerk", "- Sportfedernsatz für M2 / VA -20mm/ HA -14mm, CHF 1'630"].join("\n"),
   ].join("\n\n"),
   "Mit Stufe 1 kommt Ihr BMW M2 (G87) auf 620 PS / 740 Nm, WLTP-geprüft und mit CH-Gutachten. Die Ergänzungsgarantie zur Werksgarantie ist für ein Jahr inbegriffen.",
-  "Richtpreis für das Gesamtpaket: ab CHF 11'070, inklusive Montage, exklusive MFK.",
+  "Richtpreis für das Gesamtpaket: CHF 11'070, inklusive Montage, exklusive MFK.",
   QUESTION_FAHRWERK_DE,
   TIMING_DE,
   CLOSING_DE,
@@ -110,12 +110,12 @@ const M2_BODY_EN = [
   "Following up on your enquiry no. 2026-0012 for your BMW M2 (G87), we are pleased to send you our offer.",
   "For your BMW M2 we can offer you the following:",
   [
-    ["Engine", "- Stage 1 (620 PS / 740 Nm, M6 & A8-Getriebe), from CHF 4'180"].join("\n"),
-    ["Exhaust", "- Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, from CHF 5'260"].join("\n"),
-    ["Suspension", "- Sportfedernsatz für M2 / VA -20mm/ HA -14mm, from CHF 1'630"].join("\n"),
+    ["Engine", "- Stage 1 (620 PS / 740 Nm, M6 & A8-Getriebe), CHF 4'180"].join("\n"),
+    ["Exhaust", "- Edelstahl Komplettanlage HP mit Bi-Klappensteuerung ohne Endrohre, CHF 5'260"].join("\n"),
+    ["Suspension", "- Sportfedernsatz für M2 / VA -20mm/ HA -14mm, CHF 1'630"].join("\n"),
   ].join("\n\n"),
   "With Stage 1 your BMW M2 (G87) reaches 620 PS / 740 Nm, WLTP tested and with a Swiss approval certificate. The one year warranty extension to the factory warranty is included.",
-  "Indicative price for the complete package: from CHF 11'070, including fitting, excluding roadworthiness test.",
+  "Indicative price for the complete package: CHF 11'070, including fitting, excluding roadworthiness test.",
   "So that we can prepare an offer that is precisely matched to your car, we would ask you for a brief reply on whether your BMW M2 is equipped with the adaptive M suspension. We can then check the details and confirm the final price to you.",
   "We would be happy to carry out the professional fitting at our workshop in Belp. We can already offer you suitable workshop dates for the coming weeks and will be glad to reserve a date for you as soon as you have decided to go ahead.",
   [
@@ -296,8 +296,8 @@ describe("buildDraft: die beiden M2 G87 Stufe-1-Positionen (Basis 480 PS) sind u
     const ctxWith = { ...m2Ctx(), items: [STUFE_1_VMAX] };
     const { body: bodyWithout } = buildDraft(ctxWithout, "de");
     const { body: bodyWith } = buildDraft(ctxWith, "de");
-    expect(bodyWithout).toContain("Motor\n- Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), ab CHF 4'180");
-    expect(bodyWith).toContain("Motor\n- Stufe 1 mit V/max-Aufhebung (640 PS / 770 Nm, M6 & A8-Getriebe), ab CHF 4'980");
+    expect(bodyWithout).toContain("Motor\n- Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe), CHF 4'180");
+    expect(bodyWith).toContain("Motor\n- Stufe 1 mit V/max-Aufhebung (640 PS / 770 Nm, M6 & A8-Getriebe), CHF 4'980");
   });
 });
 
@@ -323,7 +323,7 @@ describe("buildDraft: eigenständiges V/max-Produkt 'ohne Leistungssteigerung' (
     const ctx = { ...m2Ctx(), items: [VMAX_OHNE_LEISTUNGSSTEIGERUNG], estimatedTotal: 2230 };
     const { body } = buildDraft(ctx, "de");
     expect(body).toContain(
-      "Motor\n- Aufhebung der serienmässigen V/max Begrenzung ohne Leistungssteigerung, ab CHF 2'230",
+      "Motor\n- Aufhebung der serienmässigen V/max Begrenzung ohne Leistungssteigerung, CHF 2'230",
     );
     expect(body).not.toContain("Leistungssteigerung mit V/max-Aufhebung");
   });
@@ -335,7 +335,7 @@ describe("buildDraft: Positionszeile mit mehrzeiliger Beschreibung (Befund #2 de
     const { body } = buildDraft(ctx, "de");
     // Rückmeldung dÄHLer 28.10.2026: Achsen als eingerückte Unterzeilen, kein «bestehend aus».
     expect(body).toContain(
-      "Räder\n- CDC1 FORGED Radsatz geschmiedet, ab CHF 7'100\n  10 × 20 Zoll mit Bereifung 275/30 R20\n  10 × 20 Zoll mit Bereifung 285/30 R20",
+      "Räder\n- CDC1 FORGED Radsatz geschmiedet, CHF 7'100\n  10 × 20 Zoll mit Bereifung 275/30 R20\n  10 × 20 Zoll mit Bereifung 285/30 R20",
     );
     assertClean(body, SETTINGS.signaturePhone);
   });
@@ -534,7 +534,7 @@ describe("buildDraft: genau eine Position, Empfehlungsform mit Achszeilen", () =
         "Unsere Empfehlung: CDC2 FORGED Schmiederadsatz",
         "Vorderachse: 9 × 20 Zoll mit Bereifung 255/30 R20",
         "Hinterachse: 10 × 20 Zoll mit Bereifung 275/30 R20",
-        "Preis: ab CHF 7'300, inklusive Montage, exklusive MFK",
+        "Preis: CHF 7'300, inklusive Montage, exklusive MFK",
       ].join("\n"),
     );
     expect(body).not.toContain("Richtpreis für das Gesamtpaket");
@@ -550,7 +550,7 @@ describe("buildDraft: genau eine Position, Empfehlungsform mit Achszeilen", () =
         "Our recommendation: CDC2 FORGED Schmiederadsatz",
         "Front axle: 9 × 20 inch with 255/30 R20 tyres",
         "Rear axle: 10 × 20 inch with 275/30 R20 tyres",
-        "Price: from CHF 7'300, including fitting, excluding roadworthiness test",
+        "Price: CHF 7'300, including fitting, excluding roadworthiness test",
       ].join("\n"),
     );
   });
@@ -559,7 +559,7 @@ describe("buildDraft: genau eine Position, Empfehlungsform mit Achszeilen", () =
     const item = { ...CDC2, description: "11 x 23 mit VA 285/ 35 23, HA 325/30 23 in Wunschfarbe lackiert" };
     const { body } = buildDraft(raederCtx({ items: [item] }), "de");
     expect(body).toContain(
-      "Unsere Empfehlung: CDC2 FORGED Schmiederadsatz\n11 x 23 mit VA 285/ 35 23, HA 325/30 23 in Wunschfarbe lackiert\nPreis: ab CHF 7'300",
+      "Unsere Empfehlung: CDC2 FORGED Schmiederadsatz\n11 x 23 mit VA 285/ 35 23, HA 325/30 23 in Wunschfarbe lackiert\nPreis: CHF 7'300",
     );
   });
 
@@ -573,14 +573,14 @@ describe("buildDraft: genau eine Position, Empfehlungsform mit Achszeilen", () =
   it("Stufe 1 allein: Empfehlung mit Leistungssatz, allgemeine Rückfrage", () => {
     const ctx = { ...m2Ctx(), categories: ["motor"] as DraftContext["categories"], items: [STUFE_1], estimatedTotal: 4180 };
     const { body } = buildDraft(ctx, "de");
-    expect(body).toContain("Unsere Empfehlung: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe)\nPreis: ab CHF 4'180, inklusive Montage, exklusive MFK");
+    expect(body).toContain("Unsere Empfehlung: Stufe 1 (620 PS / 740 Nm, M6 & A8-Getriebe)\nPreis: CHF 4'180, inklusive Montage, exklusive MFK");
     expect(body).toContain(QUESTION_GENERIC_DE);
   });
 
   it("Kategorie ohne Produkt oder Komplettpaket: keine Empfehlungsform", () => {
     const withGap = buildDraft(raederCtx({ categories: ["raeder", "motor"] }), "de").body;
     expect(withGap).not.toContain("Unsere Empfehlung");
-    expect(withGap).toContain("Richtpreis für das Gesamtpaket: ab CHF 7'300");
+    expect(withGap).toContain("Richtpreis für das Gesamtpaket: CHF 7'300");
     const consulting = buildDraft(raederCtx({ consulting: true }), "de").body;
     expect(consulting).not.toContain("Unsere Empfehlung");
   });

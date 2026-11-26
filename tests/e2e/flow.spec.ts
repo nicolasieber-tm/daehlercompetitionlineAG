@@ -136,17 +136,11 @@ test.describe("Kundenflow Desktop, BMW M2 G87 mit Preisen", () => {
     // Upsell "Passt gut dazu: Räder" ist hier nicht vorgesehen (Auspuff
     // schlägt Motor vor, das ist schon gewählt) - der eigentliche
     // Fahrwerk/Räder-Upsell kommt erst im Fahrwerk-Schritt. Weiter zu wish
-    // wurde oben nur motor+auspuff gewählt, also folgt jetzt "character".
+    // wurde oben nur motor+auspuff gewählt, also folgt jetzt "contact".
     // Stattdessen testen wir den Upsell direkt hier über den Motor-Schritt:
     // zurück und die Fahrwerk-Kategorie ist nicht gewählt, wir nutzen den
     // vorhandenen Auspuff-Schritt-Upsell (Richtung Motor) nicht weiter,
     // sondern gehen weiter.
-    await page.getByRole("button", { name: "Weiter →" }).click();
-
-    // Schritt: Charakter (kein Fahrwerk/Räder gewählt, Upsell dort getestet
-    // in einem eigenen Testschritt unten über "Dazunehmen").
-    await expect(page.getByRole("heading", { name: /wirken/ })).toBeVisible();
-    await page.getByRole("button", { name: "Sportlich" }).click();
     await page.getByRole("button", { name: "Weiter →" }).click();
 
     // Kontakt ausfüllen und senden.
@@ -160,9 +154,10 @@ test.describe("Kundenflow Desktop, BMW M2 G87 mit Preisen", () => {
     await page.getByRole("checkbox").check();
     await page.getByRole("button", { name: "Anfrage senden →" }).click();
 
-    // Abschluss: Nummer im Format JJJJ-NNNN und "ab CHF".
+    // Abschluss: Nummer im Format JJJJ-NNNN und Preis (seit 26.11.2026 ohne
+    // «ab», ausser die Excel führt es).
     await expect(page.getByText(/Nr\. \d{4}-\d{4}/)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/ab CHF/).first()).toBeVisible();
+    await expect(page.getByText(/CHF \d/).first()).toBeVisible();
 
     // Nachzug Prüfung Phase D, Punkt 1: der Abschluss-Screen (Vorher/Nachher
     // und "Ihr Paket"-Summary) zeigt für die Leistungsstufe denselben kurzen
@@ -219,6 +214,11 @@ test.describe("Kundenflow Desktop, Upsell Räder", () => {
     await page.getByRole("button", { name: "Dazunehmen" }).click();
     await expect(page.getByText(/ist dabei/)).toBeVisible();
 
+    // Rückmeldung dÄHLer 14.10.2026: ohne Produktauswahl zeigt das erste
+    // «Weiter» einen Hinweis, damit der Kunde weiss, dass er etwas wählen
+    // muss; erst das zweite «Weiter» geht weiter (Beratung gewünscht).
+    await page.getByRole("button", { name: "Weiter →" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "Noch kein Produkt ausgewählt" })).toBeVisible();
     await page.getByRole("button", { name: "Weiter →" }).click();
     await expect(page.getByRole("heading", { name: "Welche Räder?" })).toBeVisible();
   });
@@ -237,11 +237,6 @@ test.describe("Kundenflow Mobile, Kurzablauf", () => {
     // Wunsch (Kurzablauf: keine Produktschritte danach).
     await expect(page.getByRole("heading", { name: "Was darf es sein?" })).toBeVisible();
     await page.getByRole("button", { name: /^Motor/ }).click();
-    await page.getByRole("button", { name: "Weiter →" }).click();
-
-    // Direkt Charakter (kein "cat:motor"-Schritt im Kurzablauf).
-    await expect(page.getByRole("heading", { name: /wirken/ })).toBeVisible();
-    await page.getByRole("button", { name: "Dezent" }).click();
     await page.getByRole("button", { name: "Weiter →" }).click();
 
     await expect(page.getByRole("heading", { name: "Wann passt es Ihnen?" })).toBeVisible();
@@ -378,10 +373,6 @@ test.describe("V/max-Doppelung und Vorher/Nachher-Leistung (Rückmeldung zweiter
 
     await page.getByRole("button", { name: "Weiter →" }).click();
 
-    await expect(page.getByRole("heading", { name: /wirken/ })).toBeVisible();
-    await page.getByRole("button", { name: "Sportlich" }).click();
-    await page.getByRole("button", { name: "Weiter →" }).click();
-
     // Kontakt: Vorname, Name, Telefon, E-Mail ausfüllen, Ort bewusst leer
     // lassen (Rückmeldung zweiter Klicktest, Punkt 2: Ort ist optional).
     await expect(page.getByRole("heading", { name: "Wann passt es Ihnen?" })).toBeVisible();
@@ -503,10 +494,6 @@ test.describe("Kundenflow: mehrdeutige Baureihe X1/X2, Modellwahl X2", () => {
     // dieser Baureihe (nicht Gegenstand dieser Aufgabe).
     await expect(page.getByRole("heading", { name: "Was darf es sein?" })).toBeVisible();
     await page.getByRole("button", { name: "Beraten lassen" }).click();
-    await page.getByRole("button", { name: "Weiter →" }).click();
-
-    await expect(page.getByRole("heading", { name: /wirken/ })).toBeVisible();
-    await page.getByRole("button", { name: "Sportlich" }).click();
     await page.getByRole("button", { name: "Weiter →" }).click();
 
     await expect(page.getByRole("heading", { name: "Wann passt es Ihnen?" })).toBeVisible();

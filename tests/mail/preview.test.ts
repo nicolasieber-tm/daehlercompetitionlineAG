@@ -13,14 +13,14 @@ describe("previewDraft", () => {
     const items = paragraphs.find((p) => p.text.startsWith("Unsere Empfehlung: CDC2 FORGED"));
     expect(items?.generated).toBe(true);
     expect(items?.text).toContain("Vorderachse: 9 × 20 Zoll mit Bereifung 255/30 R20");
-    expect(items?.text).toContain("Preis: ab CHF 7'300, inklusive Montage, exklusive MFK");
+    expect(items?.text).toContain("Preis: CHF 7'300, inklusive Montage, exklusive MFK");
     expect(paragraphs.filter((p) => !p.generated).length).toBeGreaterThanOrEqual(5);
   });
 
   it("Mehrere Bereiche: Bereichsliste und Gesamtpreis", () => {
     const text = previewDraft("multi", "de", DEFAULT_MAIL_TEXTS.de, SIGNATURE).paragraphs.map((p) => p.text).join("\n\n");
     expect(text).toContain("Guten Tag Frau Beispiel");
-    expect(text).toContain("Richtpreis für das Gesamtpaket: ab CHF 9'440");
+    expect(text).toContain("Richtpreis für das Gesamtpaket: CHF 9'440");
   });
 
   it("Ohne Anrede: Vorname Name; englisch: Mr/Ms", () => {

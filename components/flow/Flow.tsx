@@ -15,7 +15,6 @@ import { FlowNav } from "./FlowNav";
 import { CarStep } from "./steps/CarStep";
 import { WishStep } from "./steps/WishStep";
 import { CategoryStep } from "./steps/CategoryStep";
-import { CharacterStep } from "./steps/CharacterStep";
 import { ContactStep, isContactValid } from "./steps/ContactStep";
 import { DoneStep } from "./steps/DoneStep";
 import {
@@ -28,9 +27,16 @@ import {
   flowReducer,
   initialFlowState,
   selectionTotal,
+  selectionTotalIsFrom,
 } from "./state";
 
-export function Flow({ families }: { families: CatalogFamily[] }) {
+export function Flow({
+  families,
+  packageOfferTexts,
+}: {
+  families: CatalogFamily[];
+  packageOfferTexts: Record<"de" | "en", string>;
+}) {
   const { t, locale } = useT();
   const [state, dispatch] = useReducer(flowReducer, undefined, initialFlowState);
 
@@ -155,8 +161,6 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
       }
       case "wish":
         return state.categories.length > 0 || state.consulting;
-      case "character":
-        return state.character !== null;
       case "contact":
         return isContactValid(state, t);
       default:
@@ -195,8 +199,6 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
       categories: state.categories,
       consulting: state.consulting,
       selections: allSelectedProducts(state).map((p) => ({ productId: p.id })),
-      followUpAnswers: state.followUpAnswers,
-      character: state.character,
       timing: state.timing,
       salutation: state.salutation,
       firstName: state.contact.firstName.trim(),
@@ -320,8 +322,6 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
         />
       );
     }
-  } else if (state.currentStep === "character") {
-    stepContent = <CharacterStep family={selectedFamily} model={selectedModel} state={state} dispatch={dispatch} />;
   } else if (state.currentStep === "contact") {
     stepContent = (
       <ContactStep
@@ -334,11 +334,19 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
     );
   } else if (state.currentStep === "done" && state.result) {
     stepContent = (
-      <DoneStep family={selectedFamily} model={selectedModel} seriesPs={seriesPs} state={state} dispatch={dispatch} />
+      <DoneStep
+        family={selectedFamily}
+        model={selectedModel}
+        seriesPs={seriesPs}
+        state={state}
+        dispatch={dispatch}
+        packageOfferText={packageOfferTexts[locale] ?? packageOfferTexts.de}
+      />
     );
   }
 
   const total = selectionTotal(state);
+  const totalFrom = selectionTotalIsFrom(state);
 
   return (
     <div className="min-h-screen bg-bg">
@@ -362,6 +370,7 @@ export function Flow({ families }: { families: CatalogFamily[] }) {
                     isContact={state.currentStep === "contact"}
                     isSubmitting={state.submitStatus === "submitting"}
                     total={total}
+                    totalFrom={totalFrom}
                     onBack={handleBack}
                     onNext={handleNext}
                   />

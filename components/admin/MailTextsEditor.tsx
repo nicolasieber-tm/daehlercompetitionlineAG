@@ -13,7 +13,14 @@ import { admin } from "@/lib/i18n/admin";
 import { de } from "@/lib/i18n/de";
 import { Button } from "@/components/ui";
 import { saveSettingsAction } from "@/app/admin/actions/settings";
-import { DEFAULT_MAIL_TEXTS, EMPHASIS_TEXT_KEYS, MAIL_TEXT_KEYS, MAIL_TEXT_PLACEHOLDERS, mailTextSettingKey } from "@/lib/mail/texts";
+import {
+  CONFIRMATION_BEFORE_AFTER_FULL_KEY,
+  DEFAULT_MAIL_TEXTS,
+  EMPHASIS_TEXT_KEYS,
+  MAIL_TEXT_KEYS,
+  MAIL_TEXT_PLACEHOLDERS,
+  mailTextSettingKey,
+} from "@/lib/mail/texts";
 import type { MailTextKey, MailTexts } from "@/lib/mail/texts";
 import { PREVIEW_SCENARIO_IDS, previewConfirmation, previewDraft } from "@/lib/mail/preview";
 import type { PreviewScenarioId, PreviewSignature } from "@/lib/mail/preview";
@@ -37,14 +44,26 @@ const DRAFT_FIELDS: { key: MailTextKey; rows: number; toolAfter?: "positions" }[
   { key: "text_draft_timing", rows: 4 },
   { key: "text_draft_closing", rows: 6 },
 ];
+// Seit 26.11.2026 fragt der Flow keinen Charakter mehr ab: von den
+// Charaktersätzen greift nur noch «ohne Angabe», die übrigen bleiben
+// gespeichert, stehen aber nicht mehr im Editor.
 const CONFIRMATION_FIELDS: { key: MailTextKey; rows: number; toolAfter?: "overview" }[] = [
   { key: "text_confirmation_intro", rows: 4 },
-  { key: "text_draft_character_dezent", rows: 2 },
-  { key: "text_draft_character_sportlich", rows: 2 },
-  { key: "text_draft_character_maximum", rows: 2 },
   { key: "text_draft_character_none", rows: 2 },
   { key: "text_confirmation_lead", rows: 3, toolAfter: "overview" },
+  { key: "text_package_offer", rows: 3 },
   { key: "text_confirmation_closing", rows: 6 },
+];
+
+// Wendungen, die von den Folgefragen abhingen (Lautstärke, Einsatz), greifen
+// seit 26.11.2026 nicht mehr: im Editor nur die noch wirksamen.
+const VISIBLE_EMPHASIS_KEYS: MailTextKey[] = [
+  "text_emph_motor",
+  "text_emph_auspuff_default",
+  "text_emph_fahrwerk_default",
+  "text_emph_look",
+  "text_emph_interieur",
+  "text_emph_fallback",
 ];
 
 const CONTROL_CLASSES =
@@ -66,12 +85,16 @@ function emphasisRowLabel(key: string): string {
 export function MailTextsEditor({
   values,
   signature,
+  fullBeforeAfter: initialFullBeforeAfter,
 }: {
   values: Record<Locale, MailTexts>;
   signature: PreviewSignature;
+  /** Schalter: vollständige Vorher/Nachher-Tabelle in der Bestätigungsmail. */
+  fullBeforeAfter: boolean;
 }) {
   const { showToast } = useToast();
   const [all, setAll] = useState<Record<Locale, MailTexts>>(values);
+  const [fullBeforeAfter, setFullBeforeAfter] = useState(initialFullBeforeAfter);
   const [locale, setLocale] = useState<Locale>("de");
   const [section, setSection] = useState<Section>("draft");
   const [scenario, setScenario] = useState<PreviewScenarioId>("single");
@@ -90,9 +113,9 @@ export function MailTextsEditor({
   const preview = useMemo(
     () =>
       section === "confirmation"
-        ? previewConfirmation(scenario, locale, texts)
+        ? previewConfirmation(scenario, locale, texts, fullBeforeAfter)
         : previewDraft(scenario, locale, texts, signature),
-    [section, scenario, locale, texts, signature],
+    [section, scenario, locale, texts, signature, fullBeforeAfter],
   );
 
   function insertPlaceholder(placeholder: string) {
@@ -123,7 +146,7 @@ export function MailTextsEditor({
     // spätere Verbesserungen am Standardtext bei ihm ankommen. Beide
     // Sprachen auf einmal, damit ein Wechsel des Umschalters vor dem
     // Speichern nichts verliert.
-    const payload: Record<string, string> = {};
+    const payload: Record<string, string> = { [CONFIRMATION_BEFORE_AFTER_FULL_KEY]: fullBeforeAfter ? "1" : "" };
     for (const loc of LOCALES) {
       for (const key of MAIL_TEXT_KEYS) {
         const value = all[loc][key].trim();
@@ -197,7 +220,7 @@ export function MailTextsEditor({
           <span>{t.emphasis.colPhrase}</span>
         </div>
         <ul>
-          {EMPHASIS_TEXT_KEYS.map((key) => {
+          {VISIBLE_EMPHASIS_KEYS.map((key) => {
             const id = fieldId(locale, key);
             return (
               <li
@@ -314,6 +337,19 @@ export function MailTextsEditor({
             <>
               <p className="text-sm text-muted">{t.confirmationIntro}</p>
               {fieldList(CONFIRMATION_FIELDS)}
+              <label className="flex items-start gap-2.5 text-sm text-text-soft">
+                <input
+                  type="checkbox"
+                  checked={fullBeforeAfter}
+                  onChange={(e) => setFullBeforeAfter(e.target.checked)}
+                  disabled={pending}
+                  className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-red"
+                />
+                <span>
+                  {t.fullBeforeAfter.label}
+                  <span className="mt-0.5 block text-xs text-muted">{t.fullBeforeAfter.help}</span>
+                </span>
+              </label>
             </>
           )}
           {section === "emphasis" && emphasisTable}

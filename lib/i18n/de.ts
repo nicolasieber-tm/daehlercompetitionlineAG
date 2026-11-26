@@ -296,9 +296,6 @@ export const de = {
         },
         { id: "maximum", title: "Maximum", description: "Alles, was homologiert geht." },
       ],
-      noteLabel: "Noch etwas, das wir wissen sollten? (optional)",
-      notePlaceholder:
-        "z.B. Garantie läuft noch bis 2027, oder: Räder sollen zum Frozen-Lack passen",
     },
 
     timing: {
@@ -313,6 +310,10 @@ export const de = {
     },
 
     contact: {
+      // Freitext, seit 26.11.2026 hier statt im entfernten Charakter-Schritt.
+      noteLabel: "Noch etwas, das wir wissen sollten? (optional)",
+      notePlaceholder:
+        "z.B. Garantie läuft noch bis 2027, oder: Räder sollen zum Frozen-Lack passen",
       emptyCategories: {
         title: "Bereiche ohne Produktauswahl",
         text: "Hier haben Sie noch kein Produkt ausgewählt. Wir beraten Sie gerne dazu, oder Sie wählen jetzt noch etwas aus.",
@@ -523,7 +524,7 @@ export const de = {
     itemLineGrouped: "- {name}{description}{price}",
     categoryAdvice: "Gerne beraten wir Sie persönlich zur passenden Lösung.",
     itemDescription: " ({description})",
-    itemPrice: ", ab {price}",
+    itemPrice: ", {price}",
     itemPriceInPreparation: ", in Vorbereitung",
     itemPriceOnRequest: ", auf Anfrage",
     itemsFallback: "Wir stellen Ihnen ein Paket nach Ihrem Wunsch zusammen.",
@@ -536,7 +537,7 @@ export const de = {
     priceLineOnRequest: "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Montage, exklusive MFK.",
     // Genau eine Position: Empfehlungsform statt Bereichsliste.
     recommendation: "Unsere Empfehlung: {name}",
-    recommendationPrice: "Preis: ab {price}, inklusive Montage, exklusive MFK",
+    recommendationPrice: "Preis: {price}, inklusive Montage, exklusive MFK",
     recommendationPriceInPreparation: "Preis: in Vorbereitung",
     recommendationPriceOnRequest: "Preis: auf Anfrage",
     // Kein fest verdrahteter Text: Name kommt aus settings.signature_name,

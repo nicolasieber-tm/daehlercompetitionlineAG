@@ -14,6 +14,7 @@ import { vehicleLabel } from "@/lib/mail/render";
 import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
 import { getFamilies } from "@/lib/catalog/queries";
 import { getProductsByIds } from "@/lib/catalog/queries";
+import { isFromPriceNote } from "@/lib/i18n/format";
 import { getSettings } from "@/lib/mail/settings";
 import { buildMailContext } from "@/lib/inquiry/context";
 import { buildDraft } from "@/lib/draft/template";
@@ -435,6 +436,8 @@ interface StoredSelection {
   description: string | null;
   price_total: number | null;
   price_status: DraftItem["priceStatus"];
+  /** undefined bei Anfragen vor dem 26.11.2026 (Feld noch nicht gespeichert). */
+  price_from?: boolean;
 }
 
 function parseStoredSelections(raw: unknown): StoredSelection[] {
@@ -451,6 +454,7 @@ function parseStoredSelections(raw: unknown): StoredSelection[] {
       description: typeof e.description === "string" ? e.description : null,
       price_total: typeof e.price_total === "number" ? e.price_total : null,
       price_status: (typeof e.price_status === "string" ? e.price_status : "on_request") as StoredSelection["price_status"],
+      ...(typeof e.price_from === "boolean" ? { price_from: e.price_from } : {}),
     });
   }
   return out;
@@ -492,6 +496,7 @@ export async function regenerateDraft(id: string): Promise<{ subject: string; bo
       description: s.description,
       priceTotal: s.price_total,
       priceStatus: s.price_status,
+      priceFrom: s.price_from ?? isFromPriceNote(product?.priceNote),
       psTo: product?.psTo ?? null,
       nmTo: product?.nmTo ?? null,
       variantGroup: product?.variantGroup ?? null,
@@ -505,10 +510,9 @@ export async function regenerateDraft(id: string): Promise<{ subject: string; bo
     lastName: inquiry.last_name ?? "",
     vehicleLabel: vehicleLabel({ family, model, vehicleText: inquiry.vehicle_text, line: inquiry.line }),
     year: inquiry.year,
-    // character/timing sind bei einer vollständig übermittelten Anfrage nie
-    // null (lib/inquiry/schema.ts verlangt beides), Fallback nur defensiv
-    // gegen künftige Datenkorrekturen von Hand.
-    character: (inquiry.character as Character | null) ?? "sportlich",
+    // Charakter wird seit 26.11.2026 nicht mehr abgefragt (null = neutraler
+    // Satz), ältere Anfragen behalten ihren Wert.
+    character: (inquiry.character as Character | null) ?? null,
     followUpAnswers: (inquiry.follow_up_answers as Record<string, string | null> | null) ?? {},
     categories: inquiry.categories as FlowCategory[],
     consulting: inquiry.consulting,

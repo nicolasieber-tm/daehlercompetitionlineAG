@@ -13,6 +13,7 @@ import type { BodyStyle, Character, Drive, FlowCategory, Model, ModelFamily, Pri
 import { runChecks } from "@/lib/rules/checks";
 import type { CheckContext, CheckResult } from "@/lib/rules/checks";
 import { buildDraft } from "@/lib/draft/template";
+import { isFromPriceNote } from "@/lib/i18n/format";
 import type { DraftContext, DraftItem } from "@/lib/draft/template";
 import { polishDraft } from "@/lib/draft/polish";
 import { generateShareToken } from "./share";
@@ -54,6 +55,8 @@ interface SelectedProduct {
   description: string | null;
   priceTotal: number | null;
   priceStatus: PriceStatus;
+  /** «ab»-Preis laut Excel (products.price_note), siehe isFromPriceNote(). */
+  priceFrom: boolean;
   psTo: number | null;
   nmTo: number | null;
   variantGroup: string | null;
@@ -132,6 +135,7 @@ export async function createInquiry(
           description: p.description,
           priceTotal: p.priceTotal,
           priceStatus: p.priceStatus,
+          priceFrom: isFromPriceNote(p.priceNote),
           psTo: p.psTo,
           nmTo: p.nmTo,
           variantGroup: p.variantGroup,
@@ -197,7 +201,7 @@ export async function createInquiry(
     inquiry: {
       categories: payload.categories,
       consulting: payload.consulting,
-      character: payload.character as Character,
+      character: payload.character as Character | null,
       timing: payload.timing as Timing,
       year: payload.year,
       gearbox: payload.gearbox,
@@ -255,6 +259,7 @@ export async function createInquiry(
     description: p.description,
     priceTotal: p.priceTotal,
     priceStatus: p.priceStatus,
+    priceFrom: p.priceFrom,
     psTo: p.psTo,
     nmTo: p.nmTo,
     variantGroup: p.variantGroup,
@@ -301,6 +306,7 @@ export async function createInquiry(
     description: p.description,
     price_total: p.priceTotal,
     price_status: p.priceStatus,
+    price_from: p.priceFrom,
     ps_to: p.psTo,
     nm_to: p.nmTo,
     variant_group: p.variantGroup,
@@ -324,7 +330,7 @@ export async function createInquiry(
       lastName: payload.lastName,
       vehicleLabel: vehicleLabel({ family, model, vehicleText: payload.vehicleText, line }),
       year: payload.year,
-      character: payload.character as Character,
+      character: payload.character as Character | null,
       followUpAnswers: payload.followUpAnswers,
       categories: payload.categories,
       consulting: payload.consulting,

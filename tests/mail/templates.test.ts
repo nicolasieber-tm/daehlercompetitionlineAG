@@ -5,6 +5,7 @@
 // HTML-Tags.
 import { describe, expect, it } from "vitest";
 import { buildConfirmation, confirmationTextParts } from "@/lib/mail/templates/confirmation";
+import { CONFIRMATION_BEFORE_AFTER_FULL_KEY } from "@/lib/mail/texts";
 import { buildInbox } from "@/lib/mail/templates/inbox";
 import { buildReply } from "@/lib/mail/templates/reply";
 import { buildFollowUp } from "@/lib/mail/templates/follow_up";
@@ -124,10 +125,10 @@ const draft = {
     "Danke für Ihre Anfrage für Ihren M3 Touring, Jahrgang 2024. Sportlich und alltagstauglich, das ist genau unsere Linie.",
     "",
     "Grundsätzlich können wir das so umsetzen:",
-    "• Motor: Stufe 1 (620 PS / 740 Nm), ab CHF 4'180",
-    "• Auspuff: Klappenauspuffanlage, ab CHF 4'180",
+    "• Motor: Stufe 1 (620 PS / 740 Nm), CHF 4'180",
+    "• Auspuff: Klappenauspuffanlage, CHF 4'180",
     "",
-    "Richtpreis für das Paket: ab CHF 8'360, inklusive Einbau, ohne MFK. Den definitiven Preis bestätige ich Ihnen, sobald wir die Kombination aus Software und Abgasanlage geprüft haben.",
+    "Richtpreis für das Paket: CHF 8'360, inklusive Einbau, ohne MFK. Den definitiven Preis bestätige ich Ihnen, sobald wir die Kombination aus Software und Abgasanlage geprüft haben.",
     "",
     "Für die Zeit in ein bis zwei Monaten haben wir Werkstattfenster, wir reservieren Ihnen gerne eines, sobald Sie grünes Licht geben.",
     "",
@@ -550,7 +551,7 @@ describe("itemLineText: mehrzeilige Beschreibung und Doppelpunkt am Namensende (
     };
     const line = itemLineText(item, "de");
     expect(line).toBe(
-      '• Räder: CDC1 FORGED Radsatz geschmiedet bestehend aus (10 x 20" mit 275/30 20, 10 x 20" mit 285/30 20), ab CHF 7\'100',
+      '• Räder: CDC1 FORGED Radsatz geschmiedet bestehend aus (10 x 20" mit 275/30 20, 10 x 20" mit 285/30 20), CHF 7\'100',
     );
     expect(line).not.toMatch(/\n/);
     expect(line).not.toContain("aus:");
@@ -564,7 +565,7 @@ describe("itemLineText: mehrzeilige Beschreibung und Doppelpunkt am Namensende (
       price_total: 4180,
       price_status: "priced",
     };
-    expect(itemLineText(item, "de")).toBe("• Motor: Stufe 1: (Basis 480 PS) 620PS / 740Nm, ab CHF 4'180");
+    expect(itemLineText(item, "de")).toBe("• Motor: Stufe 1: (Basis 480 PS) 620PS / 740Nm, CHF 4'180");
   });
 });
 
@@ -777,7 +778,10 @@ describe("Klicktest-Rückmeldung: Getriebe-Zeile und Positionsdarstellung", () =
 // in confirmation erscheinen (inbox als Klartext-Block, eigene
 // Prüfung unten) - nicht mehr die einzelne "Leistung: ..."-Zeile.
 describe("beforeAfterTable in den Kundenmails", () => {
-  const ctx = makeContext({ locale: "de", items: itemsWithPrices, withModel: true });
+  // Schalter «vollständige Tabelle» im Admin (Wunsch dÄHLer 26.11.2026),
+  // Standard ist nur die Leistungszeile (eigener describe unten).
+  const baseCtx = makeContext({ locale: "de", items: itemsWithPrices, withModel: true });
+  const ctx = { ...baseCtx, texts: { [CONFIRMATION_BEFORE_AFTER_FULL_KEY]: "1" } };
 
   it("confirmation zeigt die Tabelle mit Vorher/Nachher-Kopf, Kategorie-Zeilen und Überschrift", () => {
     const result = buildConfirmation(ctx);
@@ -951,5 +955,51 @@ describe("confirmationTextParts: Charaktersatz vor der Überleitung", () => {
     );
     expect(lead).toMatch(/^[A-ZÄÖÜ][^.]*, ganz nach Ihrem Wunsch\./);
     expect(lead).not.toContain("technisch sauber umgesetzt");
+  });
+});
+
+// Rückmeldung dÄHLer 26.11.2026 (Telefonat): Bestätigungsmail entschlackt.
+describe("confirmation nach Rückmeldung 26.11.2026", () => {
+  const single: MailInquiryItem[] = [itemsWithPrices[0]];
+
+  it("ohne Link «Paket ansehen» und ohne «nächste Schritte»", () => {
+    const result = buildConfirmation(makeContext({ locale: "de", items: itemsWithPrices, withModel: true }));
+    expect(result.html).not.toContain("Ihr Paket ansehen");
+    expect(result.text).not.toContain("Innert 1 Arbeitstag");
+    expect(result.text).not.toContain("Ihre Anfrage ist bei uns eingegangen und notiert.");
+  });
+
+  it("Vorher/Nachher standardmässig nur mit der Leistungszeile", () => {
+    const result = buildConfirmation(makeContext({ locale: "de", items: itemsWithPrices, withModel: true }));
+    expect(result.text).toMatch(/Leistung\n  Vorher: /);
+    expect(result.html).not.toContain(">Sound<");
+  });
+
+  it("Paket (zwei Positionen mit Preis): Hinweis statt Summe, ohne Prozentangabe", () => {
+    const result = buildConfirmation(makeContext({ locale: "de", items: itemsWithPrices, withModel: true }));
+    expect(result.text).toContain("unverbindliches Paketangebot mit Preisvorteil");
+    expect(result.text).not.toContain("CHF 8'360");
+    expect(result.text).not.toContain("%");
+  });
+
+  it("Einzelposition: Richtpreis als normaler Text, ohne roten Balken, ohne «ab»", () => {
+    const result = buildConfirmation(makeContext({ locale: "de", items: single, withModel: true }));
+    expect(result.text).toContain("Richtpreis, unverbindlich: CHF 4'180");
+    expect(result.text).not.toContain("ab CHF");
+    expect(result.html).not.toContain("border-left:4px solid #e21014");
+  });
+
+  it("«ab» nur, wenn die Excel den Preis mit «ab» führt", () => {
+    const result = buildConfirmation(
+      makeContext({ locale: "de", items: [{ ...single[0], price_from: true }], withModel: true }),
+    );
+    expect(result.text).toContain("Stufe 1 (620 PS / 740 Nm), ab CHF 4'180");
+    expect(result.text).toContain("Richtpreis, unverbindlich: ab CHF 4'180");
+  });
+
+  it("Header mit Logo statt «Competition Line · Belp»", () => {
+    const result = buildConfirmation(makeContext({ locale: "de", items: single, withModel: true }));
+    expect(result.html).toContain("/img/daehler-logo-quality.png");
+    expect(result.html).not.toContain("Competition Line &middot; Belp</div>");
   });
 });

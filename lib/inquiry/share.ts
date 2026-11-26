@@ -68,6 +68,8 @@ export interface SharedInquiryView {
     nmTo: number | null;
     priceTotal: number | null;
     priceStatus: string;
+    /** «ab»-Preis laut Excel (seit 26.11.2026 gespeichert), sonst Fixpreis. */
+    priceFrom: boolean;
   }>;
   estimatedTotal: number | null;
   locale: string;
@@ -154,6 +156,7 @@ export async function getInquiryByShareToken(token: string): Promise<SharedInqui
       nmTo: typeof row.nm_to === "number" ? row.nm_to : null,
       priceTotal: (row.price_total as number | null) ?? null,
       priceStatus: String(row.price_status ?? "on_request"),
+      priceFrom: row.price_from === true,
     };
   });
 

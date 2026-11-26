@@ -8,13 +8,13 @@
 import { buildDraftParagraphs } from "@/lib/draft/template";
 import type { DraftContext, DraftItem, DraftParagraph } from "@/lib/draft/template";
 import { buildConfirmation, confirmationTextParts } from "@/lib/mail/templates/confirmation";
-import { mailTextSettingKey, MAIL_TEXT_KEYS } from "@/lib/mail/texts";
+import { CONFIRMATION_BEFORE_AFTER_FULL_KEY, mailTextSettingKey, MAIL_TEXT_KEYS } from "@/lib/mail/texts";
 import type { MailTexts } from "@/lib/mail/texts";
 import type { MailInquiryContext, MailInquiryItem } from "@/lib/mail/types";
 import type { Inquiry } from "@/lib/db/rows";
 import type { Locale } from "@/lib/i18n/dictionaries";
 
-export const PREVIEW_SCENARIO_IDS = ["single", "multi", "noSalutation", "noCharacter"] as const;
+export const PREVIEW_SCENARIO_IDS = ["single", "multi", "noSalutation"] as const;
 export type PreviewScenarioId = (typeof PREVIEW_SCENARIO_IDS)[number];
 
 export interface PreviewSignature {
@@ -70,6 +70,7 @@ const KOMPLETTANLAGE: DraftItem = {
   variantGroup: "anlage",
 };
 
+// Charakter und Folgefragen fragt der Flow seit 26.11.2026 nicht mehr ab.
 const SCENARIOS: Record<PreviewScenarioId, Scenario> = {
   single: {
     salutation: "herr",
@@ -77,9 +78,9 @@ const SCENARIOS: Record<PreviewScenarioId, Scenario> = {
     lastName: "Muster",
     vehicle: "BMW M2 (G87)",
     year: "2025",
-    character: "sportlich",
+    character: null,
     categories: ["raeder"],
-    followUpAnswers: { raeder: "schwarz" },
+    followUpAnswers: {},
     items: [CDC2],
     timing: "m1_2",
   },
@@ -89,9 +90,9 @@ const SCENARIOS: Record<PreviewScenarioId, Scenario> = {
     lastName: "Beispiel",
     vehicle: "BMW M2 (G87)",
     year: "2025",
-    character: "sportlich",
+    character: null,
     categories: ["motor", "auspuff"],
-    followUpAnswers: { motor: "beides", auspuff: "kraeftig" },
+    followUpAnswers: {},
     items: [STUFE_1, KOMPLETTANLAGE],
     timing: "m1_2",
   },
@@ -101,22 +102,9 @@ const SCENARIOS: Record<PreviewScenarioId, Scenario> = {
     lastName: "Muster",
     vehicle: "BMW M2 (G87)",
     year: "2025",
-    character: "dezent",
-    categories: ["auspuff"],
-    followUpAnswers: { auspuff: "dezent" },
-    items: [KOMPLETTANLAGE],
-    timing: "flexible",
-  },
-  // Schnellweg ohne erkennbaren Charakter: text_draft_character_none (Wunsch 02.11.2026).
-  noCharacter: {
-    salutation: "herr",
-    firstName: "Max",
-    lastName: "Muster",
-    vehicle: "BMW M2 (G87)",
-    year: "2025",
     character: null,
     categories: ["auspuff"],
-    followUpAnswers: { auspuff: "kraeftig" },
+    followUpAnswers: {},
     items: [KOMPLETTANLAGE],
     timing: "flexible",
   },
@@ -213,14 +201,15 @@ function baseInquiry(s: Scenario, locale: Locale, total: number): Inquiry {
 
 /**
  * Bestätigungsmail als Klartext-Absätze. Absätze, die aus den Mailtexten
- * stammen (Einleitung, Charaktersatz mit Überleitung, Schluss), sind
- * `generated: false`, alles andere (Übersicht, Positionen, Richtsumme, Link,
- * nächste Schritte) baut das Tool.
+ * stammen (Einleitung, Charaktersatz mit Überleitung, Paket-Hinweis,
+ * Schluss), sind `generated: false`, alles andere (Übersicht, Leistung
+ * vorher/nachher, Positionen, Richtpreis) baut das Tool.
  */
 export function previewConfirmation(
   scenarioId: PreviewScenarioId,
   locale: Locale,
   texts: MailTexts,
+  fullBeforeAfter = false,
 ): { subject: string; paragraphs: DraftParagraph[] } {
   const s = SCENARIOS[scenarioId];
   const total = s.items.reduce((sum, item) => sum + (item.priceTotal ?? 0), 0);
@@ -247,12 +236,12 @@ export function previewConfirmation(
     appUrl: "https://anfrage.daehler.com",
     shareUrl: "https://anfrage.daehler.com/p/vorschau",
     adminUrl: "https://anfrage.daehler.com/admin",
-    texts: settingsFor(texts, locale),
+    texts: { ...settingsFor(texts, locale), [CONFIRMATION_BEFORE_AFTER_FULL_KEY]: fullBeforeAfter ? "1" : "" },
   };
   const { subject, text } = buildConfirmation(ctx);
   const parts = confirmationTextParts(ctx);
   const own = new Set(
-    [parts.intro, parts.lead, parts.closing].flatMap((block) => block.split(/\n{2,}/).map((p) => p.trim())),
+    [parts.intro, parts.lead, parts.closing, parts.packageOffer].flatMap((block) => block.split(/\n{2,}/).map((p) => p.trim())),
   );
   // Kopf (Firmenname, Betreff) und Fusszeile der Klartext-Mail weglassen, die Vorschau zeigt den Betreff separat.
   const all = text.split(/\n{2,}/).map((p) => p.trim());

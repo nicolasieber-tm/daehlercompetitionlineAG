@@ -295,7 +295,11 @@ export const admin = {
     sectionsLabel: "Bereich",
     draftIntro: "Der Antwortentwurf, den Sie in der Anfrage bearbeiten und senden. Die Felder stehen in der Reihenfolge der Mail.",
     confirmationIntro:
-      "Die Bestätigung, die der Kunde automatisch nach dem Absenden erhält. Der Antwortentwurf knüpft daran an und wiederholt Dank und Charaktersatz nicht.",
+      "Die Bestätigung, die der Kunde automatisch nach dem Absenden erhält. Der Antwortentwurf knüpft daran an und wiederholt Dank und Schwerpunktsatz nicht.",
+    fullBeforeAfter: {
+      label: "Vollständige Vorher/Nachher-Tabelle zeigen",
+      help: "Standard ist aus: Die Bestätigungsmail zeigt dann nur die Leistung (Serie und nachher). Eingeschaltet kommen Sound, Fahrwerk, Räder usw. dazu.",
+    },
     placeholders: {
       title: "Platzhalter",
       hint: "Ein Klick fügt den Platzhalter an der Cursorposition des zuletzt angeklickten Felds ein.",
@@ -314,7 +318,7 @@ export const admin = {
     restoreDefault: "Standardtext wiederherstellen",
     toolBlock: {
       positions: "Hier fügt das Tool die Positionen mit Preisen ein, dazu bei Motor den Leistungssatz und bei mehreren Positionen die Richtpreiszeile.",
-      overview: "Hier fügt das Tool Fahrzeug, Wunsch, Vorher/Nachher, Positionen, Richtsumme, Link und nächste Schritte ein.",
+      overview: "Hier fügt das Tool Fahrzeug, Wunsch, Termin, Kontakt, die Leistung vorher/nachher, die Positionen und den Richtpreis ein. Bei zwei oder mehr Positionen mit Preis steht statt des Richtpreises der Paket-Hinweis unten.",
     },
     preview: {
       title: "Vorschau",
@@ -322,9 +326,8 @@ export const admin = {
       scenarioLabel: "Beispielanfrage",
       scenarios: {
         single: "Ein Produkt: Räder BMW M2 (G87), Herr",
-        multi: "Mehrere Bereiche: Motor Stufe 1 + Auspuff, sportlich",
+        multi: "Paket: Motor Stufe 1 + Auspuff, Frau",
         noSalutation: "Ohne Anrede",
-        noCharacter: "Schnellweg ohne Charakter",
       },
       legendText: "Ihr Mailtext",
       legendGenerated: "Vom Tool erzeugt",
@@ -333,7 +336,7 @@ export const admin = {
     },
     emphasis: {
       intro:
-        "Diese Wendungen setzt das Tool für {{schwerpunkt}} ein, je nachdem, was der Kunde gewählt hat. Mehrere Wendungen werden mit «und» verbunden, höchstens drei. Beispiel: Wählt der Kunde Motor und Auspuff (Kräftig), steht im Charaktersatz «Spürbar mehr Leistung und eine kräftige Klangkulisse, sportlich und präzise abgestimmt, …». Bitte klein beginnen und im Nominativ schreiben (mit «ein/eine»), die Wendung steht oft mitten im Satz.",
+        "Diese Wendungen setzt das Tool für {{schwerpunkt}} ein, je nachdem, was der Kunde gewählt hat. Mehrere Wendungen werden mit «und» verbunden, höchstens drei. Beispiel: Wählt der Kunde Motor und Auspuff, steht im Schwerpunktsatz «Spürbar mehr Leistung und eine sportliche Klangkulisse, technisch sauber umgesetzt, …». Bitte klein beginnen und im Nominativ schreiben (mit «ein/eine»), die Wendung steht oft mitten im Satz.",
       colWhen: "Wenn der Kunde wählt",
       colPhrase: "Wendung",
       rows: {
@@ -341,10 +344,10 @@ export const admin = {
         text_emph_auspuff_dezent: "Auspuff, Lautstärke {auspuff.dezent}",
         text_emph_auspuff_kraeftig: "Auspuff, Lautstärke {auspuff.kraeftig}",
         text_emph_auspuff_rennstrecke: "Auspuff, Lautstärke {auspuff.rennstrecke}",
-        text_emph_auspuff_default: "Auspuff, ohne Angabe zur Lautstärke",
+        text_emph_auspuff_default: "Auspuff",
         text_emph_fahrwerk_pass: "Fahrwerk, Einsatz {fahrwerk.pass}",
         text_emph_fahrwerk_track: "Fahrwerk, Einsatz {fahrwerk.track}",
-        text_emph_fahrwerk_default: "Fahrwerk, Einsatz {fahrwerk.alltag} oder ohne Angabe",
+        text_emph_fahrwerk_default: "Fahrwerk",
         text_emph_look: "Räder oder Exterieur",
         text_emph_interieur: "Interieur",
         text_emph_fallback: "nichts davon (nur «Komplettpaket, beraten Sie mich»)",
@@ -370,8 +373,12 @@ export const admin = {
         help: "Wie oben.",
       },
       text_draft_character_none: {
-        label: "2. Charaktersatz ohne Angabe",
-        help: "Wenn kein Charakter gewählt ist, z.B. bei einer Anfrage über den Schnellweg, wenn der Text keinen Hinweis enthält.",
+        label: "2. Schwerpunktsatz",
+        help: "{{schwerpunkt}} setzt das Tool aus den gewählten Bereichen zusammen (Reiter «Schwerpunkt-Wendungen»). Am Satzanfang wird er automatisch gross geschrieben.",
+      },
+      text_package_offer: {
+        label: "4. Paket-Hinweis statt Richtpreis",
+        help: "Steht bei zwei oder mehr Positionen mit Preis anstelle der Summe, in der Bestätigungsmail, auf der Abschlussseite und auf der geteilten Paketseite. Bei einer einzelnen Position steht der Richtpreis.",
       },
       text_draft_items_intro: {
         label: "2. Überleitung zu den Positionen",
@@ -399,15 +406,15 @@ export const admin = {
       },
       text_confirmation_intro: {
         label: "1. Begrüssung und Einleitung",
-        help: "Danach folgen der Charaktersatz und die Überleitung.",
+        help: "Danach folgen der Schwerpunktsatz und die Überleitung.",
       },
       text_confirmation_lead: {
         label: "3. Überleitung zur Übersicht",
-        help: "Steht direkt nach dem Charaktersatz, vor Fahrzeug, Wunsch und Paket.",
+        help: "Steht direkt nach dem Schwerpunktsatz, vor Fahrzeug, Wunsch und Paket.",
       },
       text_confirmation_closing: {
-        label: "4. Schluss und Grüsse",
-        help: "Steht nach dem Paket und den nächsten Schritten.",
+        label: "5. Schluss und Grüsse",
+        help: "Steht direkt nach dem Richtpreis bzw. dem Paket-Hinweis.",
       },
     } as Record<string, { label: string; help: string }>,
   },

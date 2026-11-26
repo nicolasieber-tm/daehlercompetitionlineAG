@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { admin } from "@/lib/i18n/admin";
-import { chfFrom, formatDate } from "@/lib/i18n/format";
+import { chf, formatDate } from "@/lib/i18n/format";
 import { categoryLabel } from "@/lib/mail/render";
 import type { InquiryListRow } from "@/lib/admin/inquiries";
 import { StatusBadge } from "./StatusBadge";
@@ -30,7 +30,7 @@ function wishLabel(row: InquiryListRow): string {
 }
 
 function priceLabel(row: InquiryListRow): string {
-  return row.estimatedTotal != null ? chfFrom(row.estimatedTotal, "de") : admin.list.onRequest;
+  return row.estimatedTotal != null ? chf(row.estimatedTotal) : admin.list.onRequest;
 }
 
 /** true, wenn `target` ein eigenes interaktives Element ist (oder darin liegt) - der Nummer-Link, künftige Buttons/mailto-Links. */

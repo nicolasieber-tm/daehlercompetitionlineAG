@@ -167,7 +167,8 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
       .map((c) => categoryLabel(c, LOCALE))
       .concat(inquiry.consulting ? [de.steps.done.package.adviceLine] : [])
       .join(" + ") || t.none;
-  const character = characterLabel(inquiry.character) ?? t.none;
+  // Seit 26.11.2026 nicht mehr abgefragt: Zeile nur bei älteren Anfragen.
+  const character = characterLabel(inquiry.character) ?? "";
   const timing = optionLabel(de.steps.timing.options, inquiry.timing) ?? t.none;
   const hasOnRequest = ctx.items.some((item) => item.price_status !== "priced");
   // Kundenwunsch (CLAUDE.md Abschnitt "AUFGABE"): dieselbe Vorher/Nachher-
@@ -212,7 +213,12 @@ export function buildInbox(ctx: MailInquiryContext): { subject: string; html: st
     ]),
     paragraph(t.package),
     itemList(inboxItems(ctx.items), LOCALE),
-    estimateBox({ estimatedTotal: ctx.estimatedTotal, hasOnRequest, locale: LOCALE }),
+    estimateBox({
+      estimatedTotal: ctx.estimatedTotal,
+      estimatedFrom: ctx.items.some((item) => item.price_status === "priced" && item.price_from === true),
+      hasOnRequest,
+      locale: LOCALE,
+    }),
     ...(showBeforeAfter
       ? [paragraph(t.beforeAfter), monoBlock(beforeAfterTable(beforeAfterRows, LOCALE).text)]
       : []),

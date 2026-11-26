@@ -13,6 +13,12 @@ export interface MailInquiryItem {
   price_total: number | null;
   price_status: PriceStatus;
   /**
+   * true, wenn die Excel-Preisliste den Preis mit «ab» führt
+   * (products.price_note, Rückmeldung dÄHLer 26.11.2026), sonst Fixpreis.
+   * Optional: ältere Anfragen ohne das Feld gelten als Fixpreis.
+   */
+  price_from?: boolean;
+  /**
    * Nur für Motor-Leistungsprodukte gefüllt (products.ps_to/nm_to,
    * variant_group "leistung"), analog zu DraftItem.psTo/nmTo in
    * lib/draft/template.ts. Optional (statt `number | null`): eine vor der

@@ -29,7 +29,7 @@ Dieses Dokument ist verbindlich. Es hält die Entscheidungen aus den Kundengespr
 
 **Modelle ohne Preisliste:** Ältere Fahrzeuge (F- und E-Serie) und Modelle, für die keine Excel-Daten existieren, laufen über einen verkürzten Ablauf «auf Anfrage»: Fahrzeug, Kategorien, Charakter, Kontakt. Keine Produktauswahl, keine Preise, keine Paketsumme.
 
-**Preise sichtbar:** Der Kunde sieht Richtpreise «ab CHF» pro Option und eine Richtsumme am Schluss, immer mit «unverbindlich, Kompatibilität wird geprüft». Preise inkl. Einbau, exkl. MFK, so wie in den PDFs.
+**Preise sichtbar:** Der Kunde sieht pro Option einen Fixpreis «CHF 7'900». «ab CHF» nur, wo die Excel es in der Präfix-Spalte führt (`products.price_note`), eine Summe mit einer solchen Position ebenfalls «ab» (Entscheid 26.11.2026). Bei einer Einzelposition eine Richtsumme, ab zwei Positionen mit Preis (Paket) statt der Summe ein im Admin pflegbarer Hinweis auf ein unverbindliches Paketangebot mit Preisvorteil, ohne Prozentangabe (Paketpreise liegen unter der Summe der Einzelpreise). Immer «unverbindlich». Preise inkl. Einbau, exkl. MFK, so wie in den PDFs. Der Antwortentwurf nennt die Summe weiterhin, dÄHLer setzt dort den Paketpreis ein.
 
 **Kein Roding.** Marken: BMW, MINI, Toyota, Wiesmann.
 
@@ -74,12 +74,15 @@ Die Excel-Struktur zuerst analysieren, bevor das Modell festgezurrt wird. Bekann
 
 1. Fahrzeug: Marke, Modell (Kacheln mit Foto), Baujahr, «schon mal bei uns gewesen». Serien-PS/Nm anzeigen.
 2. Wunsch: Kategorien als Foto-Kacheln, Mehrfachauswahl, plus «Komplettpaket, beraten Sie mich».
-3. Pro gewählter Kategorie ein Schritt: Optionen aus `products`, Varianten exklusiv, Ergänzungen kombinierbar, «ab CHF». Folgefrage je Kategorie (Motor: Leistung/Sound/beides; Auspuff: Lautstärke; Fahrwerk: Einsatz; Räder: Oberfläche). Beim Motor der PS-Zähler «Serie → mit Stufe X». «Passt gut dazu»-Vorschlag für eine nicht gewählte Kategorie, ein Klick fügt sie als nächsten Schritt ein.
-4. Charakter: Dezent / Sportlich / Maximum. Optionales Freitextfeld.
-5. Termin (Zeitraum-Chips) und Kontakt (Vorname, Name, Ort, Telefon, E-Mail, bevorzugter Kanal). Datenschutz-Hinweis.
-6. Abschluss: Foto, Vorher/Nachher-Tabelle, «Paket als Link teilen» (echter Link auf eine read-only Ansicht der Anfrage), «Zusammenfassung an mich senden», Paket mit Richtsumme, nächste Schritte.
+3. Pro gewählter Kategorie ein Schritt: Optionen aus `products`, Varianten exklusiv, Ergänzungen kombinierbar, Preise siehe «Preise sichtbar». Keine Folgefragen (Entscheid 26.11.2026, «zu viel des Guten»). Beim Motor der PS-Zähler «Serie → mit Stufe X». «Passt gut dazu»-Vorschlag für eine nicht gewählte Kategorie, ein Klick fügt sie als nächsten Schritt ein.
+4. Kein Charakter-Schritt mehr (Entscheid 26.11.2026, Dezent / Sportlich / Maximum entfernt).
+5. Termin (Zeitraum-Chips) und Kontakt (Vorname, Name, Ort, Telefon, E-Mail, bevorzugter Kanal), optionales Freitextfeld. Datenschutz-Hinweis.
+6. Abschluss: Foto, Vorher/Nachher-Tabelle, «Paket als Link teilen» (echter Link auf eine read-only Ansicht der Anfrage), Paket mit Richtsumme bzw. Paket-Hinweis, nächste Schritte.
+   Kein «Zusammenfassung an mich senden» (Entscheid 17.09.2026): Die Bestätigungsmail enthält die Zusammenfassung bereits, der Kunde bekäme sie sonst doppelt.
 
 Bei Absenden: Anfrage speichern, Bestätigungsmail an Kunden, Anfrage-Mail an info@daehler.com mit strukturierter Zusammenfassung, Prüfhinweisen und Antwortentwurf, Link in den Admin.
+
+Bestätigungsmail (Entscheid 26.11.2026): Kopf mit dem Original-Schriftzug (Bild), Einleitung, Schwerpunktsatz, Fahrzeug/Wunsch/Termin/Kontakt, Vorher/Nachher nur mit der Leistungszeile (Schalter im Admin für die volle Tabelle), Positionen als Liste, Richtpreis bzw. Paket-Hinweis als normaler Text ohne Box, danach direkt der Schluss. Kein Link «Paket ansehen», keine «nächsten Schritte».
 
 ## Prüfhinweise (regelbasiert, erweiterbar)
 
@@ -90,7 +93,7 @@ Bei Absenden: Anfrage speichern, Bestätigungsmail an Kunden, Anfrage-Mail an in
 - Räder: Reifendimension, Distanzscheiben, Wunschfarbe
 - Exterieur: Carbon oder lackiert, Lackcode
 - Baujahr «älter»: Homologation je Motorvariante
-- Charakter Maximum mit Stufe 1: Stufe 2 anbieten
+- Charakter Maximum mit Stufe 1: Stufe 2 anbieten (nur noch Schnellweg, der Flow fragt keinen Charakter mehr ab)
 - Kurzer Zeitraum gewünscht: Werkstattkapazität prüfen
 
 Regeln in einer Datei, nicht im UI-Code verstreut. Der Kunde wird weitere liefern.

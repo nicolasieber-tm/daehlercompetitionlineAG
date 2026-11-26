@@ -7,12 +7,14 @@ import { useState } from "react";
 import type { Dispatch } from "react";
 import { BeforeAfter, Button, PowerAfterValue, PowerBeforeValue, Question, StepLabel, Summary } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
-import { chfFrom } from "@/lib/i18n/format";
+import { chfPrice, isFromPriceNote } from "@/lib/i18n/format";
+import { isPackage } from "@/lib/catalog/package";
+import { fillMailText } from "@/lib/mail/texts";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import type { TranslationMap } from "@/lib/translations/resolve";
 import type { CatalogFamily, CatalogModel } from "@/lib/catalog/queries";
 import type { FlowAction, FlowState } from "../state";
-import { allSelectedProducts, hasUnpricedSelection, selectionTotal } from "../state";
+import { allSelectedProducts, hasUnpricedSelection, selectionTotal, selectionTotalIsFrom } from "../state";
 import { buildBeforeAfterRows } from "../beforeAfter";
 import { vehicleDisplayName } from "../vehicleLabel";
 
@@ -22,12 +24,15 @@ export function DoneStep({
   seriesPs,
   state,
   dispatch,
+  packageOfferText,
 }: {
   family: CatalogFamily | null;
   model: CatalogModel | null;
   seriesPs: number | null;
   state: FlowState;
   dispatch: Dispatch<FlowAction>;
+  /** Mailtext text_package_offer (Admin), steht bei einem Paket statt der Summe. */
+  packageOfferText: string;
 }) {
   const { t, tf, locale } = useT();
   const result = state.result!;
@@ -65,7 +70,19 @@ export function DoneStep({
   const total = selectionTotal(state);
   const unpriced = hasUnpricedSelection(state);
   const totalLabel = unpriced ? t.steps.done.package.totalWithOnRequest : t.steps.done.package.total;
-  const totalValue = total != null ? chfFrom(total, locale) : t.steps.done.package.onRequest;
+  const totalValue = total != null ? chfPrice(total, locale, selectionTotalIsFrom(state)) : t.steps.done.package.onRequest;
+  // Rückmeldung dÄHLer 26.11.2026: ab zwei Positionen mit Preis gilt das
+  // Paket, der Paketpreis liegt unter der Summe, deshalb der Hinweis statt
+  // der Summe.
+  const packageNote = isPackage(
+    allSelectedProducts(state).map((p) => p.priceStatus === "priced" && p.priceTotal != null),
+  )
+    ? fillMailText(packageOfferText, {
+        vorname: state.contact.firstName.trim(),
+        name: state.contact.lastName.trim(),
+        fahrzeug: vehicleLabel,
+      })
+    : null;
 
   const summaryLines = state.categories.flatMap((c) => {
     const items = state.selections[c] ?? [];
@@ -101,7 +118,7 @@ export function DoneStep({
         name: display.name,
         price:
           p.priceStatus === "priced" && p.priceTotal != null
-            ? tf(t.priceStatus.priced, { price: chfFrom(p.priceTotal, locale) })
+            ? tf(t.priceStatus.priced, { price: chfPrice(p.priceTotal, locale, isFromPriceNote(p.priceNote)) })
             : p.priceStatus === "in_preparation"
               ? t.priceStatus.in_preparation
               : t.priceStatus.on_request,
@@ -129,7 +146,7 @@ export function DoneStep({
         variantGroup: p.variantGroup,
       })),
       consulting: state.consulting,
-      character: state.character,
+      character: null,
       seriesPs,
       translations,
     },
@@ -229,6 +246,7 @@ export function DoneStep({
         lines={summaryLines}
         totalLabel={totalLabel}
         totalValue={totalValue}
+        totalNote={packageNote}
       />
 
       <div className="mt-5 grid grid-cols-1 gap-2.5 md2:grid-cols-3">
