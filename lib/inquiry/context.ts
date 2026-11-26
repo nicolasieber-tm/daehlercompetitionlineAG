@@ -58,6 +58,7 @@ function parseItems(raw: unknown): MailInquiryItem[] {
       price_status: (typeof e.price_status === "string" ? e.price_status : "on_request") as MailInquiryItem["price_status"],
       ps_to: typeof e.ps_to === "number" ? e.ps_to : null,
       nm_to: typeof e.nm_to === "number" ? e.nm_to : null,
+      price_from: e.price_from === true,
     };
     if ("variant_group" in e) {
       item.variant_group = typeof e.variant_group === "string" ? e.variant_group : null;

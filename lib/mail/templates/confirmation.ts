@@ -1,13 +1,17 @@
 // Bestätigungsmail an den Kunden direkt nach dem Absenden der Anfrage.
 // Struktur laut docs/architektur.md, Abschnitt "Anfrage anlegen": Kunde
-// (Sie-Form, locale), Zusammenfassung (Fahrzeug, Wunsch, Positionen,
-// Richtpreis mit Unverbindlichkeitshinweis, Termin, Kontaktkanal), Link auf
-// shareUrl, "nächste Schritte".
+// (Sie-Form, locale), Zusammenfassung (Fahrzeug, Wunsch, Termin,
+// Kontaktkanal, Leistung vorher/nachher, Positionen, Richtpreis bzw.
+// Paket-Hinweis), Schluss. Rückmeldung dÄHLer 26.11.2026 («zu viel des
+// Guten»): ohne Link «Paket ansehen» und ohne «nächste Schritte», Richtpreis
+// als normaler Text, Vorher/Nachher nur mit der Leistungszeile (Schalter im
+// Admin für die vollständige Tabelle).
 import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
 import { categoriesWithoutItems } from "@/lib/draft/template";
-import { fillMailText, resolveMailTexts } from "../texts";
+import { isPackage } from "@/lib/catalog/package";
+import { CONFIRMATION_BEFORE_AFTER_FULL_KEY, fillMailText, resolveMailTexts } from "../texts";
 import { capitalizeFirst, emphasisText } from "../emphasis";
 import { anredeText, modellLabel } from "../anrede";
 import type { Character } from "@/lib/db/rows";
@@ -15,7 +19,6 @@ import type { FlowCategory } from "@/lib/db/rows";
 import type { MailInquiryContext, MailInquiryItem } from "../types";
 import {
   beforeAfterTable,
-  buttonLink,
   categoryLabel,
   definitionList,
   estimateBox,
@@ -25,7 +28,6 @@ import {
   renderMail,
   sectionHeading,
   vehicleLabel,
-  stepsList,
   paragraphs,
 } from "../render";
 
@@ -65,7 +67,12 @@ function customerItems(
  * Überleitung, Schluss). Eigene Funktion, damit die Live-Vorschau im Admin
  * die tatsächlich verwendeten Textabsätze erkennen kann.
  */
-export function confirmationTextParts(ctx: MailInquiryContext): { intro: string; lead: string; closing: string } {
+export function confirmationTextParts(ctx: MailInquiryContext): {
+  intro: string;
+  lead: string;
+  closing: string;
+  packageOffer: string;
+} {
   const model = vehicleLabel({ family: ctx.family, model: ctx.model, vehicleText: ctx.inquiry.vehicle_text, line: ctx.inquiry.line });
   const texts = resolveMailTexts(ctx.locale, ctx.texts);
   const vars = {
@@ -91,6 +98,7 @@ export function confirmationTextParts(ctx: MailInquiryContext): { intro: string;
     intro: fillMailText(texts.text_confirmation_intro, vars),
     lead: [characterText, fillMailText(texts.text_confirmation_lead, vars)].filter(Boolean).join(" "),
     closing: fillMailText(texts.text_confirmation_closing, vars),
+    packageOffer: fillMailText(texts.text_package_offer, vars),
   };
 }
 
@@ -121,8 +129,8 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
   // "Leistung: ..."-Zeile in der definitionList oben, keine Doppelung).
   // Kurzablauf ohne Kategorien und ohne Komplettpaket: keine Tabelle (leere
   // rows sonst nur die immer vorhandene Charakter-Zeile ohne Bezug).
-  const showBeforeAfter = ctx.inquiry.categories.length > 0 || ctx.inquiry.consulting;
-  const beforeAfterRows = buildBeforeAfterRows({
+  const fullBeforeAfter = ctx.texts?.[CONFIRMATION_BEFORE_AFTER_FULL_KEY] === "1";
+  const allBeforeAfterRows = buildBeforeAfterRows({
     categories: ctx.inquiry.categories,
     consulting: ctx.inquiry.consulting,
     items: ctx.items,
@@ -131,6 +139,10 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
     locale: ctx.locale,
     translations: ctx.translations,
   });
+  const beforeAfterRows = fullBeforeAfter ? allBeforeAfterRows : allBeforeAfterRows.filter((row) => row.id === "leistung");
+  const showBeforeAfter = (ctx.inquiry.categories.length > 0 || ctx.inquiry.consulting) && beforeAfterRows.length > 0;
+  const pricedItems = ctx.items.filter((item) => item.price_status === "priced" && item.price_total != null);
+  const packageText = isPackage(pricedItems.map(() => true)) ? textParts.packageOffer : null;
 
   const blocks = [
     // Einleitung und Schluss pflegt der Kunde im Admin (lib/mail/texts.ts).
@@ -157,13 +169,13 @@ export function buildConfirmation(ctx: MailInquiryContext): { subject: string; h
           ),
         ]
       : []),
-    estimateBox({ estimatedTotal: ctx.estimatedTotal, hasOnRequest, locale: ctx.locale }),
-    buttonLink(dict.mail.shared.viewPackageButton, ctx.shareUrl),
-    stepsList([
-      { label: dict.steps.done.next.now.title, value: dict.mail.confirmation.nowText },
-      { label: dict.steps.done.next.day1.title, value: dict.steps.done.next.day1.text },
-      { label: dict.steps.done.next.then.title, value: dict.steps.done.next.then.text },
-    ]),
+    estimateBox({
+      estimatedTotal: ctx.estimatedTotal,
+      estimatedFrom: pricedItems.some((item) => item.price_from === true),
+      hasOnRequest,
+      locale: ctx.locale,
+      packageText,
+    }),
     ...paragraphs(textParts.closing),
   ];
 

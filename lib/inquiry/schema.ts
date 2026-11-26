@@ -110,7 +110,9 @@ export const InquiryPayloadObjectSchema = z.object({
   consulting: z.boolean(),
   selections: z.array(selectionSchema).max(200),
   followUpAnswers: followUpAnswersSchema.optional().default({}),
-  character: z.enum(CHARACTER_VALUES),
+  // Seit 26.11.2026 fragt der Flow keinen Charakter mehr ab (Rückmeldung
+  // dÄHLer, «zu viel des Guten»): optional, fehlend = null.
+  character: z.enum(CHARACTER_VALUES).nullable().default(null),
   timing: z.enum(TIMING_VALUES),
   // Maximallängen (Prüfung Phase B, Punkt 5): ohne Obergrenze könnte ein
   // manipulierter Request (der Client-Flow selbst begrenzt die Felder nicht)

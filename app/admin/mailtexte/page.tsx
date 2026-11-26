@@ -7,7 +7,7 @@ import { getSettings } from "@/lib/mail";
 import { admin } from "@/lib/i18n/admin";
 import { Toolbar } from "@/components/admin/Toolbar";
 import { MailTextsEditor } from "@/components/admin/MailTextsEditor";
-import { resolveMailTexts } from "@/lib/mail/texts";
+import { CONFIRMATION_BEFORE_AFTER_FULL_KEY, resolveMailTexts } from "@/lib/mail/texts";
 
 export const metadata: Metadata = { title: `${admin.mailTexts.title} – Admin` };
 
@@ -29,6 +29,7 @@ export default async function AdminMailTextsPage() {
       <MailTextsEditor
         values={{ de: resolveMailTexts("de", settings), en: resolveMailTexts("en", settings) }}
         signature={signature}
+        fullBeforeAfter={settings[CONFIRMATION_BEFORE_AFTER_FULL_KEY] === "1"}
       />
     </>
   );

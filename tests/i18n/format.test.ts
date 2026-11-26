@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { chf, chfFrom, formatDate, inquiryNumberLabel } from "@/lib/i18n/format";
+import { chf, chfFrom, chfPrice, formatDate, inquiryNumberLabel, isFromPriceNote } from "@/lib/i18n/format";
 import { de } from "@/lib/i18n/de";
 import { en } from "@/lib/i18n/en";
 import { tf } from "@/lib/i18n/dictionaries";
@@ -96,5 +96,21 @@ describe("inquiryNumberLabel", () => {
 
   it("verwendet 'No.' für Englisch", () => {
     expect(inquiryNumberLabel("2026-0912", "en")).toBe("No. 2026-0912");
+  });
+});
+
+describe("chfPrice / isFromPriceNote (Rückmeldung dÄHLer 26.11.2026)", () => {
+  it("Fixpreis ohne «ab», «ab» nur auf Wunsch", () => {
+    expect(chfPrice(7900, "de", false)).toBe("CHF 7'900");
+    expect(chfPrice(7900, "de", true)).toBe("ab CHF 7'900");
+    expect(chfPrice(7900, "en", true)).toBe("from CHF 7'900");
+  });
+
+  it("erkennt die «ab»-Präfixzelle der Excel", () => {
+    expect(isFromPriceNote("ab")).toBe(true);
+    expect(isFromPriceNote(" Ab ")).toBe(true);
+    expect(isFromPriceNote("in Vorb.")).toBe(false);
+    expect(isFromPriceNote("inkl.")).toBe(false);
+    expect(isFromPriceNote(null)).toBe(false);
   });
 });

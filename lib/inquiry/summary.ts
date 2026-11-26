@@ -18,7 +18,7 @@
 import { de } from "@/lib/i18n/de";
 import { admin } from "@/lib/i18n/admin";
 import { fullNameWithSalutation } from "@/lib/mail/anrede";
-import { chfFrom, formatDate, inquiryNumberLabel } from "@/lib/i18n/format";
+import { chfPrice, formatDate, inquiryNumberLabel } from "@/lib/i18n/format";
 import { categoryLabel, itemLineText, optionLabel, vehicleLabel } from "@/lib/mail/render";
 import { vehicleInternalLine } from "@/lib/catalog/vehicle-label";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
@@ -153,7 +153,8 @@ export function buildSummaryText(ctx: MailInquiryContext): string {
       .map((c) => categoryLabel(c, LOCALE))
       .concat(inquiry.consulting ? [de.steps.done.package.adviceLine] : [])
       .join(" + ") || t.none;
-  const character = characterLabel(inquiry.character) ?? t.none;
+  // Seit 26.11.2026 nicht mehr abgefragt: Zeile nur bei älteren Anfragen.
+  const character = characterLabel(inquiry.character);
   const timing = optionLabel(de.steps.timing.options, inquiry.timing) ?? t.none;
 
   // Rückmeldung dÄHLer 14.10.2026: gewählte Bereiche ohne Produkt.
@@ -169,7 +170,13 @@ export function buildSummaryText(ctx: MailInquiryContext): string {
       ? ctx.items.map((item) => `  ${itemLineText(displayItem(item), LOCALE).replace(/^•\s*/, "")}`)
       : [`  ${de.draft.itemsFallback}`];
   const totalValue =
-    ctx.estimatedTotal != null ? chfFrom(ctx.estimatedTotal, LOCALE) : de.steps.done.package.onRequest;
+    ctx.estimatedTotal != null
+      ? chfPrice(
+          ctx.estimatedTotal,
+          LOCALE,
+          ctx.items.some((item) => item.price_status === "priced" && item.price_from === true),
+        )
+      : de.steps.done.package.onRequest;
 
   const parts: string[] = [
     line(t.request, inquiryNumberLabel(inquiry.number, LOCALE)),
@@ -181,7 +188,7 @@ export function buildSummaryText(ctx: MailInquiryContext): string {
     line(t.wish, wish),
     line(t.goal, goalText(ctx) || t.none),
     ...(withoutProducts.length > 0 ? [line(t.withoutProducts, withoutProducts.join(", "))] : []),
-    line(t.character, character),
+    ...(character ? [line(t.character, character)] : []),
     line(t.timing, timing),
     "",
     t.package,

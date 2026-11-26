@@ -8,7 +8,7 @@ import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { de } from "@/lib/i18n/de";
 import { en } from "@/lib/i18n/en";
-import { chf, chfFrom } from "@/lib/i18n/format";
+import { chfPrice } from "@/lib/i18n/format";
 import { categoryLabel, companyLine, itemLineText, stripConsistsOf } from "@/lib/mail/render";
 import { anredeText, modellLabel } from "@/lib/mail/anrede";
 import { formatWheelDimensionLine } from "@/lib/catalog/wheel-dimensions";
@@ -24,6 +24,8 @@ export interface DraftItem {
   description: string | null;
   priceTotal: number | null;
   priceStatus: PriceStatus;
+  /** «ab»-Preis laut Excel (Rückmeldung dÄHLer 26.11.2026), fehlend = Fixpreis. */
+  priceFrom?: boolean;
   /** Nur für Motor-Leistungsprodukte gefüllt (variant_group === 'leistung'). */
   psTo: number | null;
   nmTo: number | null;
@@ -194,6 +196,7 @@ function buildItemLine(item: DraftItem, locale: Locale, translations?: Translati
       description: wheel ? null : display.description,
       price_total: item.priceTotal,
       price_status: item.priceStatus,
+      price_from: item.priceFrom === true,
     },
     locale,
     { grouped: true },
@@ -217,7 +220,7 @@ function buildRecommendation(item: DraftItem, locale: Locale, translations?: Tra
       .map((line) => line.trim())
       .filter(Boolean);
   let price: string;
-  if (item.priceStatus === "priced" && item.priceTotal != null) price = tf(d.recommendationPrice, { price: chf(item.priceTotal) });
+  if (item.priceStatus === "priced" && item.priceTotal != null) price = tf(d.recommendationPrice, { price: chfPrice(item.priceTotal, locale, item.priceFrom === true) });
   else if (item.priceStatus === "in_preparation") price = d.recommendationPriceInPreparation;
   else price = d.recommendationPriceOnRequest;
   return [tf(d.recommendation, { name: stripConsistsOf(display.name) }), ...details, price].join("\n");
@@ -335,7 +338,13 @@ export function buildDraftParagraphs(
   const priceParagraph = singleItem
     ? null
     : ctx.estimatedTotal != null
-      ? tf(d.priceLine, { price: chfFrom(ctx.estimatedTotal, locale) })
+      ? tf(d.priceLine, {
+          price: chfPrice(
+            ctx.estimatedTotal,
+            locale,
+            ctx.items.some((i) => i.priceStatus === "priced" && i.priceFrom === true),
+          ),
+        })
       : d.priceLineOnRequest;
   const questionParagraph = fillMailText(texts[questionKey(ctx.categories)], vars);
 

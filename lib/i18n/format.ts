@@ -38,6 +38,20 @@ export function chfFrom(amount: number, locale: Locale): string {
 }
 
 /**
+ * Rückmeldung dÄHLer 26.11.2026: Einzelteile haben einen Fixpreis, «ab» nur
+ * dort, wo die Excel-Preisliste es in der Präfix-Spalte führt
+ * (products.price_note, siehe lib/pricelist/parser.ts Befund #4).
+ */
+export function isFromPriceNote(note: string | null | undefined): boolean {
+  return typeof note === "string" && /(^|\s)ab(\s|$)/i.test(note.trim());
+}
+
+/** Preis mit «ab» nur bei from = true: chfPrice(4180, "de", false) -> "CHF 4'180". */
+export function chfPrice(amount: number, locale: Locale, from: boolean): string {
+  return from ? chfFrom(amount, locale) : chf(amount);
+}
+
+/**
  * Formatiert ein Datum lokalisiert: de-CH oder en-GB.
  *
  * Mit timeZone: "Europe/Zurich" (analog lib/followups/schedule.ts,

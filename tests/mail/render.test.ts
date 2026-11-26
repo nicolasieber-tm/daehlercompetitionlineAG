@@ -127,7 +127,7 @@ describe("itemList: mehrzeilige Beschreibung (Prüfung Phase B, Punkt 2)", () =>
       price_status: "priced",
     };
     const { text, html } = itemList([item], "de");
-    expect(text).toContain("Motor: Stufe 1 (620 PS / 740 Nm), ab CHF 4'180");
+    expect(text).toContain("Motor: Stufe 1 (620 PS / 740 Nm), CHF 4'180");
     expect(html).toContain("Motor: Stufe 1 (620 PS / 740 Nm)");
     expect(html).not.toContain("<br>");
   });

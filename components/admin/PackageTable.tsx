@@ -1,5 +1,5 @@
 import { admin } from "@/lib/i18n/admin";
-import { chf, chfFrom } from "@/lib/i18n/format";
+import { chf, chfPrice } from "@/lib/i18n/format";
 import { categoryLabel } from "@/lib/mail/render";
 import { displayItemFields } from "@/lib/catalog/product-display";
 import type { MailInquiryContext } from "@/lib/mail/types";
@@ -49,7 +49,7 @@ export function PackageTable({ ctx }: { ctx: MailInquiryContext }) {
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs">
                   {item.price_status === "priced" && item.price_total != null
-                    ? chfFrom(item.price_total, "de")
+                    ? chfPrice(item.price_total, "de", item.price_from === true)
                     : admin.priceStatus[item.price_status]}
                 </Td>
               </tr>

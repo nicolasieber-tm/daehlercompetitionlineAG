@@ -189,13 +189,17 @@ export function buildBeforeAfterRows(input: BeforeAfterInput): BeforeAfterRow[] 
     });
   }
 
+  // Seit 26.11.2026 fragt der Flow keinen Charakter mehr ab: die Zeile nur
+  // noch für ältere Anfragen mit gespeichertem Charakter.
   const characterOption = t.steps.character.options.find((o) => o.id === input.character);
-  rows.push({
-    id: "charakter",
-    label: b.rows.charakter,
-    before: b.seriesFactoryValue,
-    after: characterOption ? characterOption.title : advice,
-  });
+  if (characterOption) {
+    rows.push({
+      id: "charakter",
+      label: b.rows.charakter,
+      before: b.seriesFactoryValue,
+      after: characterOption.title,
+    });
+  }
 
   return rows;
 }

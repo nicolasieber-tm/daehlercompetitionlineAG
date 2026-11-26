@@ -183,8 +183,8 @@ describe("Sprachneutrale IDs bei Auswahlwerten", () => {
 // Rückfrage steht in den Mailtexten (text_draft_question_*).
 describe("draft.priceLine: reine Faktenzeile", () => {
   it("deutsch", () => {
-    expect(tf(de.draft.priceLine, { price: "ab CHF 4'180" })).toBe(
-      "Richtpreis für das Gesamtpaket: ab CHF 4'180, inklusive Montage, exklusive MFK.",
+    expect(tf(de.draft.priceLine, { price: "CHF 4'180" })).toBe(
+      "Richtpreis für das Gesamtpaket: CHF 4'180, inklusive Montage, exklusive MFK.",
     );
     expect(de.draft.priceLineOnRequest).toBe(
       "Den Richtpreis nennen wir Ihnen nach kurzer Prüfung, inklusive Montage, exklusive MFK.",
@@ -192,19 +192,19 @@ describe("draft.priceLine: reine Faktenzeile", () => {
   });
 
   it("englisch", () => {
-    expect(tf(en.draft.priceLine, { price: "from CHF 4'180" })).toBe(
-      "Indicative price for the complete package: from CHF 4'180, including fitting, excluding roadworthiness test.",
+    expect(tf(en.draft.priceLine, { price: "CHF 4'180" })).toBe(
+      "Indicative price for the complete package: CHF 4'180, including fitting, excluding roadworthiness test.",
     );
   });
 
   it("Empfehlungsform: Preiszeile ohne Gedankenstrich", () => {
-    expect(tf(de.draft.recommendationPrice, { price: chf(7300) })).toBe("Preis: ab CHF 7'300, inklusive Montage, exklusive MFK");
+    expect(tf(de.draft.recommendationPrice, { price: chf(7300) })).toBe("Preis: CHF 7'300, inklusive Montage, exklusive MFK");
     expect(tf(de.draft.recommendation, { name: "CDC2 FORGED" })).toBe("Unsere Empfehlung: CDC2 FORGED");
   });
 });
 
 // draft.itemLine: Positionszeile mit Beschreibung und Preis, siehe
-// docs/architektur.md ("• Motor: Stufe 1 (620 PS / 740 Nm), ab CHF 4'180").
+// docs/architektur.md ("• Motor: Stufe 1 (620 PS / 740 Nm), CHF 4'180").
 describe("draft.itemLine: Positionszeile mit Beschreibung und Preis", () => {
   it("baut die Beispielzeile aus docs/architektur.md nach (de)", () => {
     const line = tf(de.draft.itemLine, {
@@ -213,7 +213,7 @@ describe("draft.itemLine: Positionszeile mit Beschreibung und Preis", () => {
       description: tf(de.draft.itemDescription, { description: "620 PS / 740 Nm" }),
       price: tf(de.draft.itemPrice, { price: chf(4180) }),
     });
-    expect(line).toBe("• Motor: Stufe 1 (620 PS / 740 Nm), ab CHF 4'180");
+    expect(line).toBe("• Motor: Stufe 1 (620 PS / 740 Nm), CHF 4'180");
   });
 
   it("lässt Beschreibung und Preis ohne überflüssige Zeichen weg, wenn sie fehlen", () => {
@@ -251,7 +251,7 @@ describe("draft.itemLine: Positionszeile mit Beschreibung und Preis", () => {
       description: tf(en.draft.itemDescription, { description: "620 PS / 740 Nm" }),
       price: tf(en.draft.itemPrice, { price: chf(4180) }),
     });
-    expect(line).toBe("• Engine: Stage 1 (620 PS / 740 Nm), from CHF 4'180");
+    expect(line).toBe("• Engine: Stage 1 (620 PS / 740 Nm), CHF 4'180");
   });
 });
 

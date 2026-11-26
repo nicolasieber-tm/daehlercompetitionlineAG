@@ -1,10 +1,10 @@
 "use client";
 
-// Navigation Zurück/Weiter mit "Bisher ab CHF x", siehe docs/vorschau.html
+// Navigation Zurück/Weiter mit "Bisher CHF x", siehe docs/vorschau.html
 // .nav und CLAUDE.md Kundenflow. Sticky unten unter 480px (Touch-Ziele).
 import { Button } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
-import { chfFrom } from "@/lib/i18n/format";
+import { chfPrice } from "@/lib/i18n/format";
 
 export function FlowNav({
   canBack,
@@ -12,6 +12,7 @@ export function FlowNav({
   isContact,
   isSubmitting,
   total,
+  totalFrom,
   onBack,
   onNext,
 }: {
@@ -20,6 +21,8 @@ export function FlowNav({
   isContact: boolean;
   isSubmitting: boolean;
   total: number | null;
+  /** «ab» vor der Summe, wenn eine Position laut Excel «ab» ist. */
+  totalFrom: boolean;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -33,7 +36,7 @@ export function FlowNav({
           .basket zeigt sie ohne Breakpoint-Ausblendung). */}
       {total != null ? (
         <div className="mb-2 font-mono text-[13px] text-muted xs:hidden">
-          {tf(t.nav.soFar, { price: chfFrom(total, locale) })}
+          {tf(t.nav.soFar, { price: chfPrice(total, locale, totalFrom) })}
         </div>
       ) : null}
       <div className="flex items-center justify-between gap-4">
@@ -47,7 +50,7 @@ export function FlowNav({
         <div className="flex items-center gap-4.5">
           {total != null ? (
             <span className="hidden font-mono text-[13px] text-muted xs:inline">
-              {tf(t.nav.soFar, { price: chfFrom(total, locale) })}
+              {tf(t.nav.soFar, { price: chfPrice(total, locale, totalFrom) })}
             </span>
           ) : null}
           {/* Minor-Befund "Enter im Kontaktformular": im Schritt "contact"

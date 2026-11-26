@@ -15,6 +15,11 @@ export const MAIL_TEXT_KEYS = [
   "text_confirmation_intro",
   "text_confirmation_lead",
   "text_confirmation_closing",
+  // Rückmeldung dÄHLer 26.11.2026: bei mehreren Positionen keine Summe,
+  // sondern dieser Hinweis auf ein Paketangebot (Paketpreise liegen unter
+  // der Summe der Einzelpreise). Bestätigungsmail, Abschluss-Screen und
+  // Teilen-Seite.
+  "text_package_offer",
   "text_draft_intro",
   // Charaktersätze: seit 06.11.2026 nur noch in der Bestätigungsmail, der
   // Schlüssel bleibt wegen bereits gespeicherter Admin-Texte unverändert.
@@ -43,6 +48,13 @@ export const MAIL_TEXT_KEYS = [
   "text_emph_interieur",
   "text_emph_fallback",
 ] as const;
+
+/**
+ * Schalter im Admin (Mailtexte, Bestätigungsmail), Wunsch dÄHLer 26.11.2026:
+ * "1" zeigt in der Bestätigungsmail die vollständige Vorher/Nachher-Tabelle,
+ * sonst (Standard) nur die Leistungszeile.
+ */
+export const CONFIRMATION_BEFORE_AFTER_FULL_KEY = "confirmation_before_after_full";
 
 /** Die Schwerpunkt-Wendungen unter den Mailtexten (eigener Abschnitt im Admin). */
 export const EMPHASIS_TEXT_KEYS = MAIL_TEXT_KEYS.filter((k) => k.startsWith("text_emph_"));
@@ -95,6 +107,8 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
       "Bei Fragen stehen wir Ihnen selbstverständlich gerne telefonisch oder per E-Mail zur Verfügung. " +
       "Wir freuen uns, Ihr Fahrzeug gemeinsam mit Ihnen sportlich und technisch sinnvoll weiterzuentwickeln.\n\n" +
       "Sportliche Grüsse aus Belp\n\ndÄHLer Competition Line AG",
+    text_package_offer:
+      "Für die Kombination mehrerer Positionen erstellen wir Ihnen gerne ein unverbindliches Paketangebot mit Preisvorteil.",
     text_draft_intro:
       "Guten Tag {{anrede}}\n\n" +
       "Gerne kommen wir auf Ihre Anfrage Nr. {{nummer}} für Ihren {{fahrzeug}} zurück.",
@@ -144,6 +158,8 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
       "If you have any questions, we are happy to help by phone or e-mail. " +
       "We look forward to developing your car together with you, sporty and technically sound.\n\n" +
       "Sporty greetings from Belp\n\ndÄHLer Competition Line AG",
+    text_package_offer:
+      "For a combination of several items we will be glad to prepare a non-binding package offer at a preferential price.",
     text_draft_intro:
       "Dear {{anrede}}\n\n" +
       "Following up on your enquiry no. {{nummer}} for your {{fahrzeug}}, we are pleased to send you our offer.",

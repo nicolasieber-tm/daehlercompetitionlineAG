@@ -1,6 +1,7 @@
 // Layout und Bausteine für HTML-Mails im dÄHLer-Brand-Look: dunkler Kopf
-// mit der Wortmarke "dÄHLer" als Text (kein Logo-Bild, damit es in jedem
-// Mailclient ohne Bilder-Blocker lesbar bleibt), Rot #E21014 als Akzent,
+// mit dem originalen dÄHLer-Schriftzug als Bild (Wunsch dÄHLer 26.11.2026,
+// public/img/daehler-logo-quality.png, Alt-Text "dÄHLer" für Clients mit
+// Bilder-Blocker), Rot #E21014 als Akzent,
 // heller Inhalt für Lesbarkeit in allen Clients. Tabellen-Layout, Inline-CSS,
 // max. 600px, mobil lesbar. Siehe CLAUDE.md (Brand: Rot #E21014, Dunkelgrau
 // #181D1E, Weiss) und docs/architektur.md, Abschnitt "Mail".
@@ -10,7 +11,7 @@
 // zusammensetzen kann und sie nie auseinanderlaufen.
 import { getDictionary, tf } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/dictionaries";
-import { chf, chfFrom } from "@/lib/i18n/format";
+import { chfPrice } from "@/lib/i18n/format";
 import { vehicleDisplayLabel } from "@/lib/catalog/vehicle-label";
 import { formatPowerPlusText } from "@/lib/catalog/power-before-after";
 import type { BeforeAfterRow } from "@/lib/catalog/before-after";
@@ -206,7 +207,7 @@ function itemLineParts(item: MailInquiryItem, locale: Locale): ItemLineParts {
     : [];
   let price = "";
   if (item.price_status === "priced" && item.price_total != null) {
-    price = tf(dict.draft.itemPrice, { price: chf(item.price_total) });
+    price = tf(dict.draft.itemPrice, { price: chfPrice(item.price_total, locale, item.price_from === true) });
   } else if (item.price_status === "in_preparation") {
     price = dict.draft.itemPriceInPreparation;
   } else if (item.price_status === "on_request") {
@@ -526,26 +527,31 @@ export function monoBlock(text: string): MailBlock {
   };
 }
 
-/** Richtpreis-Box: Summe der gewählten Positionen, unverbindlich. */
+/**
+ * Richtpreis als normaler Absatz, ohne Box und roten Balken (Rückmeldung
+ * dÄHLer 26.11.2026). Bei mehreren Positionen mit Preis (Paket) steht statt
+ * der Summe `packageText` (Mailtext text_package_offer), weil der
+ * Paketpreis unter der Summe der Einzelpreise liegt; ohne `packageText`
+ * (interne Anfrage-Mail) weiterhin die Summe.
+ */
 export function estimateBox(params: {
   estimatedTotal: number | null;
+  /** «ab» vor der Summe, wenn eine der Positionen in der Excel «ab» führt. */
+  estimatedFrom?: boolean;
   hasOnRequest: boolean;
   locale: Locale;
+  packageText?: string | null;
 }): MailBlock {
+  if (params.packageText) return paragraph(params.packageText);
   const dict = getDictionary(params.locale);
   const pkg = dict.steps.done.package;
   const label = params.hasOnRequest ? pkg.totalWithOnRequest : pkg.total;
-  const value = params.estimatedTotal != null ? chfFrom(params.estimatedTotal, params.locale) : pkg.onRequest;
+  const value =
+    params.estimatedTotal != null
+      ? chfPrice(params.estimatedTotal, params.locale, params.estimatedFrom === true)
+      : pkg.onRequest;
   const html =
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;background:${PANEL};border-left:4px solid ${BRAND_RED};">` +
-    `<tr><td style="padding:14px 16px;">` +
-    `<div style="font-family:${FONT};font-size:12px;color:${MUTED};text-transform:uppercase;letter-spacing:.04em;">${escapeHtml(
-      label,
-    )}</div>` +
-    `<div style="font-family:${MONO};font-size:20px;font-weight:bold;color:${BRAND_DARK};">${escapeHtml(
-      value,
-    )}</div>` +
-    `</td></tr></table>`;
+    `<p style="margin:0 0 16px;">${escapeHtml(label)}: <b style="color:${BRAND_DARK};">${escapeHtml(value)}</b></p>`;
   const text = `${label}: ${value}`;
   return { html, text };
 }
@@ -599,7 +605,10 @@ export function fineprint(text: string): MailBlock {
 
 // --- Layout --------------------------------------------------------------
 
-const WORDMARK_HTML = `<span style="color:${BRAND_RED};">d</span>ÄHLer`;
+function logoUrl(): string {
+  const base = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  return `${base}/img/daehler-logo-quality.png`;
+}
 
 function layoutHtml(params: { title?: string; bodyHtml: string }): string {
   const heading = params.title
@@ -613,8 +622,8 @@ function layoutHtml(params: { title?: string; bodyHtml: string }): string {
     `<tr><td align="center" style="padding:0 16px;">` +
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;">` +
     `<tr><td style="background:${BRAND_DARK};padding:26px 28px;">` +
-    `<div style="font-family:${FONT};font-size:22px;font-weight:bold;letter-spacing:.5px;color:#ffffff;">${WORDMARK_HTML}</div>` +
-    `<div style="font-family:${FONT};font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#9aa3a5;margin-top:2px;">Competition Line &middot; Belp</div>` +
+    // 442 x 108 px, auf halbe Breite für Retina-Schärfe.
+    `<img src="${escapeHtml(logoUrl())}" width="221" height="54" alt="dÄHLer" style="display:block;border:0;outline:none;width:221px;height:auto;max-width:100%;font-family:${FONT};font-size:22px;font-weight:bold;color:#ffffff;">` +
     `</td></tr>` +
     `<tr><td style="padding:28px;font-family:${FONT};color:${TEXT};font-size:15px;line-height:1.55;">` +
     heading +

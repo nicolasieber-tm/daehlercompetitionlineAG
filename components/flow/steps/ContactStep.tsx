@@ -169,6 +169,19 @@ export function ContactStep({
         ))}
       </div>
 
+      <div className="mt-6">
+        <Field
+          as="textarea"
+          label={t.steps.contact.noteLabel}
+          inputProps={{
+            rows: 3,
+            placeholder: t.steps.contact.notePlaceholder,
+            value: state.message,
+            onChange: (e) => dispatch({ type: "SET_MESSAGE", message: e.target.value }),
+          }}
+        />
+      </div>
+
       <div className="mt-6 flex flex-col gap-1.5">
         <label className="flex items-start gap-2.5 text-[13px] text-dim">
           <input

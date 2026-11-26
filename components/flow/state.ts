@@ -17,12 +17,13 @@ import { driveProductVisible } from "@/lib/catalog/drive";
 import { gearboxProductVisible } from "@/lib/catalog/gearbox";
 import { hasVmaxLift, isStageProduct } from "@/lib/catalog/product-display";
 import { variantsConflict } from "@/lib/catalog/variant-groups";
+import { isFromPriceNote } from "@/lib/i18n/format";
 import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
 import type { VehicleLabelFamily, VehicleLabelModel } from "@/lib/catalog/vehicle-label";
 import type { Salutation } from "@/lib/mail/anrede";
-import type { BodyStyle, Brand, Channel, Character, Drive, FlowCategory, InquiryGearbox, Timing } from "@/lib/db/rows";
+import type { BodyStyle, Brand, Channel, Drive, FlowCategory, InquiryGearbox, Timing } from "@/lib/db/rows";
 
-export type StepId = "car" | "wish" | `cat:${FlowCategory}` | "character" | "contact" | "done";
+export type StepId = "car" | "wish" | `cat:${FlowCategory}` | "contact" | "done";
 
 export function categoryOfStep(step: StepId): FlowCategory | null {
   return step.startsWith("cat:") ? (step.slice(4) as FlowCategory) : null;
@@ -89,10 +90,8 @@ export interface FlowState {
 
   // Schritt 3: je Kategorie
   selections: Partial<Record<FlowCategory, CatalogProduct[]>>;
-  followUpAnswers: Partial<Record<FlowCategory, string>>;
-
-  // Schritt 4: Charakter
-  character: Character | null;
+  // Folgefragen je Kategorie und Charakter-Schritt seit 26.11.2026 entfernt
+  // (Rückmeldung dÄHLer). Freitext jetzt im Kontakt-Schritt.
   message: string;
 
   // Schritt 5: Termin und Kontakt
@@ -139,9 +138,7 @@ export function initialFlowState(): FlowState {
     upsoldCategories: [],
 
     selections: {},
-    followUpAnswers: {},
 
-    character: null,
     message: "",
 
     timing: "asap",
@@ -165,12 +162,16 @@ export function isShortFlow(state: FlowState, yearOlderLabel: string): boolean {
   return !state.familyHasPricelist || state.year === yearOlderLabel || state.modelId === null;
 }
 
-/** Schrittfolge car -> wish -> cat:<id>... -> character -> contact -> done (Kurzablauf ohne cat:-Schritte). */
+/**
+ * Schrittfolge car -> wish -> cat:<id>... -> contact -> done (Kurzablauf ohne
+ * cat:-Schritte). Den Schritt «character» gibt es seit 26.11.2026 nicht mehr
+ * (Rückmeldung dÄHLer), das Freitextfeld steht jetzt im Kontakt-Schritt.
+ */
 export function buildSteps(state: FlowState, yearOlderLabel: string): StepId[] {
   if (isShortFlow(state, yearOlderLabel)) {
-    return ["car", "wish", "character", "contact", "done"];
+    return ["car", "wish", "contact", "done"];
   }
-  return ["car", "wish", ...state.categories.map((c): StepId => `cat:${c}`), "character", "contact", "done"];
+  return ["car", "wish", ...state.categories.map((c): StepId => `cat:${c}`), "contact", "done"];
 }
 
 /** Alle aktuell gewählten Produkte über alle Kategorien, in Kategorie-Reihenfolge. */
@@ -187,6 +188,13 @@ export function selectionTotal(state: FlowState): number | null {
   const priced = allSelectedProducts(state).filter((p) => p.priceStatus === "priced" && p.priceTotal != null);
   if (priced.length === 0) return null;
   return priced.reduce((sum, p) => sum + (p.priceTotal ?? 0), 0);
+}
+
+/** true, wenn eine Position der Richtsumme in der Excel mit «ab» geführt wird (dann auch die Summe «ab»). */
+export function selectionTotalIsFrom(state: FlowState): boolean {
+  return allSelectedProducts(state).some(
+    (p) => p.priceStatus === "priced" && p.priceTotal != null && isFromPriceNote(p.priceNote),
+  );
 }
 
 /** true, wenn mindestens eine gewählte Position ohne Preis ist (in_preparation/on_request). */
@@ -316,10 +324,8 @@ export type FlowAction =
   | { type: "TOGGLE_CATEGORY"; category: FlowCategory }
   | { type: "SET_CONSULTING"; value: boolean }
   | { type: "PICK_PRODUCT"; category: FlowCategory; product: CatalogProduct }
-  | { type: "SET_FOLLOW_UP"; category: FlowCategory; optionId: string }
   | { type: "ADD_UPSELL_CATEGORY"; category: FlowCategory; afterCategory: FlowCategory; firstProduct: CatalogProduct | null }
   | { type: "REMOVE_UPSELL_CATEGORY"; category: FlowCategory }
-  | { type: "SET_CHARACTER"; character: Character }
   | { type: "SET_MESSAGE"; message: string }
   | { type: "SET_TIMING"; timing: Timing }
   | { type: "SET_CHANNEL"; channel: Channel }
@@ -521,8 +527,6 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
       return { ...state, selections };
     }
 
-    case "SET_FOLLOW_UP":
-      return { ...state, followUpAnswers: { ...state.followUpAnswers, [action.category]: action.optionId } };
 
     case "ADD_UPSELL_CATEGORY": {
       if (state.categories.includes(action.category)) return state;
@@ -539,13 +543,9 @@ export function flowReducer(state: FlowState, action: FlowAction): FlowState {
       const upsoldCategories = state.upsoldCategories.filter((c) => c !== action.category);
       const selections = { ...state.selections };
       delete selections[action.category];
-      const followUpAnswers = { ...state.followUpAnswers };
-      delete followUpAnswers[action.category];
-      return { ...state, categories, upsoldCategories, selections, followUpAnswers };
+      return { ...state, categories, upsoldCategories, selections };
     }
 
-    case "SET_CHARACTER":
-      return { ...state, character: action.character };
 
     case "SET_MESSAGE":
       return { ...state, message: action.message };

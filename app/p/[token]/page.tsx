@@ -8,7 +8,10 @@ import { notFound } from "next/navigation";
 import { BeforeAfter, PowerAfterValue, PowerBeforeValue, Summary } from "@/components/ui";
 import { getInquiryByShareToken } from "@/lib/inquiry/share";
 import { getDictionary, isLocale, tf } from "@/lib/i18n/dictionaries";
-import { chfFrom } from "@/lib/i18n/format";
+import { chfPrice } from "@/lib/i18n/format";
+import { isPackage } from "@/lib/catalog/package";
+import { getSettings } from "@/lib/mail/settings";
+import { fillMailText, resolveMailTexts } from "@/lib/mail/texts";
 import { buildBeforeAfterRows } from "@/lib/catalog/before-after";
 import { displayItemFields, isStageItem } from "@/lib/catalog/product-display";
 import type { FlowCategory } from "@/lib/db/rows";
@@ -32,7 +35,19 @@ export default async function SharedInquiryPage({
 
   const unpriced = inquiry.items.some((i) => i.priceStatus !== "priced");
   const totalLabel = unpriced ? t.steps.done.package.totalWithOnRequest : t.steps.done.package.total;
-  const totalValue = inquiry.estimatedTotal != null ? chfFrom(inquiry.estimatedTotal, locale) : t.steps.done.package.onRequest;
+  const pricedItems = inquiry.items.filter((i) => i.priceStatus === "priced" && i.priceTotal != null);
+  const totalValue =
+    inquiry.estimatedTotal != null
+      ? chfPrice(inquiry.estimatedTotal, locale, pricedItems.some((i) => i.priceFrom))
+      : t.steps.done.package.onRequest;
+  // Rückmeldung dÄHLer 26.11.2026: bei einem Paket statt der Summe der
+  // Hinweis auf das Paketangebot (Mailtext text_package_offer).
+  const totalNote = isPackage(pricedItems.map(() => true))
+    ? fillMailText(resolveMailTexts(locale, await getSettings()).text_package_offer, {
+        vorname: inquiry.firstName ?? "",
+        fahrzeug: inquiry.vehicleLabel,
+      })
+    : null;
 
   // Nachzug Prüfung Phase D, Punkt 1: dieselbe Positionsdarstellung wie in
   // der Kachel (CategoryStep.tsx) und in den Mails/dem Antwortentwurf
@@ -69,7 +84,7 @@ export default async function SharedInquiryPage({
         name: display.name,
         price:
           p.priceStatus === "priced" && p.priceTotal != null
-            ? tf(t.priceStatus.priced, { price: chfFrom(p.priceTotal, locale) })
+            ? tf(t.priceStatus.priced, { price: chfPrice(p.priceTotal, locale, p.priceFrom) })
             : p.priceStatus === "in_preparation"
               ? t.priceStatus.in_preparation
               : t.priceStatus.on_request,
@@ -159,6 +174,7 @@ export default async function SharedInquiryPage({
           lines={summaryLines}
           totalLabel={totalLabel}
           totalValue={totalValue}
+          totalNote={totalNote}
         />
 
         <p className="text-[13px] text-dim">{t.mail.reply.footer}</p>

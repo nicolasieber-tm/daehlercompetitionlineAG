@@ -258,9 +258,6 @@ export const en: Dictionary = {
         },
         { id: "maximum", title: "Maximum", description: "Everything that is type approved." },
       ],
-      noteLabel: "Anything else we should know? (optional)",
-      notePlaceholder:
-        "e.g. warranty runs until 2027, or: wheels should match the Frozen paint",
     },
 
     timing: {
@@ -275,6 +272,9 @@ export const en: Dictionary = {
     },
 
     contact: {
+      noteLabel: "Anything else we should know? (optional)",
+      notePlaceholder:
+        "e.g. warranty runs until 2027, or: wheels should match the Frozen paint",
       emptyCategories: {
         title: "Areas without a product",
         text: "You have not selected a product here yet. We are happy to advise you, or you can still select something now.",
@@ -442,7 +442,7 @@ export const en: Dictionary = {
     itemLineGrouped: "- {name}{description}{price}",
     categoryAdvice: "We will be glad to advise you personally on the right solution.",
     itemDescription: " ({description})",
-    itemPrice: ", from {price}",
+    itemPrice: ", {price}",
     itemPriceInPreparation: ", in preparation",
     itemPriceOnRequest: ", on request",
     itemsFallback: "We will put together a package based on your wish.",
@@ -453,7 +453,7 @@ export const en: Dictionary = {
     priceLine: "Indicative price for the complete package: {price}, including fitting, excluding roadworthiness test.",
     priceLineOnRequest: "We will let you know the indicative price after a short check, including fitting, excluding roadworthiness test.",
     recommendation: "Our recommendation: {name}",
-    recommendationPrice: "Price: from {price}, including fitting, excluding roadworthiness test",
+    recommendationPrice: "Price: {price}, including fitting, excluding roadworthiness test",
     recommendationPriceInPreparation: "Price: in preparation",
     recommendationPriceOnRequest: "Price: on request",
     // No hardcoded text: name comes from settings.signature_name, {company}

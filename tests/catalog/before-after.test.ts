@@ -89,9 +89,8 @@ describe("lib/catalog/before-after.ts buildBeforeAfterRows", () => {
     expect(exterieur.before).toBe("Serie");
     expect(exterieur.after).toBe("Beratung");
 
-    // Charakter-Zeile ist immer enthalten, auch ohne gewählten Charakter.
-    const charakter = rows.find((r) => r.id === "charakter")!;
-    expect(charakter.after).toBe("Beratung");
+    // Seit 26.11.2026 keine Charakter-Zeile ohne gespeicherten Charakter.
+    expect(rows.find((r) => r.id === "charakter")).toBeUndefined();
   });
 
   // Motor gewählt, aber ohne Leistungsstufe (nur eine Nicht-Stufen-Option,
