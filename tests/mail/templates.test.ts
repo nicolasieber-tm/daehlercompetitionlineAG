@@ -975,10 +975,11 @@ describe("confirmation nach Rückmeldung 26.11.2026", () => {
     expect(result.html).not.toContain(">Sound<");
   });
 
-  it("Paket (zwei Positionen mit Preis): Hinweis statt Summe, ohne Prozentangabe", () => {
+  it("mehrere Positionen mit Preis: Summe der Einzelpreise, darunter Paket-Hinweis ohne Prozentangabe", () => {
     const result = buildConfirmation(makeContext({ locale: "de", items: itemsWithPrices, withModel: true }));
+    expect(result.text).toContain("Summe der Einzelpreise, unverbindlich: CHF 8'360\n\nBei mehreren Positionen prüfen wir gerne");
     expect(result.text).toContain("unverbindliches Paketangebot mit Preisvorteil");
-    expect(result.text).not.toContain("CHF 8'360");
+    expect(result.text).not.toContain("Richtpreis, unverbindlich:");
     expect(result.text).not.toContain("%");
   });
 

@@ -108,7 +108,7 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
       "Wir freuen uns, Ihr Fahrzeug gemeinsam mit Ihnen sportlich und technisch sinnvoll weiterzuentwickeln.\n\n" +
       "Sportliche Grüsse aus Belp\n\ndÄHLer Competition Line AG",
     text_package_offer:
-      "Für die Kombination mehrerer Positionen erstellen wir Ihnen gerne ein unverbindliches Paketangebot mit Preisvorteil.",
+      "Bei mehreren Positionen prüfen wir gerne ein unverbindliches Paketangebot mit Preisvorteil für Sie.",
     text_draft_intro:
       "Guten Tag {{anrede}}\n\n" +
       "Gerne kommen wir auf Ihre Anfrage Nr. {{nummer}} für Ihren {{fahrzeug}} zurück.",
@@ -159,7 +159,7 @@ export const DEFAULT_MAIL_TEXTS: Record<Locale, MailTexts> = {
       "We look forward to developing your car together with you, sporty and technically sound.\n\n" +
       "Sporty greetings from Belp\n\ndÄHLer Competition Line AG",
     text_package_offer:
-      "For a combination of several items we will be glad to prepare a non-binding package offer at a preferential price.",
+      "For several items we will be glad to check a non-binding package offer at a preferential price for you.",
     text_draft_intro:
       "Dear {{anrede}}\n\n" +
       "Following up on your enquiry no. {{nummer}} for your {{fahrzeug}}, we are pleased to send you our offer.",

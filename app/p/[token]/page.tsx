@@ -34,20 +34,28 @@ export default async function SharedInquiryPage({
   const categories = inquiry.categories as FlowCategory[];
 
   const unpriced = inquiry.items.some((i) => i.priceStatus !== "priced");
-  const totalLabel = unpriced ? t.steps.done.package.totalWithOnRequest : t.steps.done.package.total;
   const pricedItems = inquiry.items.filter((i) => i.priceStatus === "priced" && i.priceTotal != null);
   const totalValue =
     inquiry.estimatedTotal != null
       ? chfPrice(inquiry.estimatedTotal, locale, pricedItems.some((i) => i.priceFrom))
       : t.steps.done.package.onRequest;
-  // Rückmeldung dÄHLer 26.11.2026: bei einem Paket statt der Summe der
-  // Hinweis auf das Paketangebot (Mailtext text_package_offer).
+  // Rückmeldung dÄHLer 26.11./27.11.2026: ab zwei Positionen mit Preis die
+  // Summe der Einzelpreise und darunter der Paket-Hinweis (Mailtext
+  // text_package_offer, lib/catalog/package.ts).
   const totalNote = isPackage(pricedItems.map(() => true))
     ? fillMailText(resolveMailTexts(locale, await getSettings()).text_package_offer, {
         vorname: inquiry.firstName ?? "",
         fahrzeug: inquiry.vehicleLabel,
       })
     : null;
+  const pkgDict = t.steps.done.package;
+  const totalLabel = totalNote
+    ? unpriced
+      ? pkgDict.totalSingleWithOnRequest
+      : pkgDict.totalSingle
+    : unpriced
+      ? pkgDict.totalWithOnRequest
+      : pkgDict.total;
 
   // Nachzug Prüfung Phase D, Punkt 1: dieselbe Positionsdarstellung wie in
   // der Kachel (CategoryStep.tsx) und in den Mails/dem Antwortentwurf

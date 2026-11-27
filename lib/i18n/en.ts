@@ -37,6 +37,7 @@ export const en: Dictionary = {
     next: "Next",
     submit: "Send request",
     soFar: "So far {price}",
+    soFarPackage: "Single prices {price} · package offer possible",
     stepOf: "Step {current} of {total}",
     toInternal: "How this arrives at dÄHLer",
     retry: "Try again",
@@ -343,6 +344,8 @@ export const en: Dictionary = {
         categoryAdviceLine: "Advice requested",
         total: "Indicative price, non binding",
         totalWithOnRequest: "Indicative price, non binding, excluding items on request",
+        totalSingle: "Sum of single prices, non binding",
+        totalSingleWithOnRequest: "Sum of single prices, non binding, excluding items on request",
         onRequest: "on request",
       },
       next: {

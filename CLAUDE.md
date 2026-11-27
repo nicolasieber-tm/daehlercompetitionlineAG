@@ -29,7 +29,7 @@ Dieses Dokument ist verbindlich. Es hält die Entscheidungen aus den Kundengespr
 
 **Modelle ohne Preisliste:** Ältere Fahrzeuge (F- und E-Serie) und Modelle, für die keine Excel-Daten existieren, laufen über einen verkürzten Ablauf «auf Anfrage»: Fahrzeug, Kategorien, Charakter, Kontakt. Keine Produktauswahl, keine Preise, keine Paketsumme.
 
-**Preise sichtbar:** Der Kunde sieht pro Option einen Fixpreis «CHF 7'900». «ab CHF» nur, wo die Excel es in der Präfix-Spalte führt (`products.price_note`), eine Summe mit einer solchen Position ebenfalls «ab» (Entscheid 26.11.2026). Bei einer Einzelposition eine Richtsumme, ab zwei Positionen mit Preis (Paket) statt der Summe ein im Admin pflegbarer Hinweis auf ein unverbindliches Paketangebot mit Preisvorteil, ohne Prozentangabe (Paketpreise liegen unter der Summe der Einzelpreise). Immer «unverbindlich». Preise inkl. Einbau, exkl. MFK, so wie in den PDFs. Der Antwortentwurf nennt die Summe weiterhin, dÄHLer setzt dort den Paketpreis ein.
+**Preise sichtbar:** Der Kunde sieht pro Option einen Fixpreis «CHF 7'900». «ab CHF» nur, wo die Excel es in der Präfix-Spalte führt (`products.price_note`), eine Summe mit einer solchen Position ebenfalls «ab» (Entscheid 26.11.2026). Bei einer Einzelposition eine Richtsumme. Ab zwei Positionen mit Preis die «Summe der Einzelpreise» und darunter ein im Admin pflegbarer Hinweis auf ein unverbindliches Paketangebot mit Preisvorteil, ohne Prozentangabe. Welche Kombinationen einen Paketpreis bekommen, weiss das Tool nicht (die Excel führt keine Pakete), der Hinweis stellt deshalb nur in Aussicht und sagt nichts zu (Entscheid 27.11.2026). In der Navigation «Einzelpreise CHF … · Paketangebot möglich». Immer «unverbindlich». Preise inkl. Einbau, exkl. MFK, so wie in den PDFs. Der Antwortentwurf nennt die Summe weiterhin, dÄHLer setzt dort den Paketpreis ein.
 
 **Kein Roding.** Marken: BMW, MINI, Toyota, Wiesmann.
 
@@ -77,12 +77,12 @@ Die Excel-Struktur zuerst analysieren, bevor das Modell festgezurrt wird. Bekann
 3. Pro gewählter Kategorie ein Schritt: Optionen aus `products`, Varianten exklusiv, Ergänzungen kombinierbar, Preise siehe «Preise sichtbar». Keine Folgefragen (Entscheid 26.11.2026, «zu viel des Guten»). Beim Motor der PS-Zähler «Serie → mit Stufe X». «Passt gut dazu»-Vorschlag für eine nicht gewählte Kategorie, ein Klick fügt sie als nächsten Schritt ein.
 4. Kein Charakter-Schritt mehr (Entscheid 26.11.2026, Dezent / Sportlich / Maximum entfernt).
 5. Termin (Zeitraum-Chips) und Kontakt (Vorname, Name, Ort, Telefon, E-Mail, bevorzugter Kanal), optionales Freitextfeld. Datenschutz-Hinweis.
-6. Abschluss: Foto, Vorher/Nachher-Tabelle, «Paket als Link teilen» (echter Link auf eine read-only Ansicht der Anfrage), Paket mit Richtsumme bzw. Paket-Hinweis, nächste Schritte.
+6. Abschluss: Foto, Vorher/Nachher-Tabelle, «Paket als Link teilen» (echter Link auf eine read-only Ansicht der Anfrage), Paket mit Richtsumme bzw. Summe der Einzelpreise und Paket-Hinweis, nächste Schritte.
    Kein «Zusammenfassung an mich senden» (Entscheid 17.09.2026): Die Bestätigungsmail enthält die Zusammenfassung bereits, der Kunde bekäme sie sonst doppelt.
 
 Bei Absenden: Anfrage speichern, Bestätigungsmail an Kunden, Anfrage-Mail an info@daehler.com mit strukturierter Zusammenfassung, Prüfhinweisen und Antwortentwurf, Link in den Admin.
 
-Bestätigungsmail (Entscheid 26.11.2026): Kopf mit dem Original-Schriftzug (Bild), Einleitung, Schwerpunktsatz, Fahrzeug/Wunsch/Termin/Kontakt, Vorher/Nachher nur mit der Leistungszeile (Schalter im Admin für die volle Tabelle), Positionen als Liste, Richtpreis bzw. Paket-Hinweis als normaler Text ohne Box, danach direkt der Schluss. Kein Link «Paket ansehen», keine «nächsten Schritte».
+Bestätigungsmail (Entscheid 26.11.2026): Kopf mit dem Original-Schriftzug (Bild), Einleitung, Schwerpunktsatz, Fahrzeug/Wunsch/Termin/Kontakt, Vorher/Nachher nur mit der Leistungszeile (Schalter im Admin für die volle Tabelle), Positionen als Liste, Richtpreis bzw. Summe der Einzelpreise mit Paket-Hinweis als normaler Text ohne Box, danach direkt der Schluss. Kein Link «Paket ansehen», keine «nächsten Schritte».
 
 ## Prüfhinweise (regelbasiert, erweiterbar)
 
