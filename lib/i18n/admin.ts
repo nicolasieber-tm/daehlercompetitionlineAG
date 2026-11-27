@@ -377,8 +377,8 @@ export const admin = {
         help: "{{schwerpunkt}} setzt das Tool aus den gewählten Bereichen zusammen (Reiter «Schwerpunkt-Wendungen»). Am Satzanfang wird er automatisch gross geschrieben.",
       },
       text_package_offer: {
-        label: "4. Paket-Hinweis statt Richtpreis",
-        help: "Steht bei zwei oder mehr Positionen mit Preis anstelle der Summe, in der Bestätigungsmail, auf der Abschlussseite und auf der geteilten Paketseite. Bei einer einzelnen Position steht der Richtpreis.",
+        label: "4. Paket-Hinweis",
+        help: "Steht bei zwei oder mehr Positionen mit Preis unter der Summe der Einzelpreise, in der Bestätigungsmail, auf der Abschlussseite und auf der geteilten Paketseite. Das Tool weiss nicht, welche Kombinationen einen Paketpreis bekommen, formulieren Sie den Satz deshalb als Angebot, nicht als Zusage. Bei einer einzelnen Position steht nur der Richtpreis.",
       },
       text_draft_items_intro: {
         label: "2. Überleitung zu den Positionen",

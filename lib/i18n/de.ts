@@ -33,6 +33,8 @@ export const de = {
     next: "Weiter",
     submit: "Anfrage senden",
     soFar: "Bisher {price}",
+    // Ab zwei Positionen mit Preis (lib/catalog/package.ts).
+    soFarPackage: "Einzelpreise {price} · Paketangebot möglich",
     stepOf: "Schritt {current} von {total}",
     toInternal: "So kommt es bei dÄHLer an",
     retry: "Erneut versuchen",
@@ -386,6 +388,9 @@ export const de = {
         categoryAdviceLine: "Beratung gewünscht",
         total: "Richtpreis, unverbindlich",
         totalWithOnRequest: "Richtpreis, unverbindlich, ohne Positionen auf Anfrage",
+        // Ab zwei Positionen mit Preis, darunter der Paket-Hinweis (lib/catalog/package.ts).
+        totalSingle: "Summe der Einzelpreise, unverbindlich",
+        totalSingleWithOnRequest: "Summe der Einzelpreise, unverbindlich, ohne Positionen auf Anfrage",
         onRequest: "auf Anfrage",
       },
       next: {

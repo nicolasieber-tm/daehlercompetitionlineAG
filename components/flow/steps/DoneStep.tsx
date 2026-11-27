@@ -69,11 +69,9 @@ export function DoneStep({
 
   const total = selectionTotal(state);
   const unpriced = hasUnpricedSelection(state);
-  const totalLabel = unpriced ? t.steps.done.package.totalWithOnRequest : t.steps.done.package.total;
   const totalValue = total != null ? chfPrice(total, locale, selectionTotalIsFrom(state)) : t.steps.done.package.onRequest;
-  // Rückmeldung dÄHLer 26.11.2026: ab zwei Positionen mit Preis gilt das
-  // Paket, der Paketpreis liegt unter der Summe, deshalb der Hinweis statt
-  // der Summe.
+  // Rückmeldung dÄHLer 26.11./27.11.2026: ab zwei Positionen mit Preis die
+  // Summe der Einzelpreise und darunter der Paket-Hinweis (lib/catalog/package.ts).
   const packageNote = isPackage(
     allSelectedProducts(state).map((p) => p.priceStatus === "priced" && p.priceTotal != null),
   )
@@ -83,6 +81,14 @@ export function DoneStep({
         fahrzeug: vehicleLabel,
       })
     : null;
+  const pkgDict = t.steps.done.package;
+  const totalLabel = packageNote
+    ? unpriced
+      ? pkgDict.totalSingleWithOnRequest
+      : pkgDict.totalSingle
+    : unpriced
+      ? pkgDict.totalWithOnRequest
+      : pkgDict.total;
 
   const summaryLines = state.categories.flatMap((c) => {
     const items = state.selections[c] ?? [];

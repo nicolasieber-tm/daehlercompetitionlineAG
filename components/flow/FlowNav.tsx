@@ -13,6 +13,7 @@ export function FlowNav({
   isSubmitting,
   total,
   totalFrom,
+  totalIsPackage,
   onBack,
   onNext,
 }: {
@@ -23,10 +24,14 @@ export function FlowNav({
   total: number | null;
   /** «ab» vor der Summe, wenn eine Position laut Excel «ab» ist. */
   totalFrom: boolean;
+  /** Ab zwei Positionen mit Preis «Einzelpreise … · Paketangebot möglich» (lib/catalog/package.ts). */
+  totalIsPackage: boolean;
   onBack: () => void;
   onNext: () => void;
 }) {
   const { t, tf, locale } = useT();
+  const totalText =
+    total != null ? tf(totalIsPackage ? t.nav.soFarPackage : t.nav.soFar, { price: chfPrice(total, locale, totalFrom) }) : null;
 
   return (
     <div className="sticky bottom-0 z-10 mt-8 border-t border-line bg-bg-alt/95 px-1 py-3 backdrop-blur xs:static xs:bg-transparent xs:px-0 xs:py-5 xs:backdrop-blur-none">
@@ -36,7 +41,7 @@ export function FlowNav({
           .basket zeigt sie ohne Breakpoint-Ausblendung). */}
       {total != null ? (
         <div className="mb-2 font-mono text-[13px] text-muted xs:hidden">
-          {tf(t.nav.soFar, { price: chfPrice(total, locale, totalFrom) })}
+          {totalText}
         </div>
       ) : null}
       <div className="flex items-center justify-between gap-4">
@@ -50,7 +55,7 @@ export function FlowNav({
         <div className="flex items-center gap-4.5">
           {total != null ? (
             <span className="hidden font-mono text-[13px] text-muted xs:inline">
-              {tf(t.nav.soFar, { price: chfPrice(total, locale, totalFrom) })}
+              {totalText}
             </span>
           ) : null}
           {/* Minor-Befund "Enter im Kontaktformular": im Schritt "contact"

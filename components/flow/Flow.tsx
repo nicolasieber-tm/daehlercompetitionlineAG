@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui";
 import { useT } from "@/lib/i18n/provider";
 import type { CatalogFamily, CategoryNote, ProductGroup, ProductTranslations } from "@/lib/catalog/queries";
 import { vehicleLineOptions } from "@/lib/catalog/vehicle-label";
+import { isPackage } from "@/lib/catalog/package";
 import { Hero } from "./Hero";
 import { FlowNav } from "./FlowNav";
 import { CarStep } from "./steps/CarStep";
@@ -347,6 +348,9 @@ export function Flow({
 
   const total = selectionTotal(state);
   const totalFrom = selectionTotalIsFrom(state);
+  const totalIsPackage = isPackage(
+    allSelectedProducts(state).map((p) => p.priceStatus === "priced" && p.priceTotal != null),
+  );
 
   return (
     <div className="min-h-screen bg-bg">
@@ -371,6 +375,7 @@ export function Flow({
                     isSubmitting={state.submitStatus === "submitting"}
                     total={total}
                     totalFrom={totalFrom}
+                    totalIsPackage={totalIsPackage}
                     onBack={handleBack}
                     onNext={handleNext}
                   />

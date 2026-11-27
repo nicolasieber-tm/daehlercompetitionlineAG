@@ -529,10 +529,10 @@ export function monoBlock(text: string): MailBlock {
 
 /**
  * Richtpreis als normaler Absatz, ohne Box und roten Balken (Rückmeldung
- * dÄHLer 26.11.2026). Bei mehreren Positionen mit Preis (Paket) steht statt
- * der Summe `packageText` (Mailtext text_package_offer), weil der
- * Paketpreis unter der Summe der Einzelpreise liegt; ohne `packageText`
- * (interne Anfrage-Mail) weiterhin die Summe.
+ * dÄHLer 26.11.2026). Bei mehreren Positionen mit Preis (`packageText`
+ * gesetzt, Mailtext text_package_offer) heisst die Summe «Summe der
+ * Einzelpreise», darunter steht der Paket-Hinweis (lib/catalog/package.ts).
+ * Ohne `packageText` (interne Anfrage-Mail, Einzelposition) nur die Summe.
  */
 export function estimateBox(params: {
   estimatedTotal: number | null;
@@ -542,10 +542,15 @@ export function estimateBox(params: {
   locale: Locale;
   packageText?: string | null;
 }): MailBlock {
-  if (params.packageText) return paragraph(params.packageText);
   const dict = getDictionary(params.locale);
   const pkg = dict.steps.done.package;
-  const label = params.hasOnRequest ? pkg.totalWithOnRequest : pkg.total;
+  const label = params.packageText
+    ? params.hasOnRequest
+      ? pkg.totalSingleWithOnRequest
+      : pkg.totalSingle
+    : params.hasOnRequest
+      ? pkg.totalWithOnRequest
+      : pkg.total;
   const value =
     params.estimatedTotal != null
       ? chfPrice(params.estimatedTotal, params.locale, params.estimatedFrom === true)
@@ -553,7 +558,9 @@ export function estimateBox(params: {
   const html =
     `<p style="margin:0 0 16px;">${escapeHtml(label)}: <b style="color:${BRAND_DARK};">${escapeHtml(value)}</b></p>`;
   const text = `${label}: ${value}`;
-  return { html, text };
+  if (!params.packageText) return { html, text };
+  const note = paragraph(params.packageText);
+  return { html: html + note.html, text: `${text}\n\n${note.text}` };
 }
 
 /** Prüfhinweise als Liste (nur intern, inbox). */
